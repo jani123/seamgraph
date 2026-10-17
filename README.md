@@ -6,6 +6,21 @@ consumer references, enforce boundaries, compare Git revisions, and inspect
 explicit contract-test evidence. All adapters normalize to the same versioned IR;
 policy, comparison, verification and UI have no language-specific behavior.
 
+## Install a prebuilt release
+
+After publishing the first release containing the installer:
+
+```sh
+curl -fsSL https://github.com/jani123/seamgraph/releases/latest/download/install.sh | sh -s -- --languages python,typescript
+```
+
+No Go installation is needed to install the binary. Choose only the languages you
+analyze; the installer checks their existing runtimes. See [installation and
+devcontainer setup](docs/installation.md) for pinned versions, runtime provisioning
+and Windows downloads.
+
+## Build from source
+
 ```sh
 go mod download
 go build -o .build/seamgraph ./cmd/seamgraph

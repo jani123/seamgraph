@@ -1,0 +1,76 @@
+name: release
+on:
+  push:
+    tags: ['v*']
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Test release source
+        run: go test ./...
+      - name: Test installer failure and checksum handling
+        run: python3 -m unittest discover -s scripts/tests -v
+      - name: Package all supported operating systems and architectures
+        run: scripts/package-release.sh "$GITHUB_REF_NAME" "$GITHUB_REPOSITORY" dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release
+          path: dist/
+          if-no-files-found: error
+  smoke:
+    needs: build
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: release
+          path: dist
+      - name: Smoke test native release binary
+        shell: pwsh
+        run: |
+          $platform = if ($IsWindows) { 'windows' } elseif ($IsMacOS) { 'darwin' } else { 'linux' }
+          $arch = if ([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture -eq 'Arm64') { 'arm64' } else { 'amd64' }
+          if ($IsWindows) {
+            Expand-Archive "dist/seamgraph_${platform}_${arch}.zip" -DestinationPath extracted
+            & ./extracted/seamgraph.exe version
+          } else {
+            New-Item -ItemType Directory extracted | Out-Null
+            tar -xzf "dist/seamgraph_${platform}_${arch}.tar.gz" -C extracted
+            & ./extracted/seamgraph version
+          }
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+  publish:
+    needs: [build, smoke]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: release
+          path: dist
+      - name: Publish versioned release and installer
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          if gh release view "$RELEASE_TAG" > /dev/null 2>&1; then
+            echo "Release already exists; refusing to replace published artifacts" >&2
+            exit 1
+          fi
+          if [[ "$RELEASE_TAG" == *-* ]]; then
+            gh release create "$RELEASE_TAG" dist/* --verify-tag --generate-notes --prerelease
+          else
+            gh release create "$RELEASE_TAG" dist/* --verify-tag --generate-notes
+          fi

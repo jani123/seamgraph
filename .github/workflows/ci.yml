@@ -48,6 +48,7 @@ jobs:
           go build -o .build/seamgraph ./cmd/seamgraph
           go vet ./...
           go test -race ./...
+          python3 -m unittest discover -s scripts/tests -v
           npm test --prefix tools/ts-analyzer
           python3 -m unittest discover -s tools/py-analyzer -v
           .build/test-python/bin/python -m unittest discover -s tools/test-runners -v

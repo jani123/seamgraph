@@ -5,6 +5,9 @@ with the application, keeps downloaded repositories and dependency caches in a
 persistent volume, and publishes the explorer on localhost. It is separate from
 the development container and does not include Codex, Devbox or editor tooling.
 
+For installation inside an existing devcontainer without Docker-in-Docker, use
+the [release installer](installation.md).
+
 ## Runtime and project dependencies
 
 | Component | Included in the image | Role |
@@ -19,7 +22,7 @@ the development container and does not include Codex, Devbox or editor tooling.
 | pytest, Vitest and other test frameworks | Project-specific | Required only when explicitly running those tests |
 
 Run `seamgraph doctor` or `seamgraph doctor --json` in a native installation. It
-checks tool availability and minimum versions, returning exit code 2 if a tool
+checks configured languages (or all tools without a project config), availability and minimum versions, returning exit code 2 if a tool
 is missing or too old. The image build runs the same check. Python analysis uses
 AST parsing rather than importing project code. Installing a Python project's
 runtime dependencies is generally needed for its tests, not for AST parsing.

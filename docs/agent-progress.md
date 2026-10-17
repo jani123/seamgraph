@@ -180,3 +180,18 @@ runtime availability and minimum versions. Project dependencies and test runners
 remain explicit project setup. CI now includes image/runtime/HTTP smoke checks.
 Docker/Podman are unavailable in this workspace; the image build has not run
 locally. See docs/deployment.md for exact usage and remaining platform limits.
+
+## Downloaded installers and release packaging
+
+Added a Linux/macOS amd64/arm64 installer for jani123/seamgraph release assets,
+SHA-256 verification, atomic replacement, version pinning and selective runtime
+checks. The installer reuses project runtimes and does not modify system packages.
+Doctor now accepts --languages and detects languages from project configuration.
+Tagged release CI builds six Linux/macOS/Windows binaries, runs native startup
+smokes and publishes archives/checksums/a stamped installer. All six targets were
+built locally; native non-Linux execution remains CI work. No release was pushed
+or published by this session.
+
+Fixed the unanchored `seamgraph` .gitignore rule, which had hidden the entire
+cmd/seamgraph source directory from Git. The now-visible cmd directory must be
+included in the next source commit. See docs/installation.md.

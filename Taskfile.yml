@@ -107,6 +107,11 @@ tasks:
     cmds:
       - npm test --prefix tools/ui
 
+  installer:test:
+    desc: Test release installer without network or system changes
+    cmds:
+      - python3 -m unittest discover -s scripts/tests -v
+
   check:
     desc: Build, format-check, vet and test Go, helpers and browser
     cmds:
@@ -114,6 +119,7 @@ tasks:
       - task: fmt:check
       - task: vet
       - task: test
+      - task: installer:test
       - task: helpers:test
       - task: runners:test
       - task: browser:test
