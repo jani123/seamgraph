@@ -1,0 +1,17 @@
+{
+  "name": "seamgraph-ts-analyzer",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "build": "node build.cjs",
+    "test": "node --test analyzer.test.cjs"
+  },
+  "dependencies": {
+    "typescript": "5.9.3"
+  },
+  "devDependencies": {
+    "esbuild": "0.25.11",
+    "prettier": "3.6.2",
+    "vitest": "3.2.4"
+  }
+}

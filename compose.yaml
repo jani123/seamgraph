@@ -1,0 +1,24 @@
+services:
+  seamgraph:
+    image: seamgraph:local
+    build:
+      context: .
+      args:
+        APP_UID: "${SEAMGRAPH_UID:-1000}"
+        APP_GID: "${SEAMGRAPH_GID:-1000}"
+    init: true
+    ports:
+      - "127.0.0.1:8765:8765"
+    volumes:
+      - seamgraph-data:/data
+    command:
+      - open
+      - "${SEAMGRAPH_REPOSITORY:?Set SEAMGRAPH_REPOSITORY to an HTTPS or SSH Git URL}"
+      - --ref
+      - "${SEAMGRAPH_REF:-HEAD}"
+      - --addr
+      - 0.0.0.0:8765
+      - --allow-network
+volumes:
+  seamgraph-data:
+    name: seamgraph-data

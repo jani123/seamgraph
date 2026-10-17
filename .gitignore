@@ -1,0 +1,12 @@
+.devbox/
+.codex-local/
+.build/
+node_modules/
+.venv/
+__pycache__/
+*.pyc
+
+.seamgraph/
+test-results/
+playwright-report/
+seamgraph

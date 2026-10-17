@@ -1,0 +1,64 @@
+# Exact hosts unless prefixed with a dot (apex and subdomains).
+# Codex service and device authentication; no TLS interception.
+api.openai.com
+auth.openai.com
+auth0.openai.com
+chatgpt.com
+ws.chatgpt.com
+ab.chatgpt.com
+cdn.openai.com
+.oaistatic.com
+.oaiusercontent.com
+
+# Documentation, Go modules/checksums/toolchain downloads.
+go.dev
+golang.org
+pkg.go.dev
+proxy.golang.org
+sum.golang.org
+dl.google.com
+storage.googleapis.com
+
+# GitHub source, API, release assets and raw content.
+github.com
+api.github.com
+codeload.github.com
+raw.githubusercontent.com
+objects.githubusercontent.com
+release-assets.githubusercontent.com
+github-releases.githubusercontent.com
+
+# Devbox/Nix package resolution, sources and binary caches.
+www.nixsearch.com
+search.devbox.sh
+get.jetify.com
+api.jetify.com
+cache.nixos.org
+channels.nixos.org
+releases.nixos.org
+nix-community.cachix.org
+
+# CLI/plugin downloads and editor extensions.
+registry.npmjs.org
+marketplace.visualstudio.com
+update.code.visualstudio.com
+vscode.download.prss.microsoft.com
+.gallery.vsassets.io
+.gallerycdn.vsassets.io
+open-vsx.org
+marketplace.cursorapi.com
+cursor-cdn.com
+downloads.cursor.com
+anysphere-binaries.s3.us-east-1.amazonaws.com
+
+# Language tooling documentation and Python package downloads.
+nodejs.org
+www.typescriptlang.org
+templ.guide
+htmx.org
+tailwindcss.com
+alpinejs.dev
+js.cytoscape.org
+docs.python.org
+pypi.org
+files.pythonhosted.org

@@ -1,0 +1,119 @@
+version: "3"
+
+includes:
+  devcontainer: .devcontainer/Taskfile.yml
+
+tasks:
+  prepare:
+    desc: Prepare local development directories (host or container)
+    cmds:
+      - mkdir -p .build .codex-local
+    status:
+      - test -d .build && test -d .codex-local
+
+  doctor:
+    desc: Verify the development toolchain
+    cmds:
+      - go version
+      - node --version
+      - npm --version
+      - python3 --version
+      - templ version
+      - gopls version
+      - git --version
+      - task --list
+
+  build:
+    desc: Build SeamGraph
+    preconditions:
+      - sh: test -f go.mod && test -d cmd/seamgraph
+        msg: Go application source is missing; see SEAMGRAPH_PLAN.md.
+    cmds:
+      - mkdir -p .build
+      - go build -o .build/seamgraph ./cmd/seamgraph
+
+  install:
+    desc: Install SeamGraph in the Go binary directory
+    cmds:
+      - go install ./cmd/seamgraph
+
+  run:
+    desc: Run SeamGraph with optional CLI arguments
+    preconditions:
+      - sh: test -f go.mod && test -d cmd/seamgraph
+        msg: Go application source is missing; see SEAMGRAPH_PLAN.md.
+    cmds:
+      - go run ./cmd/seamgraph {{.CLI_ARGS}}
+
+  test:
+    desc: Run Go tests
+    preconditions: &go-module
+      - sh: test -f go.mod
+        msg: Go application source is missing; see SEAMGRAPH_PLAN.md.
+    cmds:
+      - go test ./... {{.CLI_ARGS}}
+
+  vet:
+    desc: Vet Go packages
+    preconditions: *go-module
+    cmds:
+      - go vet ./...
+
+  fmt:
+    desc: Format Go source files
+    aliases: [format]
+    preconditions: *go-module
+    cmds:
+      - go fmt ./...
+
+  fmt:check:
+    desc: Check Go formatting without modifying files
+    cmds:
+      - test -z "$(gofmt -l cmd internal)"
+
+  deps:
+    desc: Install pinned build and test dependencies (network required once)
+    cmds:
+      - go mod download
+      - npm ci --prefix tools/ts-analyzer --no-audit --no-fund
+      - npm ci --prefix tools/ui --no-audit --no-fund
+      - python3 -m venv .build/test-python
+      - .build/test-python/bin/python -m pip install --disable-pip-version-check -r tools/py-analyzer/requirements-test.txt
+
+  generate:
+    desc: Regenerate embedded helpers, templates and local frontend assets
+    cmds:
+      - templ generate
+      - npm run --prefix tools/ts-analyzer build
+      - cp tools/py-analyzer/analyzer.py internal/analyzer/python/helper.py
+      - npm run --prefix tools/ui build
+
+  helpers:test:
+    desc: Test compiler and AST helpers
+    cmds:
+      - npm test --prefix tools/ts-analyzer
+      - python3 -m unittest discover -s tools/py-analyzer -v
+
+  runners:test:
+    desc: Collect actual Go, Vitest and pytest contract evidence end to end
+    preconditions:
+      - sh: test -x .build/test-python/bin/python && test -x .build/seamgraph
+        msg: Run task deps and task build before testing runners.
+    cmds:
+      - .build/test-python/bin/python -m unittest discover -s tools/test-runners -v
+
+  browser:test:
+    desc: Test real local browser interactions with bundled Chromium
+    cmds:
+      - npm test --prefix tools/ui
+
+  check:
+    desc: Build, format-check, vet and test Go, helpers and browser
+    cmds:
+      - task: build
+      - task: fmt:check
+      - task: vet
+      - task: test
+      - task: helpers:test
+      - task: runners:test
+      - task: browser:test

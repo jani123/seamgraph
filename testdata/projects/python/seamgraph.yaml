@@ -1,0 +1,18 @@
+version: 1
+modules:
+  world:
+    language: python
+    paths: [src/world]
+    importRoots: [src]
+    seams:
+      reader:
+        entrypoints: [src/world/api.py, src/world/__init__.py]
+  npc:
+    language: python
+    paths: [src/npc]
+    importRoots: [src]
+policies:
+  default: deny
+  allow:
+    - from: npc
+      to: world.reader

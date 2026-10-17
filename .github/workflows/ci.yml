@@ -1,0 +1,84 @@
+name: checks
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  acceptance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: |
+            tools/ts-analyzer/package-lock.json
+            tools/ui/package-lock.json
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install pinned development dependencies
+        run: |
+          go mod download
+          npm ci --prefix tools/ts-analyzer --no-audit --no-fund
+          npm ci --prefix tools/ui --no-audit --no-fund
+          python3 -m venv .build/test-python
+          .build/test-python/bin/python -m pip install --disable-pip-version-check -r tools/py-analyzer/requirements-test.txt
+          go install github.com/a-h/templ/cmd/templ@v0.3.1020
+          cd tools/ui && npx playwright install-deps chromium
+      - name: Check formatting and generated artifacts
+        run: |
+          test -z "$(gofmt -l cmd internal)"
+          templ generate
+          npm run --prefix tools/ts-analyzer build
+          cmp tools/py-analyzer/analyzer.py internal/analyzer/python/helper.py
+          npm run --prefix tools/ui build
+          git diff --exit-code -- internal
+      - name: Build, vet and test offline
+        env:
+          GOPROXY: 'off'
+          GOSUMDB: 'off'
+          GOTOOLCHAIN: local
+        run: |
+          mkdir -p .build
+          go build -o .build/seamgraph ./cmd/seamgraph
+          go vet ./...
+          go test -race ./...
+          npm test --prefix tools/ts-analyzer
+          python3 -m unittest discover -s tools/py-analyzer -v
+          .build/test-python/bin/python -m unittest discover -s tools/test-runners -v
+          npm test --prefix tools/ui
+
+  container:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build complete analysis runtime
+        run: docker build --pull -t seamgraph:ci .
+      - name: Verify runtimes and all language adapters
+        run: |
+          docker run --rm seamgraph:ci doctor --json
+          for project in go typescript python mixed; do
+            docker run --rm -v "$PWD/testdata/projects/$project:/project:ro" seamgraph:ci check --root /project --json
+          done
+      - name: Verify published local HTTP endpoint
+        run: |
+          docker run -d --name seamgraph-smoke -p 127.0.0.1:8765:8765 -v "$PWD/testdata/projects/mixed:/project:ro" seamgraph:ci serve --root /project --addr 0.0.0.0:8765 --allow-network
+          trap 'docker logs seamgraph-smoke; docker rm -f seamgraph-smoke' EXIT
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:8765/ > /dev/null; then break; fi
+            sleep 1
+          done
+          curl --fail --silent http://127.0.0.1:8765/api/model > /tmp/seamgraph-model.json
+          python3 - <<'PY'
+          import json
+          with open('/tmp/seamgraph-model.json') as f:
+              model = json.load(f)
+          assert len(model['snapshot']['modules']) == 6
+          assert len(model['snapshot']['seams']) == 3
+          assert not model['check']['incomplete']
+          PY

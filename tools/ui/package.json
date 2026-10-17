@@ -1,0 +1,20 @@
+{
+  "name": "seamgraph-ui-assets",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "build": "node vendor.cjs && tailwindcss -i input.css -o ../../internal/ui/assets/styles.css --minify",
+    "test": "playwright test"
+  },
+  "dependencies": {
+    "@alpinejs/csp": "3.15.0",
+    "cytoscape": "3.33.1",
+    "htmx.org": "2.0.8"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.56.1",
+    "@sparticuz/chromium": "141.0.0",
+    "@tailwindcss/cli": "4.1.17",
+    "tailwindcss": "4.1.17"
+  }
+}

@@ -1,0 +1,251 @@
+package ui
+
+import (
+	"fmt"
+	"net/url"
+	"seamgraph/internal/gitdiff"
+	"seamgraph/internal/ir"
+	"seamgraph/internal/policy"
+	"seamgraph/internal/verification"
+)
+
+templ Page(token string) {
+	<!DOCTYPE html>
+	<html lang="en">
+		<head>
+			<meta charset="utf-8"/>
+			<meta name="viewport" content="width=device-width,initial-scale=1"/>
+			<meta name="seamgraph-token" content={ token }/>
+			<title>SeamGraph · Architecture</title>
+			<link rel="stylesheet" href="/assets/styles.css"/><script src="/assets/htmx.min.js" defer></script>
+			<script src="/assets/cytoscape.min.js" defer></script>
+			<script src="/assets/app.js" defer></script>
+			<script src="/assets/alpine.min.js" defer></script>
+		</head>
+		<body class="explorer bg-slate-950 text-slate-100 font-sans" x-data="shell">
+			<header class="app-header border-b border-slate-800 flex items-center justify-between"><div><span class="text-emerald-400 font-mono text-lg">◈</span><strong class="ml-3 text-xl tracking-tight">SeamGraph</strong><span class="app-subtitle ml-4 text-xs text-slate-400 uppercase tracking-widest">Local architecture explorer</span></div><span id="summary" class="text-sm text-slate-400">Loading architecture…</span></header>
+			<main class="app-main">
+				<nav class="app-nav flex flex-wrap gap-2"><button class="rounded-lg bg-emerald-400 text-slate-950 px-4 py-2 font-medium" data-view="architecture">Architecture</button><button class="rounded-lg bg-slate-800 px-4 py-2" hx-get="/rules" hx-target="#details">Rules</button><button class="rounded-lg bg-slate-800 px-4 py-2" x-on:click="toggle">About evidence</button></nav>
+				<p x-show="help" x-cloak class="evidence-help text-sm text-slate-300 bg-slate-900 p-3 rounded-lg">Edges show observed dependencies. A module import alone does not prove use through an interface. Contract verification covers explicitly declared requirements with current linked evidence; it does not prove the absence of bugs.</p>
+				<div class="workspace">
+					<section class="graph-panel bg-slate-900 border border-slate-800 rounded-xl overflow-hidden"><div class="graph-toolbar p-3 border-b border-slate-800 flex gap-3"><input id="search" class="bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 w-full text-sm" placeholder="Filter by module, seam, consumer or violation" aria-label="Filter architecture"/><label class="text-xs flex items-center gap-2 whitespace-nowrap"><input id="violations-only" type="checkbox"/>Violations only</label></div><div id="graph" role="img" aria-label="Interactive module dependency graph"><p class="p-7 text-sm text-slate-400">Loading module graph…</p><noscript>Enable JavaScript to display modules and seams.</noscript></div><p class="graph-hint text-xs text-slate-400 px-3 py-2 border-t border-slate-800">Select a module for seams and consumers. Select an edge for source evidence and rule proposals.</p></section>
+					<aside id="details" class="details-panel bg-slate-900 border border-slate-800 rounded-xl p-5 overflow-auto"><p class="text-xs uppercase tracking-widest text-emerald-400 mb-3">Architecture, at a glance</p><h1 class="text-2xl font-semibold mb-3">Follow the seams.</h1><p class="text-sm text-slate-400 leading-relaxed">Choose a module to inspect its public contract, consumers and evidence. Stable IDs connect this view to the CLI and agent prompts.</p></aside>
+				</div>
+				<section class="comparison border border-slate-800 rounded-xl bg-slate-900"><h2 class="font-medium text-sm">Compare revisions</h2><form hx-get="/changes" hx-target="#changes" class="comparison-form flex gap-2"><input name="base" value="HEAD~1" aria-label="Base revision" class="bg-slate-950 rounded px-3 py-2 border border-slate-700"/><input name="head" value="HEAD" aria-label="Head revision" class="bg-slate-950 rounded px-3 py-2 border border-slate-700"/><button class="bg-slate-700 rounded px-4 py-2">Compare</button></form><div id="changes" class="text-xs text-slate-400">Internal-only edits are hidden. Working-tree edits are excluded from committed revision comparisons.</div></section>
+				<p id="status" class="app-status text-xs text-slate-400" role="status"></p>
+			</main>
+		</body>
+	</html>
+}
+
+templ Identity(id string) {
+	<div class="flex flex-wrap items-center gap-2 my-2">
+		<code class="text-xs text-emerald-300 break-all">
+			{ id }
+		</code><button class="text-xs border border-slate-600 rounded px-2 py-1" data-copy={ id }>Copy ID</button><button class="text-xs border border-slate-600 rounded px-2 py-1" data-copy={ "Inspect " + id + ": explain its contract, consumers, source references, and violations; do not modify code." }>Copy agent prompt</button>
+	</div>
+}
+
+templ ModuleDetails(m ir.Module, s ir.Snapshot, r policy.Result, contracts verification.Report) {
+	<p class="text-xs text-emerald-400 uppercase tracking-widest">Module</p>
+	<h2 class="text-xl font-semibold mt-2">
+		{ m.DisplayName }
+	</h2>
+	@Identity(m.ID)
+	<button class="text-xs border border-slate-600 rounded px-3 py-2 my-2" data-expand-module={ m.ID }>Expand seams in graph</button>
+	<p class="text-xs text-slate-400 mb-4">
+		Roots: { fmt.Sprint(m.SourceRoots) }
+	</p>
+	for _,seam := range s.Seams {
+		if seam.ModuleID == m.ID {
+			<section class="border-t border-slate-700 py-4">
+				<h3 class="font-medium">Public seam</h3>
+				@Identity(seam.ID)
+				for _,v := range contracts.Results {
+					if v.SeamID==seam.ID {
+						<p class="text-sm my-2 text-amber-200">
+							Contract status: { v.Status }
+						</p>
+						if v.MemberCoverage.Known {
+							<p class="text-xs text-slate-400">
+								Member execution coverage: { fmt.Sprintf("%d/%d",v.MemberCoverage.Covered,v.MemberCoverage.Total) }
+							</p>
+						} else {
+ if v.MemberCoverage.Covered>0 {
+ <p class="text-xs text-slate-400">Member execution coverage: at least {fmt.Sprintf("%d/%d",v.MemberCoverage.Covered,v.MemberCoverage.Total)} exercised; remaining measurement unknown</p>
+ } else {
+ <p class="text-xs text-slate-400">Member execution coverage: unknown (no current coverage artifact)</p>
+ }
+						}
+						<p class="text-xs text-slate-400">
+							Declared contract requirement verification: { fmt.Sprintf("%d/%d",v.RequirementCoverage.Covered,v.RequirementCoverage.Total) }
+						</p>
+						for _,id := range v.MissingRequirements {
+							<p class="text-xs text-amber-200">
+								Missing: { id }
+							</p>
+						}
+						for _,id := range v.FailingTests {
+							<p class="text-xs text-red-300">
+								Failing test: { id }
+							</p>
+						}
+					}
+				}
+				for _,symbol := range s.Symbols {
+					if contains(seam.ContractMembers,symbol.ID) {
+						<div class="my-2 p-2 bg-slate-950 rounded">
+							<code class="text-xs break-all">
+								{ symbol.DisplaySignature }
+							</code>
+							@Identity(symbol.ID)
+						</div>
+					}
+				}
+				for _,requirement := range contracts.Requirements {
+					if requirement.SeamID==seam.ID {
+						<p class="text-sm mt-3">
+							{ requirement.Description }
+						</p>
+						<code class="text-xs text-slate-400">
+							{ requirement.ID }
+						</code>
+					}
+				}
+				for _,e := range contracts.Evidence {
+					if intersects(e.MemberIDs,seam.ContractMembers)||evidenceForSeam(e,seam.ID,contracts.Requirements) {
+						<p class="text-xs mt-2">
+							{ e.TestID }: { e.Outcome } ({ e.EvidenceKind })
+						</p>
+						if e.SourceLocation!=nil {
+							@Evidence(*e.SourceLocation)
+						}
+					}
+				}
+			</section>
+		}
+	}
+	<h3 class="font-medium border-t border-slate-700 pt-4">Observed consumers</h3>
+	for _,relation := range s.Relations {
+		if ir.IsConsumerRelation(relation)&&ir.Owners(s)[relation.ToID]==m.ID&&ir.Owners(s)[relation.FromID]!=m.ID {
+			<div class="my-3 text-xs">
+				<strong>
+					{ ir.Owners(s)[relation.FromID] }
+				</strong>
+				<p>
+					{ relation.Kind }
+				</p>
+				@Identity(relation.ID)
+				for _,e := range relation.Evidence {
+					@Evidence(e)
+				}
+			</div>
+		}
+	}
+	for _,v := range r.Violations {
+		if v.ConsumerID==m.ID||v.ProviderID==m.ID {
+			<p class="text-xs text-red-300 mt-3">
+				{ v.Message }
+			</p>
+		}
+	}
+}
+
+templ Evidence(e ir.Evidence) {
+	<a
+		class="block text-xs text-sky-300 my-1"
+		href={ templ.SafeURL("/source?file=" + url.QueryEscape(e.File) + "&line=" + fmt.Sprint(e.StartLine)) }
+	>
+		{ fmt.Sprintf("%s:%d:%d",e.File,e.StartLine,e.StartColumn) }
+	</a>
+}
+
+templ Relationship(relations []ir.Relation, r policy.Result, token, from, to string) {
+	<h2 class="text-xl font-semibold">Observed relationship</h2>
+	<p class="text-sm my-3">
+		{ from } to { to }
+	</p>
+	for _,relation := range relations {
+		@Identity(relation.ID)
+		<p class="text-xs">
+			{ relation.Kind } to { relation.ToID }
+		</p>
+		for _,e := range relation.Evidence {
+			@Evidence(e)
+		}
+	}
+	for _,v := range r.Violations {
+		if v.ConsumerID==from&&v.ProviderID==to {
+			<p class="text-sm text-red-300 mt-3">
+				{ v.Message }
+			</p>
+		}
+	}
+	<form hx-post="/rules/propose" hx-target="#proposal" class="mt-5"><input type="hidden" name="token" value={ token }/><input type="hidden" name="from" value={ from }/><label class="text-xs">Target module or seam ID<input class="block w-full bg-slate-950 rounded p-2 my-2" name="to" value={ to }/></label><select class="bg-slate-950 rounded p-2" name="effect"><option>allow</option><option>deny</option></select><button class="rounded bg-slate-700 p-2 ml-2">Preview YAML change</button></form>
+	<div id="proposal"></div>
+}
+
+templ Rules(p policy.Policy) {
+	<h2 class="text-xl font-semibold">Architecture rules</h2>
+	<p class="text-sm my-3">
+		Default: { p.Default }; unresolved: { p.Unresolved }
+	</p>
+	for _,r := range p.Rules {
+		<p class="text-xs my-3">
+			<strong>
+				{ r.Effect }
+			</strong> { r.FromID } to { r.ToID }
+		</p>
+	}
+	<p class="text-xs text-slate-400 mt-4">Select an observed edge to propose a rule. Changes require a preview and explicit confirmation.</p>
+}
+
+templ Proposal(diff, token, proposal string) {
+	<h3 class="font-medium mt-4">Exact YAML diff</h3>
+	<pre class="whitespace-pre-wrap text-xs bg-slate-950 p-3 rounded mt-2">
+		{ diff }
+	</pre>
+	<form hx-post="/rules/confirm" hx-target="#proposal"><input type="hidden" name="token" value={ token }/><input type="hidden" name="proposal" value={ proposal }/><button class="bg-emerald-400 text-slate-950 px-3 py-2 rounded mt-3">Confirm and write rule</button><button type="button" class="ml-3 text-sm" data-cancel>Cancel</button></form>
+}
+
+templ Message(message string) {
+	<p class="text-sm my-3">
+		{ message }
+	</p>
+}
+
+templ Source(file, text string) {
+	<!DOCTYPE html>
+	<html>
+		<head>
+			<meta charset="utf-8"/>
+			<title>
+				{ file }
+			</title>
+		</head>
+		<body>
+			<h1>
+				{ file }
+			</h1>
+			<pre>
+				{ text }
+			</pre>
+		</body>
+	</html>
+}
+
+templ Changes(result gitdiff.Result) {
+	<div data-architecture-changes={ changeJSON(result.Diff.Changes) }>
+		<p class="text-xs text-slate-400 my-3">{ result.Base } to { result.Head }</p>
+		if len(result.Diff.Changes)==0 {
+			<p>No public architecture changes.</p>
+		}
+		for _,change:=range result.Diff.Changes {
+			<div class="border-t border-slate-700 py-3">
+				<p class="text-sm text-emerald-300">{ change.Status } { change.Kind }</p>
+				@Identity(change.EntityID)
+				<details><summary class="text-xs cursor-pointer">Before / after</summary><pre class="text-xs whitespace-pre-wrap p-3 bg-slate-950 rounded">{ string(change.Before) }<br/>{ string(change.After) }</pre></details>
+			</div>
+		}
+	</div>
+}

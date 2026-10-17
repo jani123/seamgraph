@@ -1,0 +1,28 @@
+{
+  "$schema": "https://raw.githubusercontent.com/jetify-com/devbox/0.18.3/.schema/devbox.schema.json",
+  "env": {
+    "CODEX_HOME": "$DEVBOX_PROJECT_ROOT/.codex-local"
+  },
+  "packages": [
+    "go@1.25",
+    "nodejs@22",
+    "python@3.12",
+    "templ@latest",
+    "gopls@latest",
+    "delve@latest",
+    "gofumpt@latest",
+    "go-task@latest",
+    "git@latest",
+    "bat@latest",
+    "ripgrep@latest",
+    "nspr@latest",
+    "nss@latest",
+    "expat@latest"
+  ],
+  "shell": {
+    "init_hook": [
+      "task prepare >&2"
+    ],
+    "scripts": {}
+  }
+}

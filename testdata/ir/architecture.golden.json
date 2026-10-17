@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 1,
+  "modules": [
+    {
+      "id": "module:npc",
+      "displayName": "npc",
+      "sourceRoots": [
+        "src/npc"
+      ],
+      "seams": []
+    },
+    {
+      "id": "module:world",
+      "displayName": "world",
+      "sourceRoots": [
+        "src/world"
+      ],
+      "seams": [
+        "seam:world.reader"
+      ]
+    }
+  ],
+  "seams": [
+    {
+      "id": "seam:world.reader",
+      "moduleId": "module:world",
+      "contractMembers": [
+        "symbol:world:api%2FRead"
+      ]
+    }
+  ],
+  "symbols": [
+    {
+      "id": "symbol:world:api%2FRead",
+      "moduleId": "module:world",
+      "kind": "function",
+      "displaySignature": "Read() Value",
+      "visibility": "public"
+    }
+  ],
+  "relations": [
+    {
+      "id": "edge:uses:module%3Anpc-\u003esymbol%3Aworld%3Aapi%252FRead",
+      "fromId": "module:npc",
+      "toId": "symbol:world:api%2FRead",
+      "kind": "uses",
+      "evidence": []
+    }
+  ],
+  "diagnostics": []
+}

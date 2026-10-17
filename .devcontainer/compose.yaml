@@ -1,0 +1,57 @@
+services:
+  workspace:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: sleep infinity
+    init: true
+    volumes:
+      - ..:/workspaces/seamgraph
+    networks:
+      - private
+    # Embedded Docker DNS resolves service names; external lookups cannot
+    # leave through a host resolver. The HTTP proxy resolves approved hosts.
+    dns:
+      - 127.0.0.1
+    cap_drop:
+      - NET_ADMIN
+      - NET_RAW
+    environment:
+      SEAMGRAPH_DEVCONTAINER: "1"
+      HTTP_PROXY: http://proxy:3128
+      HTTPS_PROXY: http://proxy:3128
+      http_proxy: http://proxy:3128
+      https_proxy: http://proxy:3128
+      NO_PROXY: localhost,127.0.0.1,::1
+      no_proxy: localhost,127.0.0.1,::1
+    depends_on:
+      proxy:
+        condition: service_healthy
+
+  proxy:
+    build:
+      context: proxy
+    networks:
+      - private
+      - internet
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp
+      - /run
+    healthcheck:
+      test: [CMD, python3, -c, "import socket; socket.create_connection(('127.0.0.1', 3128), 2).close()"]
+      interval: 2s
+      timeout: 3s
+      retries: 20
+
+networks:
+  private:
+    internal: true
+    enable_ipv6: false
+    driver_opts:
+      com.docker.network.bridge.gateway_mode_ipv4: isolated
+  internet:

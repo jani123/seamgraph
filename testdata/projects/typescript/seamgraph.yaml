@@ -1,0 +1,16 @@
+version: 1
+modules:
+  world:
+    language: typescript
+    paths: [world]
+    seams:
+      reader:
+        entrypoints: [world/index.ts]
+  npc:
+    language: typescript
+    paths: [npc]
+policies:
+  default: deny
+  allow:
+    - from: npc
+      to: world.reader

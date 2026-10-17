@@ -1,0 +1,39 @@
+{
+  "name": "SeamGraph development",
+  "dockerComposeFile": "compose.yaml",
+  "service": "workspace",
+  "workspaceFolder": "/workspaces/seamgraph",
+  "shutdownAction": "stopCompose",
+  "remoteUser": "devbox",
+  "updateRemoteUserUID": true,
+  "mounts": [
+    "source=seamgraph-devbox-${devcontainerId},target=/workspaces/seamgraph/.devbox,type=volume",
+    "source=seamgraph-cache-${devcontainerId},target=/home/devbox/.cache,type=volume",
+    "source=seamgraph-go-${devcontainerId},target=/home/devbox/go,type=volume",
+    "source=seamgraph-npm-${devcontainerId},target=/home/devbox/.local/npm,type=volume"
+  ],
+  "postCreateCommand": "bash .devcontainer/prepare.sh",
+  "forwardPorts": [
+    8765
+  ],
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "jetpack-io.devbox",
+        "golang.go",
+        "a-h.templ"
+      ],
+      "settings": {
+        "terminal.integrated.defaultProfile.linux": "Devbox",
+        "terminal.integrated.profiles.linux": {
+          "Devbox": {
+            "path": "/usr/local/bin/devbox",
+            "args": [
+              "shell"
+            ]
+          }
+        }
+      }
+    }
+  }
+}

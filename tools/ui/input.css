@@ -1,0 +1,39 @@
+@import "tailwindcss";
+@source "../../internal/ui/*.templ";
+@source "../../internal/ui/assets/app.js";
+
+
+[x-cloak] { display: none !important; }
+.explorer { height: 100vh; height: 100dvh; overflow: hidden; display: flex; flex-direction: column; }
+.app-header { flex: none; gap: 1rem; padding: .75rem 1rem; }
+.app-header > div { min-width: 0; }
+#summary { text-align: right; }
+.app-main { flex: 1; min-height: 0; width: 100%; padding: .75rem; display: flex; flex-direction: column; gap: .75rem; }
+.app-nav, .evidence-help, .comparison, .app-status { flex: none; }
+.workspace { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) clamp(20rem, 27vw, 28rem); gap: .75rem; }
+.graph-panel { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+.graph-toolbar, .graph-hint { flex: none; }
+.graph-toolbar input[type=search], #search { min-width: 0; }
+#graph { flex: 1; min-height: 0; position: relative; overflow: hidden; }
+.details-panel { min-width: 0; min-height: 0; overflow-wrap: anywhere; }
+.comparison { padding: .5rem .75rem; display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: .5rem 1rem; }
+.comparison-form { min-width: 0; }
+.comparison-form input { width: 10rem; min-width: 0; }
+#changes { grid-column: 1 / -1; max-height: 18vh; overflow: auto; overflow-wrap: anywhere; }
+.app-status:empty { display: none; }
+@media (max-width: 767px) {
+  .app-header { padding: .5rem .75rem; }
+  .app-subtitle { display: none; }
+  #summary { font-size: .7rem; }
+  .app-main { padding: .5rem; gap: .5rem; }
+  .app-nav button { padding: .375rem .75rem; font-size: .8rem; }
+  .workspace { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1.5fr) minmax(0, 1fr); gap: .5rem; }
+  .details-panel { padding: .75rem; }
+  .graph-toolbar { padding: .5rem; gap: .5rem; }
+  .graph-toolbar label { font-size: .65rem; }
+  .graph-hint { display: none; }
+  .comparison { padding: .5rem; grid-template-columns: minmax(0, 1fr); gap: .375rem; }
+  .comparison-form input { flex: 1; width: 0; padding: .375rem .5rem; }
+  .comparison-form button { padding: .375rem .75rem; font-size: .8rem; }
+  #changes { max-height: 12vh; }
+}

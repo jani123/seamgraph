@@ -1,0 +1,17 @@
+# Linux SSH agent forwarding. Establish host trust on the host first.
+services:
+  seamgraph:
+    environment:
+      SSH_AUTH_SOCK: /run/ssh-agent
+    volumes:
+      - type: bind
+        source: "${SSH_AUTH_SOCK:?Start your SSH agent before using the SSH overlay}"
+        target: /run/ssh-agent
+        bind:
+          create_host_path: false
+      - type: bind
+        source: "${SEAMGRAPH_KNOWN_HOSTS:-${HOME}/.ssh/known_hosts}"
+        target: /home/node/.ssh/known_hosts
+        read_only: true
+        bind:
+          create_host_path: false

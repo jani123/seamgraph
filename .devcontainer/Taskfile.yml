@@ -1,0 +1,53 @@
+version: "3"
+
+vars:
+  DEVCONTAINER:
+    sh: command -v devcontainer || printf '%s\n' "$HOME/.devcontainers/bin/devcontainer"
+
+tasks:
+  up:
+    desc: Create or start the project Dev Container
+    preconditions:
+      - sh: test -x "{{.DEVCONTAINER}}"
+        msg: Install the Dev Container CLI and make devcontainer available on PATH.
+    cmds:
+      - env -u LD_LIBRARY_PATH "{{.DEVCONTAINER}}" up --workspace-folder "{{.ROOT_DIR}}"
+
+  codex:
+    desc: Start Codex in the project Dev Container
+    interactive: true
+    deps: [up]
+    cmds:
+      - env -u DISPLAY -u WAYLAND_DISPLAY env -u LD_LIBRARY_PATH "{{.DEVCONTAINER}}" exec --workspace-folder "{{.ROOT_DIR}}" devbox run -- /usr/bin/env -u DISPLAY -u WAYLAND_DISPLAY env -u LD_LIBRARY_PATH codex --no-daemon --dangerously-bypass-approvals-and-sandbox {{.CLI_ARGS}}
+
+  rebuild:
+    desc: Rebuild and recreate the Dev Container to apply image or proxy policy changes
+    cmds:
+      - env -u LD_LIBRARY_PATH "{{.DEVCONTAINER}}" build --workspace-folder "{{.ROOT_DIR}}"
+      - env -u LD_LIBRARY_PATH "{{.DEVCONTAINER}}" up --workspace-folder "{{.ROOT_DIR}}" --remove-existing-container
+
+  proxy-logs:
+    desc: Show recent allowlist proxy requests and denials
+    cmds:
+      - docker compose --project-name "{{base .ROOT_DIR}}_devcontainer" --file "{{.ROOT_DIR}}/.devcontainer/compose.yaml" logs --tail 100 proxy {{.CLI_ARGS}}
+
+  shell:
+    desc: Open a Devbox shell in the project Dev Container
+    interactive: true
+    deps: [up]
+    cmds:
+      - env -u LD_LIBRARY_PATH "{{.DEVCONTAINER}}" exec --workspace-folder "{{.ROOT_DIR}}" devbox shell
+
+  check:
+    desc: Verify container tools and network isolation
+    deps: [up]
+    cmds:
+      - env -u LD_LIBRARY_PATH "{{.DEVCONTAINER}}" exec --workspace-folder "{{.ROOT_DIR}}" devbox run -- task doctor
+      - env -u LD_LIBRARY_PATH "{{.DEVCONTAINER}}" exec --workspace-folder "{{.ROOT_DIR}}" codex --version
+      - task: check-network
+
+  check-network:
+    desc: Check allowed sites, denied sites, and direct network bypass attempts
+    deps: [up]
+    cmds:
+      - env -u LD_LIBRARY_PATH "{{.DEVCONTAINER}}" exec --workspace-folder "{{.ROOT_DIR}}" /usr/bin/python3 .devcontainer/check-network.py

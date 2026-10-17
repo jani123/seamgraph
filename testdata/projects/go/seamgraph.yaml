@@ -1,0 +1,16 @@
+version: 1
+modules:
+  world:
+    language: go
+    paths: [world]
+    seams:
+      reader:
+        symbols: [Reader, Open]
+  npc:
+    language: go
+    paths: [npc]
+policies:
+  default: deny
+  allow:
+    - from: npc
+      to: world.reader

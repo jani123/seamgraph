@@ -1,0 +1,1 @@
+{"compilerOptions":{"target":"ES2022","module":"ESNext","moduleResolution":"Bundler","strict":true,"baseUrl":".","paths":{"@world":["world/index.ts"]}},"include":["world/**/*.ts","npc/**/*.ts"]}

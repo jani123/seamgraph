@@ -1,0 +1,44 @@
+version: 1
+modules:
+  go-world:
+    language: go
+    paths: [go/world]
+    seams:
+      reader:
+        symbols: [Reader, Open]
+  go-npc:
+    language: go
+    paths: [go/npc]
+  ts-world:
+    language: typescript
+    paths: [typescript/world]
+    seams:
+      reader:
+        entrypoints: [typescript/world/index.ts]
+  ts-ui:
+    language: typescript
+    paths: [typescript/npc]
+  py-world:
+    language: python
+    paths: [python/src/world]
+    importRoots: [python/src]
+    seams:
+      reader:
+        entrypoints: [python/src/world/api.py, python/src/world/__init__.py]
+  py-scripts:
+    language: python
+    paths: [python/src/npc]
+    importRoots: [python/src]
+policies:
+  default: deny
+  unresolved: error
+  allow:
+    - from: go-npc
+      to: go-world.reader
+    - from: ts-ui
+      to: ts-world.reader
+    - from: py-scripts
+      to: py-world.reader
+    # Intent for an integration boundary; not an observed static reference.
+    - from: py-scripts
+      to: go-world.reader
