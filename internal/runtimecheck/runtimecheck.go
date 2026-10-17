@@ -56,10 +56,48 @@ func check(ctx context.Context, s spec) Tool {
 	}
 	return t
 }
-func Check(ctx context.Context) []Tool {
+func Check(ctx context.Context, names ...string) []Tool {
 	result := make([]Tool, 0, len(tools))
 	for _, s := range tools {
+		selected := len(names) == 0
+		for _, name := range names {
+			if name == s.name {
+				selected = true
+			}
+		}
+		if !selected {
+			continue
+		}
 		result = append(result, check(ctx, s))
 	}
 	return result
+}
+
+// ToolsForLanguages selects only requested runtimes. Git and SSH are explicit
+// selections because static analysis of a local project need not fetch a repo.
+func ToolsForLanguages(languages string) ([]string, error) {
+	names := []string{}
+	seen := map[string]bool{}
+	for _, language := range strings.Split(languages, ",") {
+		var name string
+		switch strings.TrimSpace(language) {
+		case "go":
+			name = "go"
+		case "typescript":
+			name = "node"
+		case "python":
+			name = "python3"
+		case "git":
+			name = "git"
+		case "ssh":
+			name = "ssh"
+		default:
+			return nil, fmt.Errorf("unknown runtime selection %q; use go,typescript,python,git,ssh", language)
+		}
+		if !seen[name] {
+			names = append(names, name)
+			seen[name] = true
+		}
+	}
+	return names, nil
 }

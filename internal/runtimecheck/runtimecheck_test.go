@@ -40,3 +40,13 @@ func TestVersionRequirements(t *testing.T) {
 		t.Fatal("missing runtime reported available")
 	}
 }
+
+func TestLanguageSelection(t *testing.T) {
+	names, err := ToolsForLanguages("python,typescript,python")
+	if err != nil || len(names) != 2 || names[0] != "python3" || names[1] != "node" {
+		t.Fatalf("%v %v", names, err)
+	}
+	if _, err = ToolsForLanguages("ruby"); err == nil {
+		t.Fatal("accepted unsupported language")
+	}
+}

@@ -9,4 +9,6 @@ __pycache__/
 .seamgraph/
 test-results/
 playwright-report/
-seamgraph
+/seamgraph
+
+/dist/
