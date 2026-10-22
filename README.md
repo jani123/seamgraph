@@ -73,6 +73,7 @@ seamgraph check --root /path/to/project --format sarif
 seamgraph snapshot --root /path/to/project --output architecture.json
 seamgraph inspect seam:world.reader --root /path/to/project --tests --json
 seamgraph diff --root /path/to/project --base main --head HEAD --json
+seamgraph diff --root /path/to/project --base HEAD --head WORKTREE --json
 ```
 
 Exit codes: **0** successful/clean, **1** architecture or enforced contract
@@ -87,6 +88,26 @@ consumers, evidence and violations. Expand a module's seams without exposing
 implementation symbols in the overview. Rule proposals preview their YAML changes;
 only explicit confirmation writes configuration, with a backup and concurrent
 change check. Source viewing is restricted to evidence inside the project.
+
+The explorer's **Compare changes** control defaults to **Working changes**:
+HEAD versus the final checkout contents, including staged, unstaged and untracked
+nonignored files. **Revisions** compares two committed refs. Both sides must have
+a valid `seamgraph.yaml`. Comparisons materialize temporary trees and never alter
+the checkout or index.
+
+Module badges distinguish source edits (`~ Modified`), seam changes and configuration
+changes. New or resolved violations add a separate `Policy changed` badge. Green marks additions; red dashed shapes mark removals; amber dotted
+arrows mark modified connections. A connection remains modified when some of its
+references are removed but others still connect the same modules. Violations keep
+a separate red border or halo. Select a module or arrow for changed files,
+contract members and before/after references, including removed objects. Use
+**Changed + neighbors** to focus the graph or **Clear comparison** to reload the
+current architecture.
+
+File attribution follows each side's module roots. Exact-content moves are shown
+as renames; edited moves appear as a deletion and addition. Root configuration
+changes are reported separately from module source changes. These indicators
+report changed inputs and architecture, rather than estimating change complexity.
 
 ## Contract verification
 

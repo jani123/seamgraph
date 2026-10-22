@@ -18,6 +18,7 @@ type cached struct {
 type Cache struct {
 	Context   string
 	ConfigKey func(string) (string, error)
+	Inventory func(string) (map[string]string, error)
 	mu        sync.Mutex
 	entries   map[string]cached
 }

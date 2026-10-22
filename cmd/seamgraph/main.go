@@ -68,7 +68,7 @@ func runContext(ctx context.Context, args []string, out, errOut io.Writer) int {
 	output := fs.String("output", "", "output file")
 	asJSON := fs.Bool("json", false, "JSON output")
 	base := fs.String("base", "HEAD", "base revision")
-	head := fs.String("head", "HEAD", "head revision")
+	head := fs.String("head", "HEAD", "head revision or WORKTREE for current checkout")
 	revisionRef := fs.String("revision", "", "inspect committed revision")
 	baseline := fs.String("baseline", "", "JSON array of accepted violation IDs")
 	contracts := fs.Bool("contracts", false, "enforce contract verification")
@@ -258,6 +258,18 @@ func runContext(ctx context.Context, args []string, out, errOut io.Writer) int {
 				return fail(err)
 			}
 		} else if *format == "text" {
+			if r.ConfigurationChanged {
+				fmt.Fprintln(out, "modified configuration seamgraph.yaml")
+			}
+			for _, m := range r.Modules {
+				for _, file := range m.Files {
+					fmt.Fprintf(out, "%s file %s %s", file.Status, m.ID, file.Path)
+					if file.OldPath != "" {
+						fmt.Fprintf(out, " (from %s)", file.OldPath)
+					}
+					fmt.Fprintln(out)
+				}
+			}
 			for _, c := range r.Diff.Changes {
 				fmt.Fprintf(out, "%s %s %s\n", c.Status, c.Kind, c.EntityID)
 			}

@@ -33,6 +33,9 @@ func Revision(ctx context.Context, root, ref string) (string, error) {
 // Extract reads exact tree blobs, bypassing export-ignore/export-subst archive
 // attributes. No Git hook, checkout, working tree or source file is modified.
 func Extract(ctx context.Context, root, ref string) (string, string, func(), error) {
+	if ref == "WORKTREE" {
+		return workingTree(ctx, root)
+	}
 	commit, err := Revision(ctx, root, ref)
 	if err != nil {
 		return "", "", func() {}, err

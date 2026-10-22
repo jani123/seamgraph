@@ -138,7 +138,11 @@ func (a *App) Handler() http.Handler {
 			http.Error(w, "revision comparison unavailable", 503)
 			return
 		}
-		result, err := a.backend.Compare(r.Context(), r.URL.Query().Get("base"), r.URL.Query().Get("head"))
+		base, head := r.URL.Query().Get("base"), r.URL.Query().Get("head")
+		if r.URL.Query().Get("scope") == "working" {
+			base, head = "HEAD", "WORKTREE"
+		}
+		result, err := a.backend.Compare(r.Context(), base, head)
 		if err != nil {
 			render(w, r, ui.Message(err.Error()))
 			return

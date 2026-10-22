@@ -28,10 +28,10 @@ templ Page(token string) {
 				<nav class="app-nav flex flex-wrap gap-2"><button class="rounded-lg bg-emerald-400 text-slate-950 px-4 py-2 font-medium" data-view="architecture">Architecture</button><button class="rounded-lg bg-slate-800 px-4 py-2" hx-get="/rules" hx-target="#details">Rules</button><button class="rounded-lg bg-slate-800 px-4 py-2" x-on:click="toggle">About evidence</button></nav>
 				<p x-show="help" x-cloak class="evidence-help text-sm text-slate-300 bg-slate-900 p-3 rounded-lg">Edges show observed dependencies. A module import alone does not prove use through an interface. Contract verification covers explicitly declared requirements with current linked evidence; it does not prove the absence of bugs.</p>
 				<div class="workspace">
-					<section class="graph-panel bg-slate-900 border border-slate-800 rounded-xl overflow-hidden"><div class="graph-toolbar p-3 border-b border-slate-800 flex gap-3"><select id="dependency-view" aria-label="Dependency view" class="bg-slate-950 border border-slate-700 rounded-lg px-2 text-sm"><option value="api">Callable references</option><option value="all">All references</option><option value="data">Data references</option><option value="imports">Imports</option><option value="construction">Construction wiring</option></select><button id="reset-focus" class="text-xs whitespace-nowrap">Clear focus</button><input id="search" class="bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 w-full text-sm" placeholder="Filter by module, seam, consumer or violation" aria-label="Filter architecture"/><label class="text-xs flex items-center gap-2 whitespace-nowrap"><input id="violations-only" type="checkbox"/>Violations only</label></div><div id="graph" role="img" aria-label="Interactive module dependency graph"><p class="p-7 text-sm text-slate-400">Loading module graph…</p><noscript>Enable JavaScript to display modules and seams.</noscript></div><p class="graph-hint text-xs text-slate-400 px-3 py-2 border-t border-slate-800">Left to right: consumers → providers. Callable references include function values and do not prove execution. Select a module to focus its neighbors; expand a seam to inspect its consumers. Filtered views hide unconnected modules. All references remain available in the view selector.</p></section>
+					<section class="graph-panel bg-slate-900 border border-slate-800 rounded-xl overflow-hidden"><div class="graph-toolbar p-3 border-b border-slate-800 flex gap-3"><select id="dependency-view" aria-label="Dependency view" class="bg-slate-950 border border-slate-700 rounded-lg px-2 text-sm"><option value="api">Callable references</option><option value="all">All references</option><option value="data">Data references</option><option value="imports">Imports</option><option value="construction">Construction wiring</option></select><button id="reset-focus" class="text-xs whitespace-nowrap">Clear focus</button><input id="search" class="bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 w-full text-sm" placeholder="Filter by module, seam, consumer or violation" aria-label="Filter architecture"/><label class="text-xs flex items-center gap-2 whitespace-nowrap"><input id="violations-only" type="checkbox"/>Violations only</label><label class="text-xs flex items-center gap-2 whitespace-nowrap"><input id="changes-only" type="checkbox" disabled/>Changed + neighbors</label></div><div id="graph" role="img" aria-label="Interactive module dependency graph"><p class="p-7 text-sm text-slate-400">Loading module graph…</p><noscript>Enable JavaScript to display modules and seams.</noscript></div><p class="graph-hint text-xs text-slate-400 px-3 py-2 border-t border-slate-800">Left to right: consumers → providers. Callable references include function values and do not prove execution. Select a module to focus its neighbors; expand a seam to inspect its consumers. Filtered views hide unconnected modules. All references remain available in the view selector.</p></section>
 					<aside id="details" class="details-panel bg-slate-900 border border-slate-800 rounded-xl p-5 overflow-auto"><p class="text-xs uppercase tracking-widest text-emerald-400 mb-3">Architecture, at a glance</p><h1 class="text-2xl font-semibold mb-3">Follow the seams.</h1><p class="text-sm text-slate-400 leading-relaxed">Choose a module to inspect its public contract, consumers and evidence. Stable IDs connect this view to the CLI and agent prompts.</p></aside>
 				</div>
-				<section class="comparison border border-slate-800 rounded-xl bg-slate-900"><h2 class="font-medium text-sm">Compare revisions</h2><form hx-get="/changes" hx-target="#changes" class="comparison-form flex gap-2"><input name="base" value="HEAD~1" aria-label="Base revision" class="bg-slate-950 rounded px-3 py-2 border border-slate-700"/><input name="head" value="HEAD" aria-label="Head revision" class="bg-slate-950 rounded px-3 py-2 border border-slate-700"/><button class="bg-slate-700 rounded px-4 py-2">Compare</button></form><div id="changes" class="text-xs text-slate-400">Internal-only edits are hidden. Working-tree edits are excluded from committed revision comparisons.</div></section>
+				<section class="comparison border border-slate-800 rounded-xl bg-slate-900"><h2 class="font-medium text-sm">Compare changes</h2><form hx-get="/changes" hx-target="#changes" class="comparison-form flex gap-2"><select name="scope" aria-label="Comparison scope" class="bg-slate-950 rounded px-3 py-2 border border-slate-700"><option value="working">Working changes</option><option value="revisions">Revisions</option></select><input name="base" value="HEAD~1" aria-label="Base revision" class="bg-slate-950 rounded px-3 py-2 border border-slate-700"/><input name="head" value="HEAD" aria-label="Head revision" class="bg-slate-950 rounded px-3 py-2 border border-slate-700"/><button class="bg-slate-700 rounded px-4 py-2">Compare</button><button type="button" id="clear-comparison" hidden class="bg-slate-700 rounded px-4 py-2">Clear comparison</button></form><div id="changes" class="text-xs text-slate-400">Working changes compare HEAD with staged, unstaged and untracked nonignored files. Revisions use the two refs above.</div></section>
 				<p id="status" class="app-status text-xs text-slate-400" role="status"></p>
 			</main>
 		</body>
@@ -235,10 +235,30 @@ templ Source(file, text string) {
 }
 
 templ Changes(result application.Result) {
-	<div data-architecture-changes={ changeJSON(result.Diff.Changes) }>
+	<div data-comparison={ comparisonJSON(result) }>
 		<p class="text-xs text-slate-400 my-3">{ result.Base } to { result.Head }</p>
-		if len(result.Diff.Changes)==0 {
-			<p>No public architecture changes.</p>
+		<p class="my-2">Green + Added · Red − Removed (dashed) · Amber ~ Modified · Seam changed</p>
+  if result.ConfigurationChanged {
+<p class="text-amber-300">Project configuration changed.</p>
+}
+  for _,module:=range result.Modules {
+   <div class="border-t border-slate-700 py-2"><p>{ module.Status } { module.ID }</p>
+   for _,file:=range module.Files {
+<p>{ file.Status } { file.OldPath } { file.Path }</p>
+}
+   if len(module.Seams)>0 {
+<p>Seam changed</p>
+}
+   if module.DefinitionChanged {
+<p>Module definition changed</p>
+}
+if module.PolicyChanged {
+<p>Policy violations changed</p>
+}
+   </div>
+  }
+  if len(result.Diff.Changes)==0 && len(result.Modules)==0 && !result.ConfigurationChanged {
+			<p>No module or architecture changes.</p>
 		}
 		for _,change:=range result.Diff.Changes {
 			<div class="border-t border-slate-700 py-3">

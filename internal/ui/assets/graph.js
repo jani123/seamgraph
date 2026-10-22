@@ -44,6 +44,37 @@
     return {owners, pairs};
   }
 
+  // Compare module-pair projections from the actual before/after snapshots.
+  // A partially removed connection is modified, rather than wholly removed.
+  function comparison(result) {
+    const before=project(result.before,result.beforeCheck?.violations || []);
+    const after=project(result.after,result.afterCheck?.violations || []);
+    const modules=new Map(result.before.modules.map(m=>[m.id,{...m,status:"removed"}]));
+    for(const m of result.after.modules) modules.set(m.id,{...m,status:modules.has(m.id)?"":"added"});
+    const changes=new Map((result.modules||[]).map(m=>[m.id,m]));
+    for(const m of modules.values()) m.change=changes.get(m.id);
+    const relationKey=r=>JSON.stringify([r.id,r.fromId,r.toId,r.kind,!!r.bypassesSeam]);
+    const br=new Map(result.before.relations.map(r=>[r.id,r])),ar=new Map(result.after.relations.map(r=>[r.id,r]));
+    const pairs=new Map();
+    for(const id of new Set([...before.pairs.keys(),...after.pairs.keys()])) {
+      const b=before.pairs.get(id),a=after.pairs.get(id),pair={...(a||b)};
+      pair.categories=[...new Set([...(b?.categories||[]),...(a?.categories||[])])];
+      pair.beforeCount=b?.count||0;pair.afterCount=a?.count||0;
+      pair.violationStatus=!!b?.violated===!!a?.violated?"":a?.violated?"introduced":"resolved";
+      pair.status=!b?"added":!a?"removed":"";
+      pair.changes=[];
+      for(const rid of new Set([...(b?.relationIds||[]),...(a?.relationIds||[])])) {
+        const old=b?.relationIds.includes(rid)?br.get(rid):undefined;
+        const next=a?.relationIds.includes(rid)?ar.get(rid):undefined;
+        const status=!old?"added":!next?"removed":relationKey(old)!==relationKey(next)?"modified":"";
+        if(status)pair.changes.push({status,before:old,after:next});
+      }
+      if(!pair.status && pair.changes.length)pair.status="modified";
+      pairs.set(id,pair);
+    }
+    return {modules,pairs,owners:new Map([...before.owners,...after.owners])};
+  }
+
   // Collapse strongly connected components before assigning dependency layers.
   // Cycles remain visible in one layer; no edge is removed to make a DAG.
   function layout(ids, edges) {
@@ -410,7 +441,7 @@
     return true;
   }
 
-  const api = {project, positions, layout, orthogonal};
+  const api = {project, comparison, positions, layout, orthogonal};
   root.SeamGraphLayout = api;
   if (typeof module !== "undefined") module.exports = api;
 })(typeof globalThis === "undefined" ? this : globalThis);

@@ -226,3 +226,22 @@ test('blocked corridors use obstacle search and overlapping endpoints never draw
   overlapping[1].x=0;
   assert.equal(orthogonal(overlapping,edges).get('ab').blocked,true);
 });
+
+const {comparison}=require('../../internal/ui/assets/graph.js');
+test('comparison unions removed objects and treats partially removed connections as modified',()=>{
+  const before={modules:[{id:'module:a',displayName:'a',sourceRoots:['a'],seams:[]},{id:'module:b',displayName:'b',sourceRoots:['b'],seams:[]},{id:'module:gone',displayName:'gone',sourceRoots:['gone'],seams:[]}],seams:[],symbols:[],relations:[
+    {id:'ab1',fromId:'module:a',toId:'module:b',kind:'imports'},
+    {id:'ab2',fromId:'module:a',toId:'module:b',kind:'uses'},
+    {id:'gb',fromId:'module:gone',toId:'module:b',kind:'imports'}]};
+  const after={...before,modules:before.modules.slice(0,2),relations:before.relations.slice(0,1)};
+  const result=comparison({before,after,modules:[{id:'module:a',status:'modified',files:[{path:'a/private.py',status:'modified'}],seams:[]}]});
+  assert.equal(result.modules.get('module:gone').status,'removed');
+  assert.equal(result.modules.get('module:a').change.files.length,1);
+  assert.equal(result.pairs.get('module:a→module:b').status,'modified');
+  assert.equal(result.pairs.get('module:a→module:b').changes[0].before.id,'ab2');
+  assert.equal(result.pairs.get('module:gone→module:b').status,'removed');
+  assert.deepEqual(result.pairs.get('module:gone→module:b').categories,['imports']);
+  const reverse=comparison({before:after,after:before,modules:[]});
+  assert.equal(reverse.modules.get('module:gone').status,'added');
+  assert.equal(reverse.pairs.get('module:gone→module:b').status,'added');
+});

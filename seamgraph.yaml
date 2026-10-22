@@ -27,7 +27,7 @@ modules:
       rules:
         symbols: [internal/application.Service.Propose, internal/application.Service.Cancel, internal/application.Service.Confirm]
       views:
-        symbols: [Model, Result, Proposal, Workspace, Inspection, SourceError, ErrUnknownProposal]
+        symbols: [Model, Result, Proposal, Workspace, Inspection, SourceError, ErrUnknownProposal, ModuleChange, FileChange]
       ports:
         symbols: [Ports, RuleEdit, internal/application.Extract, EvidenceRun]
       construction:
@@ -69,7 +69,7 @@ modules:
     paths: [internal/projectfiles]
     seams:
       access:
-        symbols: [Load, LoadContracts, ReadStore, AppendEvidence, EvidenceDir, Initialize, PrepareProject, PrepareRule, Edit, Source, ConfigKey]
+        symbols: [Load, LoadContracts, ReadStore, AppendEvidence, EvidenceDir, Initialize, PrepareProject, PrepareRule, Edit, Source, ConfigKey, Inventory]
   git-workspaces:
     language: go
     paths: [internal/gitworkspace]

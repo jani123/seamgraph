@@ -13,10 +13,17 @@ type Extract func(context.Context, string, string) (string, string, func(), erro
 type Verify func(context.Context, string, ir.Snapshot, string) (verification.Report, error)
 type Analyze func(context.Context, string) (ir.Snapshot, policy.Policy, error)
 type Result struct {
-	SchemaVersion int           `json:"schemaVersion"`
-	Base          string        `json:"base"`
-	Head          string        `json:"head"`
-	Diff          snapshot.Diff `json:"diff"`
+	SchemaVersion        int            `json:"schemaVersion"`
+	Base                 string         `json:"base"`
+	Head                 string         `json:"head"`
+	Diff                 snapshot.Diff  `json:"diff"`
+	Before               ir.Snapshot    `json:"before"`
+	After                ir.Snapshot    `json:"after"`
+	Files                []FileChange   `json:"files"`
+	Modules              []ModuleChange `json:"modules"`
+	BeforeCheck          policy.Result  `json:"beforeCheck"`
+	AfterCheck           policy.Result  `json:"afterCheck"`
+	ConfigurationChanged bool           `json:"configurationChanged"`
 }
 
 func Compare(ctx context.Context, root, baseRef, headRef string, extract Extract, analyze Analyze, verify ...Verify) (Result, error) {
@@ -36,6 +43,18 @@ func compare(ctx context.Context, root, baseRef, headRef string, extract Extract
 	}
 	defer cleanHead()
 	result.Head = commit
+	result.Files = []FileChange{}
+	if cache != nil && cache.Inventory != nil {
+		before, err := cache.Inventory(base)
+		if err != nil {
+			return result, fmt.Errorf("base files: %w", err)
+		}
+		after, err := cache.Inventory(head)
+		if err != nil {
+			return result, fmt.Errorf("head files: %w", err)
+		}
+		result.Files = fileChanges(before, after)
+	}
 	b, bp, err := cache.analyze(ctx, result.Base, base, analyze)
 	if err != nil {
 		return result, fmt.Errorf("base analysis: %w", err)
@@ -59,6 +78,15 @@ func compare(ctx context.Context, root, baseRef, headRef string, extract Extract
 		}
 		result.Diff.Changes = append(result.Diff.Changes, snapshot.CompareVerification(before, after)...)
 	}
+	result.Before, result.After = b, h
+	result.BeforeCheck, _ = policy.Evaluate(b, bp)
+	result.AfterCheck, _ = policy.Evaluate(h, hp)
+	for _, file := range result.Files {
+		if file.Path == ConfigFilename || file.OldPath == ConfigFilename {
+			result.ConfigurationChanged = true
+		}
+	}
+	result.Modules = moduleChanges(b, h, result.Files, result.Diff.Changes)
 	snapshot.SortChanges(result.Diff.Changes)
 	return result, nil
 }

@@ -44,10 +44,11 @@ document.addEventListener("DOMContentLoaded", async () => {
     htmx.config.allowScriptTags = false;
     const response = await fetch("/api/model");
     if (!response.ok) throw Error(await response.text());
-    const { snapshot: s, check } = await response.json();
+    let { snapshot: s, check } = await response.json();
+    let activeComparison = null;
     document.querySelector("#summary").textContent =
       `${s.modules.length} modules · ${s.seams.length} seams · ${check.violations.length} violations${check.incomplete ? " · analysis incomplete" : ""}`;
-    const { owners, pairs } = SeamGraphLayout.project(s, check.violations);
+    let { owners, pairs } = SeamGraphLayout.project(s, check.violations);
     if (![...pairs.values()].some(p => p.categories.includes("api")))
       document.querySelector("#dependency-view").value = "all";
     const nodes = s.modules.map((m) => ({
@@ -159,6 +160,11 @@ document.addEventListener("DOMContentLoaded", async () => {
           selector: "edge.hover-connected[?violated], edge.hover-connected.removed",
           style: { "line-color": "#fb7185", "target-arrow-color": "#fb7185" },
         },
+        {selector:"edge.changed",style:{"line-style":"dotted"}},
+        {selector:"edge[?violated]",style:{"underlay-color":"#fb7185","underlay-opacity":0.3,"underlay-padding":3}},
+        {selector:"node.removed",style:{"border-style":"dashed","background-opacity":0.5}},
+        // Change badges and violation borders communicate independent facts.
+        {selector:"node[?violated]",style:{"border-color":"#fb7185","border-width":3}},
         { selector: ".hidden", style: { display: "none" } },
       ],
       layout: {name: "preset"},
@@ -170,7 +176,11 @@ document.addEventListener("DOMContentLoaded", async () => {
       clearHover();
       event.target.connectedEdges().addClass("hover-connected");
     });
-    cy.on("mouseout", "node", clearHover);
+    cy.on("mouseover", "edge", (event) => {
+      clearHover();
+      event.target.addClass("hover-connected");
+    });
+    cy.on("mouseout", "node, edge", clearHover);
     document.querySelector("#graph").addEventListener("pointerleave", clearHover);
     const routeEdges = () => {
       const routes = SeamGraphLayout.orthogonal(
@@ -197,6 +207,8 @@ document.addEventListener("DOMContentLoaded", async () => {
       const visible = cy.nodes().filter(n => !n.data("moduleId") && !n.hasClass("hidden"));
       const positions = SeamGraphLayout.positions(visible.map(n => n.id()),
         cy.edges().filter(e => !e.hasClass("hidden") && !e.data("seamEdge")).map(e => ({source: e.data("source"), target: e.data("target")})));
+      const rowScale=Math.max(1,...visible.map(n=>(n.numericStyle("height")+36)/92));
+      for(const position of positions.values())position.y*=rowScale;
       cy.nodes().filter(n => !n.data("moduleId")).positions(n => positions.get(n.id()) || {x: 0, y: 0});
       cy.nodes().filter(n => n.data("moduleId")).forEach((n, i) => {
         const p = positions.get(n.data("moduleId")) || {x: 0, y: 0};
@@ -248,9 +260,11 @@ document.addEventListener("DOMContentLoaded", async () => {
     cy.on("tap", "node", (event) => {
       focusedModule = event.target.id();
       filter();
+      if (activeComparison) {showComparisonDetails(event.target);return;}
       htmx.ajax("GET", "/module?id=" + encodeURIComponent(event.target.data("moduleId") || focusedModule), {target: "#details"});
     });
     cy.on("tap", "edge", (event) => {
+      if (activeComparison) {showComparisonDetails(event.target);return;}
       const target = cy.getElementById(event.target.data("target"));
       htmx.ajax("GET", "/edge?from=" + encodeURIComponent(event.target.data("source")) +
         "&to=" + encodeURIComponent(target.data("moduleId") || target.id()), {target: "#details"});
@@ -265,8 +279,16 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (source === focusedModule) neighbors.add(target);
         if (target === focusedModule) neighbors.add(source);
       }
+      const changed = new Set();
+      if (activeComparison && document.querySelector("#changes-only").checked) {
+        cy.nodes().filter(n=>n.data("changeStatus")).forEach(n=>changed.add(n.id()));
+        cy.edges().filter(e=>e.data("status")).forEach(e=>{changed.add(e.data("source"));changed.add(e.data("target"));});
+        const seed=new Set(changed);
+        cy.edges().forEach(e=>{if(seed.has(e.data("source"))||seed.has(e.data("target"))){changed.add(e.data("source"));changed.add(e.data("target"));}});
+      }
       cy.nodes().forEach(n => n.toggleClass("hidden",
-        !n.data("search").includes(query) || (only && !n.data("violated")) ||
+        !n.data("search").includes(query) ||
+        (activeComparison && document.querySelector("#changes-only").checked && !changed.has(n.id())) || (only && !n.data("violated")) ||
         (focusedModule && !neighbors.has(n.id()) && n.data("moduleId") !== focusedModule)));
       cy.edges().forEach(e => e.toggleClass("hidden",
         e.source().hasClass("hidden") || e.target().hasClass("hidden") ||
@@ -275,73 +297,82 @@ document.addEventListener("DOMContentLoaded", async () => {
       if (view !== "all") {
         const connected = new Set();
         cy.edges().filter(e => !e.hasClass("hidden")).forEach(e => {connected.add(e.data("source")); connected.add(e.data("target"));});
-        cy.nodes().forEach(n => {if (!connected.has(n.id()) && n.id() !== focusedModule) n.addClass("hidden");});
+        cy.nodes().forEach(n => {if (!connected.has(n.id()) && n.id() !== focusedModule && !(activeComparison && n.data("changeStatus"))) n.addClass("hidden");});
       }
       arrange();
     };
     document.querySelector("#dependency-view").addEventListener("change", filter);
+    document.querySelector("#changes-only").addEventListener("change", filter);
+    document.querySelector("#clear-comparison").addEventListener("click",()=>location.reload());
+    const scope=document.querySelector('[name="scope"]');
+    const updateScope=()=>document.querySelectorAll('[name="base"], [name="head"]').forEach(input=>{input.disabled=scope.value==="working";});
+    scope.addEventListener("change",updateScope);updateScope();
     document.querySelector("#reset-focus").addEventListener("click", () => {focusedModule = null; filter();});
     filter();
     document.querySelector("#search").addEventListener("input", filter);
     document
       .querySelector("#violations-only")
       .addEventListener("change", filter);
+    function showComparisonDetails(element) {
+      const panel=document.querySelector("#details");panel.replaceChildren();
+      const line=(text,tag="p")=>{const node=document.createElement(tag);node.textContent=text;node.className="my-2 break-all";panel.append(node);};
+      line(element.isNode()?element.data("label").split("\n")[0]:"Connection changes","h2");
+      line(element.id(),"code");
+      const violations=check.violations.filter(v=>element.isNode()
+        ? v.consumerId===element.id()||v.providerId===element.id()
+        : v.consumerId===element.data("source")&&v.providerId===element.data("target"));
+      if(violations.length){line("Current violations","h3");for(const v of violations)line(`${v.code}: ${v.message}`);}
+      if(element.isNode()) {
+        const module=activeComparison.projection.modules.get(element.id()),change=module.change;
+        line(change?.status || module.status || "Unchanged module");
+        if(change?.files.length){line("Changed files","h3");for(const file of change.files)line(`${file.status}: ${file.oldPath?file.oldPath+" → ":""}${file.path}`);}
+        if(change?.definitionChanged)line("Module definition changed (configuration).");
+        if(change?.policyChanged)line("Policy violations changed for this module.");
+        if(change?.seams.length){line("Seam changes","h3");for(const seam of change.seams){line(`${seam.status}: ${seam.entityId}`);line(JSON.stringify({before:seam.before,after:seam.after},null,2),"pre");}}
+        for(const side of ["before","after"]){
+          const graph=activeComparison.result[side],definition=graph.modules.find(m=>m.id===element.id());
+          if(!definition)continue;
+          line(side==="before"?"Before":"After","h3");line(`Roots: ${definition.sourceRoots.join(", ")}`);
+          for(const seam of graph.seams.filter(x=>x.moduleId===element.id())){line(seam.id,"code");for(const id of seam.contractMembers){const symbol=graph.symbols.find(x=>x.id===id);line(symbol?.displaySignature||id);}}
+        }
+        const incident=cy.edges().filter(e=>e.data("status")&&(e.data("source")===element.id()||e.data("target")===element.id()));
+        if(incident.length){line("Connection changes","h3");incident.forEach(e=>line(`${e.data("status")}: ${e.data("source")} → ${e.data("target")}`));}
+      } else {
+        line(element.data("status") || "Unchanged references");
+        if(element.data("violationStatus"))line(`Policy violations ${element.data("violationStatus")}.`);
+        line(`${element.data("beforeCount")} references before → ${element.data("afterCount")} after`);
+        for(const change of element.data("changes")||[]) {
+          line(`${change.status}: ${(change.after||change.before).id}`,"code");
+          line(JSON.stringify({before:change.before,after:change.after},null,2),"pre");
+        }
+      }
+    }
     document.addEventListener("htmx:afterSwap", () => {
-      const element = document.querySelector("[data-architecture-changes]");
-      if (!element) return;
-      const changes = JSON.parse(element.dataset.architectureChanges);
-      cy.elements(".revision-only").remove();
-      cy.elements().removeClass("added removed changed");
-      const oldOwners = new Map(owners);
-      for (const c of changes) {
-        for (const value of [c.before, c.after]) {
-          if (value?.moduleId) oldOwners.set(value.id, value.moduleId);
-        }
+      const element = document.querySelector("[data-comparison]");
+      if (!element || element.dataset.applied) return;
+      element.dataset.applied="true";
+      const result=JSON.parse(element.dataset.comparison),projection=SeamGraphLayout.comparison(result);
+      activeComparison={result,projection};s=result.after;check=result.afterCheck;
+      document.querySelector("#summary").textContent=`${s.modules.length} current modules · ${result.modules.length} changed modules · ${check.violations.length} violations`;
+      owners=projection.owners;pairs=projection.pairs;focusedModule=null;
+      cy.elements().remove();
+      for(const module of projection.modules.values()) {
+        const change=module.change,status=module.status || change?.status || "";
+        const badges=[];
+        if(status==="added")badges.push("+ Added");else if(status==="removed")badges.push("− Removed");
+        else if(change?.files.length)badges.push("~ Modified");
+        if(change?.seams.length)badges.push("Seam changed");
+        if(change?.definitionChanged)badges.push("Config changed");
+        if(change?.policyChanged)badges.push("Policy changed");
+        cy.add({data:{id:module.id,label:[module.displayName,...badges].join("\n"),
+          search:[module.id,module.displayName,...module.seams].join(" ").toLowerCase(),
+          changeStatus:status,violated:check.violations.some(v=>v.consumerId===module.id||v.providerId===module.id)},
+          classes:status==="modified"?"changed":status}).style("height",Math.max(56,(badges.length+1)*18+12));
       }
-      for (const c of changes) {
-        const css =
-          c.status === "added"
-            ? "added"
-            : c.status === "removed"
-              ? "removed"
-              : "changed";
-        if (c.kind === "module") {
-          if (!cy.getElementById(c.entityId).length) {
-            const value = c.after || c.before;
-            cy.add({
-              data: {
-                id: c.entityId,
-                label: value.displayName,
-                search: c.entityId.toLowerCase(),
-              },
-              classes: "revision-only",
-            });
-          }
-          cy.getElementById(c.entityId).addClass(css);
-        }
-        if (c.kind === "relation") {
-          const value = c.after || c.before,
-            from = oldOwners.get(value.fromId),
-            to = oldOwners.get(value.toId);
-          if (from && to && from !== to) {
-            const id = from + "→" + to;
-            let edge = cy.getElementById(id);
-            if (
-              !edge.length &&
-              cy.getElementById(from).length &&
-              cy.getElementById(to).length
-            )
-              edge = cy.add({
-                data: { id, source: from, target: to },
-                classes: "revision-only",
-              });
-            edge.addClass(css);
-          }
-        }
-      }
-      // Revision changes stay inspectable even when their original category is
-      // absent from the current snapshot.
-      cy.elements(".revision-only").forEach(e => {if (e.isEdge()) e.data("categories", ["api", "data", "imports", "construction"]);});
+      for(const pair of pairs.values())cy.add({data:pair,classes:pair.status==="modified"||(!pair.status&&pair.violationStatus)?"changed":pair.status});
+      document.querySelector("#changes-only").disabled=false;
+      document.querySelector("#clear-comparison").hidden=false;
+      document.querySelector("#details").textContent="Select a module or connection to inspect its changes. Removed objects show their before state.";
       filter();
     });
   } catch (error) {

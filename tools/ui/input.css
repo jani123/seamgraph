@@ -20,7 +20,9 @@
 #graph { flex: 1; min-height: 0; position: relative; overflow: hidden; }
 .details-panel { min-width: 0; min-height: 0; overflow-wrap: anywhere; }
 .comparison { padding: .5rem .75rem; display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: .5rem 1rem; }
-.comparison-form { min-width: 0; }
+.comparison-form { min-width: 0; flex-wrap: wrap; }
+.comparison-form input:disabled { display: none; }
+.details-panel pre { white-space: pre-wrap; font-size: .75rem; }
 .comparison-form input { width: 10rem; min-width: 0; }
 #changes { grid-column: 1 / -1; max-height: 18vh; overflow: auto; overflow-wrap: anywhere; }
 .app-status:empty { display: none; }

@@ -22,8 +22,8 @@ func scanner() analysis.Scanner {
 }
 func New(root string) (*application.Service, error) {
 	return application.New(root, application.Ports{
-		ConfigKey: projectfiles.ConfigKey,
-		Scan:      scanner().Scan, LoadConfig: projectfiles.Load, LoadContracts: projectfiles.LoadContracts,
+		ConfigKey: projectfiles.ConfigKey, Inventory: projectfiles.Inventory,
+		Scan: scanner().Scan, LoadConfig: projectfiles.Load, LoadContracts: projectfiles.LoadContracts,
 		ReadStore: projectfiles.ReadStore, AppendEvidence: projectfiles.AppendEvidence, EvidenceDir: projectfiles.EvidenceDir,
 		ReadFile: os.ReadFile, Execute: testresults.Execute,
 		Import: func(format string, b []byte, run application.EvidenceRun) ([]verification.Evidence, error) {

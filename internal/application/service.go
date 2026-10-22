@@ -37,6 +37,7 @@ type RuleEdit interface {
 // mutation ports. Extract must return cleanup even when materialization fails.
 type Ports struct {
 	ConfigKey      func(string) (string, error)
+	Inventory      func(string) (map[string]string, error)
 	Scan           func(context.Context, string) (ir.Snapshot, config.Config, error)
 	LoadConfig     func(string) (*config.Document, error)
 	LoadContracts  func(string) (verification.Manifest, error)
@@ -66,7 +67,7 @@ func New(root string, ports Ports, cacheContext string) (*Service, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Service{root: root, ports: ports, cache: Cache{Context: cacheContext, ConfigKey: ports.ConfigKey}}, nil
+	return &Service{root: root, ports: ports, cache: Cache{Context: cacheContext, ConfigKey: ports.ConfigKey, Inventory: ports.Inventory}}, nil
 }
 func (s *Service) At(root string) (*Service, error) { return New(root, s.ports, s.cache.Context) }
 func (s *Service) Root() string                     { return s.root }

@@ -152,3 +152,82 @@ func TestExactTreeIgnoresArchiveTransformations(t *testing.T) {
 		t.Fatal("archive substitution altered committed input", string(data))
 	}
 }
+
+func TestWorkingComparisonIncludesInternalChangesAndRefreshesCache(t *testing.T) {
+	root := t.TempDir()
+	err := filepath.WalkDir("../../testdata/projects/go", func(p string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		rel, _ := filepath.Rel("../../testdata/projects/go", p)
+		target := filepath.Join(root, rel)
+		if d.IsDir() {
+			return os.MkdirAll(target, 0755)
+		}
+		b, err := os.ReadFile(p)
+		if err != nil {
+			return err
+		}
+		return os.WriteFile(target, b, 0644)
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	command(t, root, "init", "-q")
+	command(t, root, "add", ".")
+	command(t, root, "-c", "user.name=Test", "-c", "user.email=test@example.invalid", "commit", "-qm", "base")
+	svc, err := registry.New(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	world := filepath.Join(root, "world/world.go")
+	original, err := os.ReadFile(world)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = os.WriteFile(world, append(original, []byte("\n// internal edit\n")...), 0644); err != nil {
+		t.Fatal(err)
+	}
+	result, err := svc.Compare(context.Background(), "HEAD", "WORKTREE")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Diff.Changes) != 0 || len(result.Modules) != 1 || result.Modules[0].ID != "module:world" || len(result.Modules[0].Files) != 1 || len(result.Modules[0].Seams) != 0 {
+		t.Fatalf("internal-only edit: %+v", result)
+	}
+	committed, err := svc.Compare(context.Background(), "HEAD", "HEAD")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(committed.Files) != 0 || len(committed.Modules) != 0 {
+		t.Fatal("working bytes leaked into committed comparison")
+	}
+	if err = os.WriteFile(filepath.Join(root, "npc/internal.go"), []byte("package npc\nvar privateValue = 3\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	command(t, root, "add", "npc/internal.go")
+	if err = os.WriteFile(filepath.Join(root, "world/untracked.go"), []byte("package world\nvar otherPrivateValue = 4\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	next, err := svc.Compare(context.Background(), "HEAD", "WORKTREE")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if next.Head == result.Head || len(next.Files) != 3 || len(next.Modules) != 2 {
+		t.Fatalf("stale or incomplete working comparison: %+v", next)
+	}
+	// Isolate a policy document comment: config badge, no source badge.
+	os.WriteFile(world, original, 0644)
+	os.Remove(filepath.Join(root, "npc/internal.go"))
+	os.Remove(filepath.Join(root, "world/untracked.go"))
+	configFile := filepath.Join(root, "seamgraph.yaml")
+	data, _ := os.ReadFile(configFile)
+	os.WriteFile(configFile, append(data, []byte("\n# policy note\n")...), 0644)
+	configOnly, err := svc.Compare(context.Background(), "HEAD", "WORKTREE")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !configOnly.ConfigurationChanged || len(configOnly.Modules) != 0 {
+		t.Fatalf("configuration claimed source changes: %+v", configOnly)
+	}
+}

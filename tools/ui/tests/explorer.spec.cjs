@@ -372,6 +372,7 @@ test("Git comparison overlays regressions and removed IDs remain inspectable", a
   expect(JSON.parse(before).entity.id).toBe("seam:world.reader");
   await page.goto(url);
   await expect(page.locator("#summary")).toContainText("2 modules");
+  await page.getByLabel("Comparison scope").selectOption("revisions");
   await page.getByRole("button", { name: "Compare", exact: true }).click();
   await expect(page.locator("#changes")).toContainText("added violation");
   await expect(page.locator("#changes")).toContainText("removed seam");
@@ -379,10 +380,14 @@ test("Git comparison overlays regressions and removed IDs remain inspectable", a
   await expect
     .poll(() =>
       page.evaluate(
-        () => document.querySelector("#graph")._cyreg.cy.edges(".added").length,
+        () => document.querySelector("#graph")._cyreg.cy.edges(".changed").length,
       ),
     )
     .toBeGreaterThan(0);
+  await expect.poll(()=>page.evaluate(()=>{
+    const cy=document.querySelector('#graph')._cyreg.cy,world=cy.getElementById('module:world');
+    return world.data('label').includes('Seam changed') && world.height() >= world.data('label').split('\n').length*14;
+  })).toBe(true);
 });
 
 
@@ -475,7 +480,7 @@ test("dependency layers, reference views, seam edges and focus preserve the full
     await expect.poll(visibleNodes).toHaveLength(3);
     await page.locator('[data-expand-module="module:world"]').click();
     await expect.poll(() => page.evaluate(() => document.querySelector("#graph")._cyreg.cy.edges().some(e => e.data("target") === "seam:world.reader"))).toBe(true);
-    await expect(page.locator("body")).not.toHaveClass(/htmx-request/);
+    await expect(page.locator(".htmx-request")).toHaveCount(0);
     const detailsResponse = page.waitForResponse(response => {
       const request = new URL(response.url());
       return request.pathname === "/module" && request.searchParams.get("id") === "module:world";
@@ -530,6 +535,18 @@ test("hover highlights incoming and outgoing arrows and restores their styles on
     await page.mouse.move(0,0);
     await expect.poll(() => page.evaluate(() => document.querySelector("#graph")._cyreg.cy.edges(".hover-connected").length)).toBe(0);
     expect(await page.evaluate(() => document.querySelector("#graph")._cyreg.cy.getElementById("module:world→module:extra").style("width"))).toBe("1.5px");
+    const edgePoint=await page.evaluate(()=>{
+      const graph=document.querySelector('#graph'),edge=graph._cyreg.cy.getElementById('module:world→module:extra');
+      const points=[edge.renderedSourceEndpoint(),...(edge.renderedSegmentPoints()||[]),edge.renderedTargetEndpoint()];
+      const segments=points.slice(1).map((b,i)=>({a:points[i],b,length:Math.hypot(b.x-points[i].x,b.y-points[i].y)})).sort((a,b)=>b.length-a.length);
+      const {a,b}=segments[0],rect=graph.getBoundingClientRect();
+      return{x:rect.x+(a.x+b.x)/2,y:rect.y+(a.y+b.y)/2};
+    });
+    await page.mouse.move(edgePoint.x,edgePoint.y);
+    await expect.poll(()=>page.evaluate(()=>document.querySelector('#graph')._cyreg.cy.edges('.hover-connected').map(e=>e.id()))).toEqual(['module:world→module:extra']);
+    expect(await page.evaluate(()=>document.querySelector('#graph')._cyreg.cy.getElementById('module:world→module:extra').style('width'))).toBe('3.5px');
+    await page.mouse.move(0,0);
+    await expect.poll(()=>page.evaluate(()=>document.querySelector('#graph')._cyreg.cy.edges('.hover-connected').length)).toBe(0);
   } finally {
     await page.unroute("**/api/model");
   }
@@ -611,4 +628,53 @@ test("orthogonal arrows avoid module boxes, remain clickable, and follow dragged
     })).toEqual(['segments','segments']);
     await expect.poll(geometry).toEqual({diagonal:0,intersections:0});
   }finally{await page.unroute('**/api/model');}
+});
+
+test('working changes show internal edits and retain removed modules for inspection',async()=>{
+  fs.rmSync(root,{recursive:true,force:true});
+  fs.cpSync(path.join(repo,'testdata/projects/go'),root,{recursive:true});
+  const git=args=>execFileSync('git',['-C',root,...args]);
+  git(['init','-q']);git(['add','.']);git(['-c','user.name=Test','-c','user.email=test@example.invalid','commit','-qm','base']);
+  const world=path.join(root,'world/world.go');
+  fs.appendFileSync(world,'\n// internal-only edit\n');
+  fs.writeFileSync(path.join(root,'npc/private.go'),'package npc\nvar localValue = 7\n');
+  git(['add','npc/private.go']);
+  fs.writeFileSync(path.join(root,'world/untracked.go'),'package world\nvar localValue = 8\n');
+  await page.goto(url);
+  await expect(page.locator('#summary')).toContainText('2 modules');
+  await expect(page.getByLabel('Comparison scope')).toHaveValue('working');
+  await page.getByRole('button',{name:'Compare',exact:true}).click();
+  await expect(page.locator('#changes')).toContainText('world/world.go');
+  await expect(page.locator('#changes')).toContainText('npc/private.go');
+  await expect(page.locator('#changes')).toContainText('world/untracked.go');
+  const graph=()=>page.evaluate(()=>{
+    const cy=document.querySelector('#graph')._cyreg.cy;
+    return {changed:cy.nodes('.changed').map(n=>n.id()).sort(),seamBadges:cy.nodes().filter(n=>n.data('label').includes('Seam changed')).length,changedEdges:cy.edges('.changed, .added, .removed').length};
+  });
+  await expect.poll(graph).toEqual({changed:['module:npc','module:world'],seamBadges:0,changedEdges:0});
+  await page.evaluate(()=>document.querySelector('#graph')._cyreg.cy.getElementById('module:world').emit('tap'));
+  await expect(page.locator('#details')).toContainText('world/world.go');
+  await page.getByLabel('Changed + neighbors').check();
+  await expect(page.locator('#details')).not.toContainText('Seam changes');
+  await page.screenshot({path:path.join(repo,'.build/comparison-preview.png')});
+  // Remove a module and its configuration, keeping a valid project.
+  fs.rmSync(path.join(root,'npc'),{recursive:true});
+  fs.writeFileSync(path.join(root,'seamgraph.yaml'),'version: 1\nmodules:\n  world:\n    language: go\n    paths: [world]\n    seams:\n      reader:\n        symbols: [Reader, Open]\npolicies:\n  default: deny\n');
+  await page.getByRole('button',{name:'Compare',exact:true}).click();
+  await expect(page.locator('#changes')).toContainText('removed module');
+  await expect.poll(()=>page.evaluate(()=>{
+    const cy=document.querySelector('#graph')._cyreg.cy;
+    return {removed:cy.getElementById('module:npc').hasClass('removed'),edges:cy.edges('.removed').length};
+  })).toEqual({removed:true,edges:1});
+  await page.evaluate(()=>document.querySelector('#graph')._cyreg.cy.getElementById('module:npc').emit('tap'));
+  await expect(page.locator('#details')).toContainText('removed');
+  await expect(page.locator('#details')).toContainText('npc/npc.go');
+  await page.evaluate(()=>document.querySelector('#graph')._cyreg.cy.edges('.removed')[0].emit('tap'));
+  await expect(page.locator('#details')).toContainText('Connection changes');
+  await expect(page.locator('#details')).toContainText('removed');
+  await expect(page.locator('#status')).not.toContainText('unknown');
+  await page.screenshot({path:path.join(repo,'.build/comparison-removed-preview.png')});
+  await page.setViewportSize({width:390,height:844});
+  await expect.poll(()=>page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+  await expect(page.getByRole('button',{name:'Compare',exact:true})).toBeVisible();
 });

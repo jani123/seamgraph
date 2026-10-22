@@ -4,7 +4,7 @@ package ui
 import (
 	"embed"
 	"encoding/json"
-	"seamgraph/internal/snapshot"
+	"seamgraph/internal/application"
 	"seamgraph/internal/verification"
 	"slices"
 )
@@ -30,4 +30,4 @@ func evidenceForSeam(e verification.Evidence, seam string, rs []verification.Req
 	return false
 }
 
-func changeJSON(changes []snapshot.Change) string { b, _ := json.Marshal(changes); return string(b) }
+func comparisonJSON(result application.Result) string { b, _ := json.Marshal(result); return string(b) }

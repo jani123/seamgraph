@@ -51,7 +51,7 @@ func Page(token string) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "\"><title>SeamGraph · Architecture</title><link rel=\"stylesheet\" href=\"/assets/styles.css\"><script src=\"/assets/htmx.min.js\" defer></script><script src=\"/assets/cytoscape.min.js\" defer></script><script src=\"/assets/graph.js\" defer></script><script src=\"/assets/app.js\" defer></script><script src=\"/assets/alpine.min.js\" defer></script></head><body class=\"explorer bg-slate-950 text-slate-100 font-sans\" x-data=\"shell\"><header class=\"app-header border-b border-slate-800 flex items-center justify-between\"><div><span class=\"text-emerald-400 font-mono text-lg\">◈</span><strong class=\"ml-3 text-xl tracking-tight\">SeamGraph</strong><span class=\"app-subtitle ml-4 text-xs text-slate-400 uppercase tracking-widest\">Local architecture explorer</span></div><span id=\"summary\" class=\"text-sm text-slate-400\">Loading architecture…</span></header><main class=\"app-main\"><nav class=\"app-nav flex flex-wrap gap-2\"><button class=\"rounded-lg bg-emerald-400 text-slate-950 px-4 py-2 font-medium\" data-view=\"architecture\">Architecture</button><button class=\"rounded-lg bg-slate-800 px-4 py-2\" hx-get=\"/rules\" hx-target=\"#details\">Rules</button><button class=\"rounded-lg bg-slate-800 px-4 py-2\" x-on:click=\"toggle\">About evidence</button></nav><p x-show=\"help\" x-cloak class=\"evidence-help text-sm text-slate-300 bg-slate-900 p-3 rounded-lg\">Edges show observed dependencies. A module import alone does not prove use through an interface. Contract verification covers explicitly declared requirements with current linked evidence; it does not prove the absence of bugs.</p><div class=\"workspace\"><section class=\"graph-panel bg-slate-900 border border-slate-800 rounded-xl overflow-hidden\"><div class=\"graph-toolbar p-3 border-b border-slate-800 flex gap-3\"><select id=\"dependency-view\" aria-label=\"Dependency view\" class=\"bg-slate-950 border border-slate-700 rounded-lg px-2 text-sm\"><option value=\"api\">Callable references</option><option value=\"all\">All references</option><option value=\"data\">Data references</option><option value=\"imports\">Imports</option><option value=\"construction\">Construction wiring</option></select><button id=\"reset-focus\" class=\"text-xs whitespace-nowrap\">Clear focus</button><input id=\"search\" class=\"bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 w-full text-sm\" placeholder=\"Filter by module, seam, consumer or violation\" aria-label=\"Filter architecture\"><label class=\"text-xs flex items-center gap-2 whitespace-nowrap\"><input id=\"violations-only\" type=\"checkbox\">Violations only</label></div><div id=\"graph\" role=\"img\" aria-label=\"Interactive module dependency graph\"><p class=\"p-7 text-sm text-slate-400\">Loading module graph…</p><noscript>Enable JavaScript to display modules and seams.</noscript></div><p class=\"graph-hint text-xs text-slate-400 px-3 py-2 border-t border-slate-800\">Left to right: consumers → providers. Callable references include function values and do not prove execution. Select a module to focus its neighbors; expand a seam to inspect its consumers. Filtered views hide unconnected modules. All references remain available in the view selector.</p></section><aside id=\"details\" class=\"details-panel bg-slate-900 border border-slate-800 rounded-xl p-5 overflow-auto\"><p class=\"text-xs uppercase tracking-widest text-emerald-400 mb-3\">Architecture, at a glance</p><h1 class=\"text-2xl font-semibold mb-3\">Follow the seams.</h1><p class=\"text-sm text-slate-400 leading-relaxed\">Choose a module to inspect its public contract, consumers and evidence. Stable IDs connect this view to the CLI and agent prompts.</p></aside></div><section class=\"comparison border border-slate-800 rounded-xl bg-slate-900\"><h2 class=\"font-medium text-sm\">Compare revisions</h2><form hx-get=\"/changes\" hx-target=\"#changes\" class=\"comparison-form flex gap-2\"><input name=\"base\" value=\"HEAD~1\" aria-label=\"Base revision\" class=\"bg-slate-950 rounded px-3 py-2 border border-slate-700\"><input name=\"head\" value=\"HEAD\" aria-label=\"Head revision\" class=\"bg-slate-950 rounded px-3 py-2 border border-slate-700\"><button class=\"bg-slate-700 rounded px-4 py-2\">Compare</button></form><div id=\"changes\" class=\"text-xs text-slate-400\">Internal-only edits are hidden. Working-tree edits are excluded from committed revision comparisons.</div></section><p id=\"status\" class=\"app-status text-xs text-slate-400\" role=\"status\"></p></main></body></html>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "\"><title>SeamGraph · Architecture</title><link rel=\"stylesheet\" href=\"/assets/styles.css\"><script src=\"/assets/htmx.min.js\" defer></script><script src=\"/assets/cytoscape.min.js\" defer></script><script src=\"/assets/graph.js\" defer></script><script src=\"/assets/app.js\" defer></script><script src=\"/assets/alpine.min.js\" defer></script></head><body class=\"explorer bg-slate-950 text-slate-100 font-sans\" x-data=\"shell\"><header class=\"app-header border-b border-slate-800 flex items-center justify-between\"><div><span class=\"text-emerald-400 font-mono text-lg\">◈</span><strong class=\"ml-3 text-xl tracking-tight\">SeamGraph</strong><span class=\"app-subtitle ml-4 text-xs text-slate-400 uppercase tracking-widest\">Local architecture explorer</span></div><span id=\"summary\" class=\"text-sm text-slate-400\">Loading architecture…</span></header><main class=\"app-main\"><nav class=\"app-nav flex flex-wrap gap-2\"><button class=\"rounded-lg bg-emerald-400 text-slate-950 px-4 py-2 font-medium\" data-view=\"architecture\">Architecture</button><button class=\"rounded-lg bg-slate-800 px-4 py-2\" hx-get=\"/rules\" hx-target=\"#details\">Rules</button><button class=\"rounded-lg bg-slate-800 px-4 py-2\" x-on:click=\"toggle\">About evidence</button></nav><p x-show=\"help\" x-cloak class=\"evidence-help text-sm text-slate-300 bg-slate-900 p-3 rounded-lg\">Edges show observed dependencies. A module import alone does not prove use through an interface. Contract verification covers explicitly declared requirements with current linked evidence; it does not prove the absence of bugs.</p><div class=\"workspace\"><section class=\"graph-panel bg-slate-900 border border-slate-800 rounded-xl overflow-hidden\"><div class=\"graph-toolbar p-3 border-b border-slate-800 flex gap-3\"><select id=\"dependency-view\" aria-label=\"Dependency view\" class=\"bg-slate-950 border border-slate-700 rounded-lg px-2 text-sm\"><option value=\"api\">Callable references</option><option value=\"all\">All references</option><option value=\"data\">Data references</option><option value=\"imports\">Imports</option><option value=\"construction\">Construction wiring</option></select><button id=\"reset-focus\" class=\"text-xs whitespace-nowrap\">Clear focus</button><input id=\"search\" class=\"bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 w-full text-sm\" placeholder=\"Filter by module, seam, consumer or violation\" aria-label=\"Filter architecture\"><label class=\"text-xs flex items-center gap-2 whitespace-nowrap\"><input id=\"violations-only\" type=\"checkbox\">Violations only</label><label class=\"text-xs flex items-center gap-2 whitespace-nowrap\"><input id=\"changes-only\" type=\"checkbox\" disabled>Changed + neighbors</label></div><div id=\"graph\" role=\"img\" aria-label=\"Interactive module dependency graph\"><p class=\"p-7 text-sm text-slate-400\">Loading module graph…</p><noscript>Enable JavaScript to display modules and seams.</noscript></div><p class=\"graph-hint text-xs text-slate-400 px-3 py-2 border-t border-slate-800\">Left to right: consumers → providers. Callable references include function values and do not prove execution. Select a module to focus its neighbors; expand a seam to inspect its consumers. Filtered views hide unconnected modules. All references remain available in the view selector.</p></section><aside id=\"details\" class=\"details-panel bg-slate-900 border border-slate-800 rounded-xl p-5 overflow-auto\"><p class=\"text-xs uppercase tracking-widest text-emerald-400 mb-3\">Architecture, at a glance</p><h1 class=\"text-2xl font-semibold mb-3\">Follow the seams.</h1><p class=\"text-sm text-slate-400 leading-relaxed\">Choose a module to inspect its public contract, consumers and evidence. Stable IDs connect this view to the CLI and agent prompts.</p></aside></div><section class=\"comparison border border-slate-800 rounded-xl bg-slate-900\"><h2 class=\"font-medium text-sm\">Compare changes</h2><form hx-get=\"/changes\" hx-target=\"#changes\" class=\"comparison-form flex gap-2\"><select name=\"scope\" aria-label=\"Comparison scope\" class=\"bg-slate-950 rounded px-3 py-2 border border-slate-700\"><option value=\"working\">Working changes</option><option value=\"revisions\">Revisions</option></select><input name=\"base\" value=\"HEAD~1\" aria-label=\"Base revision\" class=\"bg-slate-950 rounded px-3 py-2 border border-slate-700\"><input name=\"head\" value=\"HEAD\" aria-label=\"Head revision\" class=\"bg-slate-950 rounded px-3 py-2 border border-slate-700\"><button class=\"bg-slate-700 rounded px-4 py-2\">Compare</button><button type=\"button\" id=\"clear-comparison\" hidden class=\"bg-slate-700 rounded px-4 py-2\">Clear comparison</button></form><div id=\"changes\" class=\"text-xs text-slate-400\">Working changes compare HEAD with staged, unstaged and untracked nonignored files. Revisions use the two refs above.</div></section><p id=\"status\" class=\"app-status text-xs text-slate-400\" role=\"status\"></p></main></body></html>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -1047,14 +1047,14 @@ func Changes(result application.Result) templ.Component {
 			templ_7745c5c3_Var54 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 77, "<div data-architecture-changes=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 77, "<div data-comparison=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var55 string
-		templ_7745c5c3_Var55, templ_7745c5c3_Err = templ.ResolveAttributeValue(changeJSON(result.Diff.Changes))
+		templ_7745c5c3_Var55, templ_7745c5c3_Err = templ.ResolveAttributeValue(comparisonJSON(result))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/page.templ`, Line: 238, Col: 65}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/page.templ`, Line: 238, Col: 46}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var55)
 		if templ_7745c5c3_Err != nil {
@@ -1086,25 +1086,25 @@ func Changes(result application.Result) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 80, "</p>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 80, "</p><p class=\"my-2\">Green + Added · Red − Removed (dashed) · Amber ~ Modified · Seam changed</p>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		if len(result.Diff.Changes) == 0 {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 81, "<p>No public architecture changes.</p>")
+		if result.ConfigurationChanged {
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 81, "<p class=\"text-amber-300\">Project configuration changed.</p>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 		}
-		for _, change := range result.Diff.Changes {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 82, "<div class=\"border-t border-slate-700 py-3\"><p class=\"text-sm text-emerald-300\">")
+		for _, module := range result.Modules {
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 82, "<div class=\"border-t border-slate-700 py-2\"><p>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var58 string
-			templ_7745c5c3_Var58, templ_7745c5c3_Err = templ.JoinStringErrs(change.Status)
+			templ_7745c5c3_Var58, templ_7745c5c3_Err = templ.JoinStringErrs(module.Status)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/page.templ`, Line: 245, Col: 55}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/page.templ`, Line: 245, Col: 65}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var58))
 			if templ_7745c5c3_Err != nil {
@@ -1115,9 +1115,9 @@ func Changes(result application.Result) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var59 string
-			templ_7745c5c3_Var59, templ_7745c5c3_Err = templ.JoinStringErrs(change.Kind)
+			templ_7745c5c3_Var59, templ_7745c5c3_Err = templ.JoinStringErrs(module.ID)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/page.templ`, Line: 245, Col: 71}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/page.templ`, Line: 245, Col: 79}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var59))
 			if templ_7745c5c3_Err != nil {
@@ -1127,42 +1127,147 @@ func Changes(result application.Result) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = Identity(change.EntityID).Render(ctx, templ_7745c5c3_Buffer)
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
+			for _, file := range module.Files {
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 85, "<p>")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				var templ_7745c5c3_Var60 string
+				templ_7745c5c3_Var60, templ_7745c5c3_Err = templ.JoinStringErrs(file.Status)
+				if templ_7745c5c3_Err != nil {
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/page.templ`, Line: 247, Col: 16}
+				}
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var60))
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 86, " ")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				var templ_7745c5c3_Var61 string
+				templ_7745c5c3_Var61, templ_7745c5c3_Err = templ.JoinStringErrs(file.OldPath)
+				if templ_7745c5c3_Err != nil {
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/page.templ`, Line: 247, Col: 33}
+				}
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var61))
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 87, " ")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				var templ_7745c5c3_Var62 string
+				templ_7745c5c3_Var62, templ_7745c5c3_Err = templ.JoinStringErrs(file.Path)
+				if templ_7745c5c3_Err != nil {
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/page.templ`, Line: 247, Col: 47}
+				}
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var62))
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 88, "</p>")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 85, "<details><summary class=\"text-xs cursor-pointer\">Before / after</summary><pre class=\"text-xs whitespace-pre-wrap p-3 bg-slate-950 rounded\">")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
+			if len(module.Seams) > 0 {
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 89, "<p>Seam changed</p>")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
 			}
-			var templ_7745c5c3_Var60 string
-			templ_7745c5c3_Var60, templ_7745c5c3_Err = templ.JoinStringErrs(string(change.Before))
-			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/page.templ`, Line: 247, Col: 166}
+			if module.DefinitionChanged {
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 90, "<p>Module definition changed</p>")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
 			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var60))
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
+			if module.PolicyChanged {
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 91, "<p>Policy violations changed</p>")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 86, "<br>")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			var templ_7745c5c3_Var61 string
-			templ_7745c5c3_Var61, templ_7745c5c3_Err = templ.JoinStringErrs(string(change.After))
-			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/page.templ`, Line: 247, Col: 195}
-			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var61))
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 87, "</pre></details></div>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 92, "</div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 88, "</div>")
+		if len(result.Diff.Changes) == 0 && len(result.Modules) == 0 && !result.ConfigurationChanged {
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 93, "<p>No module or architecture changes.</p>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+		}
+		for _, change := range result.Diff.Changes {
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 94, "<div class=\"border-t border-slate-700 py-3\"><p class=\"text-sm text-emerald-300\">")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var63 string
+			templ_7745c5c3_Var63, templ_7745c5c3_Err = templ.JoinStringErrs(change.Status)
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/page.templ`, Line: 265, Col: 55}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var63))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 95, " ")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var64 string
+			templ_7745c5c3_Var64, templ_7745c5c3_Err = templ.JoinStringErrs(change.Kind)
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/page.templ`, Line: 265, Col: 71}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var64))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 96, "</p>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = Identity(change.EntityID).Render(ctx, templ_7745c5c3_Buffer)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 97, "<details><summary class=\"text-xs cursor-pointer\">Before / after</summary><pre class=\"text-xs whitespace-pre-wrap p-3 bg-slate-950 rounded\">")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var65 string
+			templ_7745c5c3_Var65, templ_7745c5c3_Err = templ.JoinStringErrs(string(change.Before))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/page.templ`, Line: 267, Col: 166}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var65))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 98, "<br>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var66 string
+			templ_7745c5c3_Var66, templ_7745c5c3_Err = templ.JoinStringErrs(string(change.After))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/page.templ`, Line: 267, Col: 195}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var66))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 99, "</pre></details></div>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 100, "</div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
