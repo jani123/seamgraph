@@ -32,6 +32,27 @@ tasks:
       - mkdir -p .build
       - go build -o .build/seamgraph ./cmd/seamgraph
 
+  dev:setup:
+    desc: Prepare development dependencies and pinned Air
+    cmds:
+      - task: deps
+      - task: dev:tools
+
+  dev:tools:
+    desc: Install pinned Air for the Go 1.25 development toolchain
+    cmds:
+      - mkdir -p .build/bin
+      - GOBIN="{{.ROOT_DIR}}/.build/bin" GOTOOLCHAIN=local go install github.com/air-verse/air@v1.65.3
+    status:
+      - test -x .build/bin/air
+      - .build/bin/air -v | grep -q 'v1.65.3'
+
+  dev:
+    desc: Run the development server with Air and an automatically chosen port
+    deps: [dev:tools]
+    cmds:
+      - sh scripts/dev.sh {{.CLI_ARGS}}
+
   install:
     desc: Install SeamGraph in the Go binary directory
     cmds:
@@ -107,6 +128,11 @@ tasks:
     cmds:
       - npm test --prefix tools/ui
 
+  architecture:check:
+    desc: Enforce SeamGraph's own declared module and seam boundaries
+    cmds:
+      - go run ./cmd/seamgraph check --root .
+
   installer:test:
     desc: Test release installer without network or system changes
     cmds:
@@ -119,6 +145,7 @@ tasks:
       - task: fmt:check
       - task: vet
       - task: test
+      - task: architecture:check
       - task: installer:test
       - task: helpers:test
       - task: runners:test

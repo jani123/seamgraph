@@ -32,3 +32,25 @@ func Command(ctx context.Context, root, artifactDir, runner string) (*exec.Cmd, 
 	cmd.Dir = root
 	return cmd, format, artifact, nil
 }
+
+// Execute runs a fixed runner and returns its actual artifact. The final error
+// reports artifact/protocol failures; runErr reports a failing test execution.
+func Execute(ctx context.Context, root, artifactDir, runner string) (output []byte, format string, runErr error, err error) {
+	cmd, format, artifact, err := Command(ctx, root, artifactDir, runner)
+	if err != nil {
+		return nil, "", nil, err
+	}
+	if artifact != "" {
+		if err = os.Remove(artifact); err != nil && !os.IsNotExist(err) {
+			return nil, format, nil, err
+		}
+	}
+	output, runErr = cmd.CombinedOutput()
+	if artifact != "" {
+		output, err = os.ReadFile(artifact)
+		if err != nil {
+			err = fmt.Errorf("runner did not produce an artifact: %w (runner: %v)", err, runErr)
+		}
+	}
+	return
+}

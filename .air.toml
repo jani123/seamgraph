@@ -1,0 +1,30 @@
+root = "."
+tmp_dir = ".build/air"
+
+[build]
+cmd = "task generate && go build -o .build/air/seamgraph ./cmd/seamgraph"
+entrypoint = ["./scripts/dev-server.sh"]
+include_dir = ["cmd", "internal", "tools"]
+include_file = ["seamgraph.yaml", "go.mod", "go.sum"]
+include_ext = ["go", "templ", "js", "cjs", "css", "py", "yaml", "json"]
+exclude_dir = [".build", ".git", ".devbox", ".codex-local", ".venv", "node_modules", "__pycache__", "test-results", "tools/ui/node_modules", "tools/ts-analyzer/node_modules", "tools/ui/test-results", "tools/ui/playwright-report", "tools/py-analyzer/__pycache__", "tools/test-runners/__pycache__"]
+exclude_regex = ["_test\\.go$", "_templ\\.go$", "helper\\.(cjs|py)$", "\\.test\\.cjs$", "test_.*\\.py$"]
+# Bundled/generated files change as a result of the build, not as source inputs.
+exclude_file = ["internal/ui/assets/styles.css", "internal/ui/assets/htmx.min.js", "internal/ui/assets/cytoscape.min.js", "internal/ui/assets/alpine.min.js"]
+exclude_unchanged = true
+follow_symlink = false
+delay = 500
+send_interrupt = true
+kill_delay = 2000
+stop_on_error = true
+log = "build-errors.log"
+
+[log]
+time = true
+
+[misc]
+clean_on_exit = false
+
+[screen]
+clear_on_rebuild = false
+keep_scroll = true

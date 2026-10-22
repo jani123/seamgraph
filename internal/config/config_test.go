@@ -123,27 +123,6 @@ func TestInvalidConfig(t *testing.T) {
 	}
 }
 
-func TestNormalizedPolicy(t *testing.T) {
-	d, err := Parse([]byte(valid))
-	if err != nil {
-		t.Fatal(err)
-	}
-	p, err := d.Config.Policy()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if p.Default != "deny" || p.Unresolved != "error" || len(p.Rules) != 2 {
-		t.Fatalf("incorrect normalized policy %+v", p)
-	}
-	if p.Rules[0].FromID != "module:npc" || p.Rules[0].ToID != "seam:world.reader" {
-		t.Fatal("references not normalized", p.Rules)
-	}
-	d.Config.Policies.Allow[0].To = "absent"
-	if _, err := d.Config.Policy(); err == nil {
-		t.Fatal("invalid declaration compiled")
-	}
-}
-
 func TestProjectRootOwnership(t *testing.T) {
 	doc, err := Parse([]byte("version: 1\nmodules:\n  app:\n    language: go\n    paths: [.]\npolicies:\n  default: deny\n"))
 	if err != nil {

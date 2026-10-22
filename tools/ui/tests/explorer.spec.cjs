@@ -436,3 +436,168 @@ test("explorer fills desktop and mobile viewports and refits after resize", asyn
     }
   } finally { await page.setViewportSize({width:1440,height:1000}); }
 });
+
+test("dependency layers, reference views, seam edges and focus preserve the full graph", async () => {
+  const snapshot = JSON.parse(fs.readFileSync(path.join(repo, "testdata/ir/go.json")));
+  snapshot.modules.push({id:"module:bootstrap",displayName:"bootstrap",sourceRoots:["bootstrap"],seams:["seam:bootstrap.construction"]},
+    {id:"module:isolated",displayName:"isolated",sourceRoots:["isolated"],seams:[]});
+  snapshot.symbols.push({id:"symbol:bootstrap:New",moduleId:"module:bootstrap",kind:"function",displaySignature:"New()",visibility:"public"},
+    {id:"symbol:world:Value",moduleId:"module:world",kind:"field",displaySignature:"Value string",visibility:"public"});
+  snapshot.seams.push({id:"seam:bootstrap.construction",moduleId:"module:bootstrap",contractMembers:["symbol:bootstrap:New"]});
+  const evidence = snapshot.relations[0].evidence;
+  snapshot.relations.push({id:"data",fromId:"module:npc",toId:"symbol:world:Value",kind:"uses",evidence},
+    {id:"construction",fromId:"module:npc",toId:"symbol:bootstrap:New",kind:"uses",evidence},
+    {id:"wiring",fromId:"module:bootstrap",toId:snapshot.symbols[0].id,kind:"uses",evidence},
+    {id:"import",fromId:"module:npc",toId:"module:world",kind:"imports",evidence});
+  await page.route("**/api/model", route => route.fulfill({json:{snapshot,check:{violations:[],incomplete:false}}}));
+  // Keep this projection fixture self-contained: earlier editing tests change
+  // the real project, and this test exercises graph focus rather than scanning.
+  const moduleRoute = /\/module\?/;
+  await page.route(moduleRoute, route => {
+    const id = new URL(route.request().url()).searchParams.get("id");
+    return route.fulfill({status:id==="module:world"?200:404,contentType:"text/html",
+      body:'<code>module:world</code><button data-expand-module="module:world">Expand seams in graph</button>'});
+  });
+  try {
+    await page.goto(url);
+    await expect(page.locator("#summary")).toContainText("4 modules");
+    const visibleNodes = () => page.evaluate(() => document.querySelector("#graph")._cyreg.cy.nodes(":visible").map(n => n.id()).sort());
+    await expect.poll(visibleNodes).toEqual(["module:npc","module:world"]);
+    expect(await page.evaluate(() => {
+      const cy = document.querySelector("#graph")._cyreg.cy;
+      return cy.getElementById("module:npc").position("x") < cy.getElementById("module:world").position("x");
+    })).toBe(true);
+    await page.locator("#dependency-view").selectOption("construction");
+    await expect.poll(visibleNodes).toEqual(["module:bootstrap","module:npc","module:world"]);
+    await page.locator("#dependency-view").selectOption("all");
+    await expect.poll(visibleNodes).toHaveLength(4);
+    await page.evaluate(() => document.querySelector("#graph")._cyreg.cy.getElementById("module:world").emit("tap"));
+    await expect.poll(visibleNodes).toHaveLength(3);
+    await page.locator('[data-expand-module="module:world"]').click();
+    await expect.poll(() => page.evaluate(() => document.querySelector("#graph")._cyreg.cy.edges().some(e => e.data("target") === "seam:world.reader"))).toBe(true);
+    await expect(page.locator("body")).not.toHaveClass(/htmx-request/);
+    const detailsResponse = page.waitForResponse(response => {
+      const request = new URL(response.url());
+      return request.pathname === "/module" && request.searchParams.get("id") === "module:world";
+    });
+    await page.evaluate(() => document.querySelector("#graph")._cyreg.cy.getElementById("seam:world.reader").emit("tap"));
+    await detailsResponse;
+    await expect(page.locator("#details")).toContainText("module:world");
+    await expect.poll(visibleNodes).toEqual(["module:bootstrap","module:npc","module:world","seam:world.reader"]);
+    await page.locator("#reset-focus").click();
+    await expect.poll(visibleNodes).toHaveLength(5);
+    await page.locator("#dependency-view").selectOption("data");
+    await expect.poll(() => page.evaluate(() => document.querySelector("#graph")._cyreg.cy.edges(":visible").map(e => e.id()))).toEqual(["module:npc→module:world"]);
+  } finally {
+    if (!page.isClosed()) {
+      await page.unroute("**/api/model");
+      await page.unroute(moduleRoute);
+    }
+  }
+});
+
+test("hover highlights incoming and outgoing arrows and restores their styles on leave", async () => {
+  const snapshot = JSON.parse(fs.readFileSync(path.join(repo, "testdata/ir/go.json")));
+  snapshot.modules.push({id:"module:extra",displayName:"extra",sourceRoots:["extra"],seams:[]},
+    {id:"module:other",displayName:"other",sourceRoots:["other"],seams:[]});
+  const evidence = snapshot.relations[0].evidence;
+  snapshot.relations.push({id:"outgoing",fromId:"module:world",toId:"module:extra",kind:"imports",evidence},
+    {id:"unrelated",fromId:"module:extra",toId:"module:other",kind:"imports",evidence});
+  await page.route("**/api/model", route => route.fulfill({json:{snapshot,check:{violations:[{relationId:snapshot.relations[0].id}],incomplete:false}}}));
+  try {
+    await page.goto(url);
+    await expect(page.locator("#summary")).toContainText("4 modules");
+    await page.locator("#dependency-view").selectOption("all");
+    const position = await page.evaluate(() => {
+      const graph = document.querySelector("#graph"), cy = graph._cyreg.cy;
+      const p = cy.getElementById("module:world").renderedPosition(), rect = graph.getBoundingClientRect();
+      return {x:rect.x+p.x,y:rect.y+p.y};
+    });
+    await page.mouse.move(position.x,position.y);
+    await expect.poll(() => page.evaluate(() => {
+      const cy = document.querySelector("#graph")._cyreg.cy;
+      return cy.edges(".hover-connected").map(e => e.id()).sort();
+    })).toEqual(["module:npc→module:world","module:world→module:extra"]);
+    expect(await page.evaluate(() => {
+      const cy = document.querySelector("#graph")._cyreg.cy;
+      return {
+        width:cy.getElementById("module:world→module:extra").style("width"),
+        color:cy.getElementById("module:world→module:extra").style("target-arrow-color"),
+        violation:cy.getElementById("module:npc→module:world").style("target-arrow-color"),
+        unrelated:cy.getElementById("module:extra→module:other").style("width"),
+      };
+    })).toEqual({width:"3.5px",color:"rgb(103,232,249)",violation:"rgb(251,113,133)",unrelated:"1.5px"});
+    await page.mouse.move(0,0);
+    await expect.poll(() => page.evaluate(() => document.querySelector("#graph")._cyreg.cy.edges(".hover-connected").length)).toBe(0);
+    expect(await page.evaluate(() => document.querySelector("#graph")._cyreg.cy.getElementById("module:world→module:extra").style("width"))).toBe("1.5px");
+  } finally {
+    await page.unroute("**/api/model");
+  }
+});
+
+test("neighbor ordering removes crossings and stays stable while hovering or refitting", async () => {
+  const modules = ['a','b','c','d'].map(name => ({id:'module:'+name,displayName:name,sourceRoots:[name],seams:[]}));
+  const symbols = ['c','d'].map(name => ({id:'symbol:'+name+':Run',moduleId:'module:'+name,kind:'function',displaySignature:'Run()',visibility:'public'}));
+  const relations = [['a','d'],['b','c']].map(([from,to]) => ({id:from+'→'+to,fromId:'module:'+from,toId:'symbol:'+to+':Run',kind:'uses',evidence:[]}));
+  const snapshot = {schemaVersion:1,modules,seams:[],symbols,relations,diagnostics:[]};
+  await page.route('**/api/model',route => route.fulfill({json:{snapshot,check:{violations:[],incomplete:false}}}));
+  try {
+    await page.goto(url);
+    await expect(page.locator('#summary')).toContainText('4 modules');
+    const coordinates = () => page.evaluate(() => document.querySelector('#graph')._cyreg.cy.nodes().map(n => ({id:n.id(),...n.position()})));
+    const initial = await coordinates(), byId = Object.fromEntries(initial.map(p => [p.id,p]));
+    expect(byId['module:a'].x).toBeLessThan(byId['module:d'].x);
+    expect((byId['module:a'].y-byId['module:b'].y)*(byId['module:d'].y-byId['module:c'].y)).toBeGreaterThan(0);
+    await page.evaluate(() => document.querySelector('#graph')._cyreg.cy.getElementById('module:a').emit('mouseover'));
+    expect(await coordinates()).toEqual(initial);
+    await page.locator('#dependency-view').selectOption('all');
+    expect(await coordinates()).toEqual(initial);
+    await page.getByRole('button',{name:'Architecture',exact:true}).click();
+    expect(await coordinates()).toEqual(initial);
+  } finally { await page.unroute('**/api/model'); }
+});
+
+test("orthogonal arrows avoid module boxes, remain clickable, and follow dragged nodes", async () => {
+  const snapshot=JSON.parse(fs.readFileSync(path.join(repo,'testdata/ir/go.json')));
+  snapshot.modules.push({id:'module:middle',displayName:'middle',sourceRoots:['middle'],seams:[]});
+  snapshot.symbols.push({id:'symbol:middle:Run',moduleId:'module:middle',kind:'function',displaySignature:'Run()',visibility:'public'});
+  snapshot.relations.push({id:'npc-middle',fromId:'module:npc',toId:'symbol:middle:Run',kind:'uses',evidence:[]},
+    {id:'middle-world',fromId:'module:middle',toId:snapshot.symbols[0].id,kind:'uses',evidence:[]});
+  await page.route('**/api/model',route=>route.fulfill({json:{snapshot,check:{violations:[],incomplete:false}}}));
+  const geometry=()=>page.evaluate(()=>{
+    const cy=document.querySelector('#graph')._cyreg.cy;
+    let diagonal=0,intersections=0;
+    for(const edge of cy.edges(':visible')){
+      const points=[edge.sourceEndpoint(),...(edge.segmentPoints()||[]),edge.targetEndpoint()];
+      for(let i=1;i<points.length;i++){
+        const a=points[i-1],b=points[i];
+        if(Math.abs(a.x-b.x)>1e-5&&Math.abs(a.y-b.y)>1e-5)diagonal++;
+        for(const node of cy.nodes(':visible')){
+          if(node.id()===edge.data('source')||node.id()===edge.data('target'))continue;
+          const box=node.boundingBox({includeLabels:false});
+          if(Math.abs(a.y-b.y)<1e-5&&a.y>box.y1&&a.y<box.y2&&Math.max(Math.min(a.x,b.x),box.x1)<Math.min(Math.max(a.x,b.x),box.x2))intersections++;
+          if(Math.abs(a.x-b.x)<1e-5&&a.x>box.x1&&a.x<box.x2&&Math.max(Math.min(a.y,b.y),box.y1)<Math.min(Math.max(a.y,b.y),box.y2))intersections++;
+        }
+      }
+    }
+    return{diagonal,intersections};
+  });
+  try{
+    await page.goto(url);
+    await expect(page.locator('#summary')).toContainText('3 modules');
+    await expect.poll(geometry).toEqual({diagonal:0,intersections:0});
+    const click=await page.evaluate(()=>{
+      const graph=document.querySelector('#graph'),edge=graph._cyreg.cy.getElementById('module:npc→module:world');
+      const points=[edge.renderedSourceEndpoint(),...edge.renderedSegmentPoints(),edge.renderedTargetEndpoint()];
+      const segments=points.slice(1).map((b,i)=>({a:points[i],b,length:Math.hypot(b.x-points[i].x,b.y-points[i].y)})).sort((a,b)=>b.length-a.length);
+      const {a,b}=segments[0],box=graph.getBoundingClientRect();
+      return{x:box.x+(a.x+b.x)/2,y:box.y+(a.y+b.y)/2};
+    });
+    const response=page.waitForResponse(r=>{const u=new URL(r.url());return u.pathname==='/edge'&&u.searchParams.get('from')==='module:npc'&&u.searchParams.get('to')==='module:world';});
+    await page.mouse.click(click.x,click.y);
+    await response;
+    await expect(page.locator('#details')).toContainText('Observed relationship');
+    await page.evaluate(()=>{const n=document.querySelector('#graph')._cyreg.cy.getElementById('module:npc');n.position({x:n.position('x'),y:n.position('y')+30});n.emit('drag');});
+    await expect.poll(geometry).toEqual({diagonal:0,intersections:0});
+  }finally{await page.unroute('**/api/model');}
+});

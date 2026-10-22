@@ -11,49 +11,35 @@ import (
 	"net"
 	"net/http"
 	"net/url"
-	"os"
-	"path/filepath"
 	"strconv"
-	"strings"
-	"sync"
 	"time"
 
+	"errors"
 	"github.com/a-h/templ"
-	"seamgraph/internal/config"
-	"seamgraph/internal/gitdiff"
+	"seamgraph/internal/application"
 	"seamgraph/internal/ir"
-	"seamgraph/internal/policy"
 	"seamgraph/internal/ui"
-	"seamgraph/internal/verification"
 )
 
-type Model struct {
-	Snapshot  ir.Snapshot         `json:"snapshot"`
-	Check     policy.Result       `json:"check"`
-	Contracts verification.Report `json:"contracts"`
-	Policy    policy.Policy       `json:"policy"`
+type Explorer interface {
+	Load(context.Context) (application.Model, error)
+	Compare(context.Context, string, string) (application.Result, error)
+	Source(context.Context, string) (string, error)
+	Propose(string, string, string) (application.Proposal, error)
+	Cancel(string)
+	Confirm(string) error
 }
-type Load func(context.Context) (Model, error)
-type Compare func(context.Context, string, string) (gitdiff.Result, error)
 type App struct {
-	Root      string
-	Load      Load
-	Compare   Compare
-	token     string
-	mu        sync.Mutex
-	proposals map[string]config.Edit
+	backend Explorer
+	token   string
 }
 
-func New(root string, load Load, compare Compare) (*App, error) {
-	root, err := filepath.Abs(root)
-	if err != nil {
-		return nil, err
-	}
+func New(backend Explorer) (*App, error) {
 	token := make([]byte, 32)
-	if _, err = rand.Read(token); err != nil {
+	if _, err := rand.Read(token); err != nil {
 		return nil, err
 	}
-	return &App{Root: root, Load: load, Compare: compare, token: hex.EncodeToString(token), proposals: map[string]config.Edit{}}, nil
+	return &App{backend: backend, token: hex.EncodeToString(token)}, nil
 }
 func render(w http.ResponseWriter, r *http.Request, c templ.Component) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -66,8 +52,8 @@ func (a *App) Handler() http.Handler {
 	assets, _ := fs.Sub(ui.Assets, "assets")
 	mux.Handle("GET /assets/", http.StripPrefix("/assets/", http.FileServer(http.FS(assets))))
 	mux.HandleFunc("GET /{$}", func(w http.ResponseWriter, r *http.Request) { render(w, r, ui.Page(a.token)) })
-	load := func(w http.ResponseWriter, r *http.Request) (Model, bool) {
-		m, err := a.Load(r.Context())
+	load := func(w http.ResponseWriter, r *http.Request) (application.Model, bool) {
+		m, err := a.backend.Load(r.Context())
 		if err != nil {
 			http.Error(w, err.Error(), 500)
 			return m, false
@@ -126,67 +112,33 @@ func (a *App) Handler() http.Handler {
 			http.Error(w, "invalid source location", 400)
 			return
 		}
-		m, ok := load(w, r)
-		if !ok {
-			return
-		}
-		known := false
-		for _, rel := range m.Snapshot.Relations {
-			for _, e := range rel.Evidence {
-				if e.File == file {
-					known = true
+		source, err := a.backend.Source(r.Context(), file)
+		if err != nil {
+			code := 500
+			var sourceError *application.SourceError
+			if errors.As(err, &sourceError) {
+				code = 404
+				if sourceError.Kind == "invalid" {
+					code = 400
+				}
+				if sourceError.Kind == "forbidden" {
+					code = 403
+				}
+				if sourceError.Kind == "large" {
+					code = 400
 				}
 			}
-		}
-		for _, d := range m.Snapshot.Diagnostics {
-			for _, e := range d.Evidence {
-				if e.File == file {
-					known = true
-				}
-			}
-		}
-		for _, e := range m.Contracts.Evidence {
-			if e.SourceLocation != nil && e.SourceLocation.File == file {
-				known = true
-			}
-		}
-		if !known {
-			http.Error(w, "source is not referenced by analyzed evidence", 404)
+			http.Error(w, err.Error(), code)
 			return
 		}
-		real, err := filepath.EvalSymlinks(filepath.Join(a.Root, filepath.FromSlash(file)))
-		if err != nil {
-			http.Error(w, "source unavailable", 404)
-			return
-		}
-		rel, err := filepath.Rel(a.Root, real)
-		if err != nil || !ir.ValidPath(filepath.ToSlash(rel)) {
-			http.Error(w, "source escapes project", 403)
-			return
-		}
-		info, err := os.Stat(real)
-		if err != nil || !info.Mode().IsRegular() || info.Size() > 2*1024*1024 {
-			http.Error(w, "source unavailable or too large", 400)
-			return
-		}
-		b, err := os.ReadFile(real)
-		if err != nil {
-			http.Error(w, "source unavailable", 404)
-			return
-		}
-		lines := strings.Split(string(b), "\n")
-		var numbered strings.Builder
-		for i, line := range lines {
-			fmt.Fprintf(&numbered, "%5d  %s\n", i+1, line)
-		}
-		render(w, r, ui.Source(file, numbered.String()))
+		render(w, r, ui.Source(file, source))
 	})
 	mux.HandleFunc("GET /changes", func(w http.ResponseWriter, r *http.Request) {
-		if a.Compare == nil {
+		if a.backend == nil {
 			http.Error(w, "revision comparison unavailable", 503)
 			return
 		}
-		result, err := a.Compare(r.Context(), r.URL.Query().Get("base"), r.URL.Query().Get("head"))
+		result, err := a.backend.Compare(r.Context(), r.URL.Query().Get("base"), r.URL.Query().Get("head"))
 		if err != nil {
 			render(w, r, ui.Message(err.Error()))
 			return
@@ -217,49 +169,30 @@ func (a *App) Handler() http.Handler {
 		if !validate(w, r) {
 			return
 		}
-		a.mu.Lock()
-		defer a.mu.Unlock()
-		e, err := config.PrepareRule(a.Root, r.Form.Get("effect"), r.Form.Get("from"), r.Form.Get("to"))
+		proposal, err := a.backend.Propose(r.Form.Get("effect"), r.Form.Get("from"), r.Form.Get("to"))
 		if err != nil {
 			http.Error(w, err.Error(), 400)
 			return
 		}
-		if len(a.proposals) >= 100 {
-			a.proposals = map[string]config.Edit{}
-		}
-		key := make([]byte, 24)
-		if _, err = rand.Read(key); err != nil {
-			http.Error(w, err.Error(), 500)
-			return
-		}
-		id := hex.EncodeToString(key)
-		a.proposals[id] = e
-		render(w, r, ui.Proposal(e.Diff, a.token, id))
+		render(w, r, ui.Proposal(proposal.Diff, a.token, proposal.ID))
 	})
 	mux.HandleFunc("POST /rules/cancel", func(w http.ResponseWriter, r *http.Request) {
 		if !validate(w, r) {
 			return
 		}
-		a.mu.Lock()
-		defer a.mu.Unlock()
-		delete(a.proposals, r.Form.Get("proposal"))
+		a.backend.Cancel(r.Form.Get("proposal"))
 		w.WriteHeader(http.StatusOK)
 	})
 	mux.HandleFunc("POST /rules/confirm", func(w http.ResponseWriter, r *http.Request) {
 		if !validate(w, r) {
 			return
 		}
-		a.mu.Lock()
-		defer a.mu.Unlock()
-		id := r.Form.Get("proposal")
-		e, ok := a.proposals[id]
-		delete(a.proposals, id)
-		if !ok {
-			http.Error(w, "unknown/expired proposal", 400)
-			return
-		}
-		if err := e.Commit(a.Root); err != nil {
-			http.Error(w, err.Error(), 409)
+		if err := a.backend.Confirm(r.Form.Get("proposal")); err != nil {
+			code := 409
+			if errors.Is(err, application.ErrUnknownProposal) {
+				code = 400
+			}
+			http.Error(w, err.Error(), code)
 			return
 		}
 		render(w, r, ui.Message("Rule saved. Reload the architecture to refresh policy results. Backup: seamgraph.yaml.bak"))
@@ -297,18 +230,34 @@ func validateListenAddress(addr string, allowNetwork bool) error {
 
 // Serve accepts a non-loopback bind only when explicitly enabled for container
 // networking. The handler retains localhost Host, Origin and CSRF validation.
-func Serve(ctx context.Context, addr string, handler http.Handler, allowNetwork bool) error {
+func Serve(ctx context.Context, addr string, handler http.Handler, allowNetwork bool, announce func(string) error) error {
 	if err := validateListenAddress(addr, allowNetwork); err != nil {
 		return err
 	}
+	listener, err := net.Listen("tcp", addr)
+	if err != nil {
+		return err
+	}
+	defer listener.Close()
+	if announce != nil {
+		if err = announce(listener.Addr().String()); err != nil {
+			return err
+		}
+	}
 	s := &http.Server{Addr: addr, Handler: handler, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 30 * time.Second, WriteTimeout: 2 * time.Minute, IdleTimeout: 60 * time.Second}
+	done := make(chan struct{})
+	defer close(done)
 	go func() {
-		<-ctx.Done()
+		select {
+		case <-ctx.Done():
+		case <-done:
+			return
+		}
 		shutdown, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		s.Shutdown(shutdown)
 	}()
-	err := s.ListenAndServe()
+	err = s.Serve(listener)
 	if err == http.ErrServerClosed {
 		return nil
 	}

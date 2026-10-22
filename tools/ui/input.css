@@ -13,6 +13,9 @@
 .workspace { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) clamp(20rem, 27vw, 28rem); gap: .75rem; }
 .graph-panel { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
 .graph-toolbar, .graph-hint { flex: none; }
+.graph-toolbar { flex-wrap: wrap; align-items: center; }
+#search { flex: 1 1 10rem; width: auto; }
+#dependency-view { max-width: 12rem; padding-top: .4rem; padding-bottom: .4rem; }
 .graph-toolbar input[type=search], #search { min-width: 0; }
 #graph { flex: 1; min-height: 0; position: relative; overflow: hidden; }
 .details-panel { min-width: 0; min-height: 0; overflow-wrap: anywhere; }

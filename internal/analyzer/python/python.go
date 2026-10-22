@@ -3,7 +3,7 @@ package python
 import (
 	"context"
 	_ "embed"
-	"seamgraph/internal/analyzer"
+	analyzer "seamgraph/internal/analysis"
 	"seamgraph/internal/config"
 	"seamgraph/internal/ir"
 )

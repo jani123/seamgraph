@@ -3,7 +3,7 @@ package ui
 import (
 	"fmt"
 	"net/url"
-	"seamgraph/internal/gitdiff"
+	"seamgraph/internal/application"
 	"seamgraph/internal/ir"
 	"seamgraph/internal/policy"
 	"seamgraph/internal/verification"
@@ -19,7 +19,7 @@ templ Page(token string) {
 			<title>SeamGraph · Architecture</title>
 			<link rel="stylesheet" href="/assets/styles.css"/><script src="/assets/htmx.min.js" defer></script>
 			<script src="/assets/cytoscape.min.js" defer></script>
-			<script src="/assets/app.js" defer></script>
+			<script src="/assets/graph.js" defer></script><script src="/assets/app.js" defer></script>
 			<script src="/assets/alpine.min.js" defer></script>
 		</head>
 		<body class="explorer bg-slate-950 text-slate-100 font-sans" x-data="shell">
@@ -28,7 +28,7 @@ templ Page(token string) {
 				<nav class="app-nav flex flex-wrap gap-2"><button class="rounded-lg bg-emerald-400 text-slate-950 px-4 py-2 font-medium" data-view="architecture">Architecture</button><button class="rounded-lg bg-slate-800 px-4 py-2" hx-get="/rules" hx-target="#details">Rules</button><button class="rounded-lg bg-slate-800 px-4 py-2" x-on:click="toggle">About evidence</button></nav>
 				<p x-show="help" x-cloak class="evidence-help text-sm text-slate-300 bg-slate-900 p-3 rounded-lg">Edges show observed dependencies. A module import alone does not prove use through an interface. Contract verification covers explicitly declared requirements with current linked evidence; it does not prove the absence of bugs.</p>
 				<div class="workspace">
-					<section class="graph-panel bg-slate-900 border border-slate-800 rounded-xl overflow-hidden"><div class="graph-toolbar p-3 border-b border-slate-800 flex gap-3"><input id="search" class="bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 w-full text-sm" placeholder="Filter by module, seam, consumer or violation" aria-label="Filter architecture"/><label class="text-xs flex items-center gap-2 whitespace-nowrap"><input id="violations-only" type="checkbox"/>Violations only</label></div><div id="graph" role="img" aria-label="Interactive module dependency graph"><p class="p-7 text-sm text-slate-400">Loading module graph…</p><noscript>Enable JavaScript to display modules and seams.</noscript></div><p class="graph-hint text-xs text-slate-400 px-3 py-2 border-t border-slate-800">Select a module for seams and consumers. Select an edge for source evidence and rule proposals.</p></section>
+					<section class="graph-panel bg-slate-900 border border-slate-800 rounded-xl overflow-hidden"><div class="graph-toolbar p-3 border-b border-slate-800 flex gap-3"><select id="dependency-view" aria-label="Dependency view" class="bg-slate-950 border border-slate-700 rounded-lg px-2 text-sm"><option value="api">Callable references</option><option value="all">All references</option><option value="data">Data references</option><option value="imports">Imports</option><option value="construction">Construction wiring</option></select><button id="reset-focus" class="text-xs whitespace-nowrap">Clear focus</button><input id="search" class="bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 w-full text-sm" placeholder="Filter by module, seam, consumer or violation" aria-label="Filter architecture"/><label class="text-xs flex items-center gap-2 whitespace-nowrap"><input id="violations-only" type="checkbox"/>Violations only</label></div><div id="graph" role="img" aria-label="Interactive module dependency graph"><p class="p-7 text-sm text-slate-400">Loading module graph…</p><noscript>Enable JavaScript to display modules and seams.</noscript></div><p class="graph-hint text-xs text-slate-400 px-3 py-2 border-t border-slate-800">Left to right: consumers → providers. Callable references include function values and do not prove execution. Select a module to focus its neighbors; expand a seam to inspect its consumers. Filtered views hide unconnected modules. All references remain available in the view selector.</p></section>
 					<aside id="details" class="details-panel bg-slate-900 border border-slate-800 rounded-xl p-5 overflow-auto"><p class="text-xs uppercase tracking-widest text-emerald-400 mb-3">Architecture, at a glance</p><h1 class="text-2xl font-semibold mb-3">Follow the seams.</h1><p class="text-sm text-slate-400 leading-relaxed">Choose a module to inspect its public contract, consumers and evidence. Stable IDs connect this view to the CLI and agent prompts.</p></aside>
 				</div>
 				<section class="comparison border border-slate-800 rounded-xl bg-slate-900"><h2 class="font-medium text-sm">Compare revisions</h2><form hx-get="/changes" hx-target="#changes" class="comparison-form flex gap-2"><input name="base" value="HEAD~1" aria-label="Base revision" class="bg-slate-950 rounded px-3 py-2 border border-slate-700"/><input name="head" value="HEAD" aria-label="Head revision" class="bg-slate-950 rounded px-3 py-2 border border-slate-700"/><button class="bg-slate-700 rounded px-4 py-2">Compare</button></form><div id="changes" class="text-xs text-slate-400">Internal-only edits are hidden. Working-tree edits are excluded from committed revision comparisons.</div></section>
@@ -234,7 +234,7 @@ templ Source(file, text string) {
 	</html>
 }
 
-templ Changes(result gitdiff.Result) {
+templ Changes(result application.Result) {
 	<div data-architecture-changes={ changeJSON(result.Diff.Changes) }>
 		<p class="text-xs text-slate-400 my-3">{ result.Base } to { result.Head }</p>
 		if len(result.Diff.Changes)==0 {

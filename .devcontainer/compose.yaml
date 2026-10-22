@@ -18,6 +18,7 @@ services:
       - NET_RAW
     environment:
       SEAMGRAPH_DEVCONTAINER: "1"
+      SEAMGRAPH_DEV_ADDR: "0.0.0.0:8765"
       HTTP_PROXY: http://proxy:3128
       HTTPS_PROXY: http://proxy:3128
       http_proxy: http://proxy:3128
@@ -27,6 +28,26 @@ services:
     depends_on:
       proxy:
         condition: service_healthy
+      dev-ui:
+        condition: service_started
+
+  # Fixed-target HTTP ingress: the workspace keeps its isolated network.
+  dev-ui:
+    build:
+      context: dev-ui
+    networks:
+      - private
+      - internet
+    ports:
+      - target: 8080
+        host_ip: 127.0.0.1
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp
 
   proxy:
     build:

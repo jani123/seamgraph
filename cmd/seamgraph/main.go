@@ -9,18 +9,14 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"syscall"
 
-	"seamgraph/internal/analyzer/registry"
-	"seamgraph/internal/config"
-	"seamgraph/internal/gitdiff"
+	"seamgraph/internal/application"
+	"seamgraph/internal/bootstrap"
 	"seamgraph/internal/ir"
 	"seamgraph/internal/policy"
 	"seamgraph/internal/report"
-	"seamgraph/internal/repository"
-	"seamgraph/internal/revision"
 	"seamgraph/internal/runtimecheck"
 	"seamgraph/internal/server"
 	"seamgraph/internal/verification"
@@ -30,25 +26,6 @@ var version = "dev"
 var commit = "unknown"
 var buildDate = "unknown"
 
-const starter = `# Declare literal directory roots; adjust before scanning.
-version: 1
-modules:
-  app:
-    language: go
-    paths: [internal/app]
-policies:
-  default: deny
-  unresolved: error
-`
-
-func analyze(ctx context.Context, root string) (ir.Snapshot, policy.Policy, error) {
-	s, c, err := registry.Scan(ctx, root)
-	if err != nil {
-		return s, policy.Policy{}, err
-	}
-	p, err := c.Policy()
-	return s, p, err
-}
 func writeJSON(w io.Writer, v any) error {
 	e := json.NewEncoder(w)
 	e.SetIndent("", "  ")
@@ -82,6 +59,7 @@ func runContext(ctx context.Context, args []string, out, errOut io.Writer) int {
 	configFile := fs.String("config", "", "local seamgraph.yaml to copy into a new remote workspace")
 	prepareOnly := fs.Bool("prepare-only", false, "prepare remote workspace without starting the server")
 	allowNetwork := fs.Bool("allow-network", false, "allow container network binding; HTTP Host remains localhost-only")
+	listenFile := fs.String("listen-file", "", "write actual bound address for development tooling")
 	addr := fs.String("addr", "127.0.0.1:8765", "loopback listen address")
 	artifact := fs.String("artifact", "", "test result artifact")
 	metadata := fs.String("metadata", "", "test run metadata JSON")
@@ -104,6 +82,10 @@ func runContext(ctx context.Context, args []string, out, errOut io.Writer) int {
 	if *asJSON {
 		*format = "json"
 	}
+	svc, err := bootstrap.New(*root)
+	if err != nil {
+		return fail(err)
+	}
 	if command == "doctor" {
 		var names []string
 		if *languages != "" {
@@ -112,14 +94,10 @@ func runContext(ctx context.Context, args []string, out, errOut io.Writer) int {
 			if err != nil {
 				return fail(err)
 			}
-		} else if _, err := os.Stat(filepath.Join(*root, config.Filename)); err == nil {
-			doc, err := config.Load(*root)
+		} else if _, err := os.Stat(filepath.Join(*root, application.ConfigFilename)); err == nil {
+			configured, err := svc.ConfiguredLanguages(*root)
 			if err != nil {
 				return fail(err)
-			}
-			var configured []string
-			for _, module := range doc.Config.Modules {
-				configured = append(configured, module.Language)
 			}
 			names, err = runtimecheck.ToolsForLanguages(strings.Join(configured, ","))
 			if err != nil {
@@ -160,37 +138,24 @@ func runContext(ctx context.Context, args []string, out, errOut io.Writer) int {
 			if err != nil {
 				return fail(err)
 			}
-			if _, err = config.Parse(supplied); err != nil {
+			if err = application.ValidateConfiguration(supplied); err != nil {
 				return fail(err)
 			}
 		}
 		fmt.Fprintln(errOut, "Preparing repository workspace…")
-		workspace, err := repository.Open(ctx, inspectID, *remoteRef, *cacheDir)
+		workspace, created, err := svc.Open(ctx, inspectID, *remoteRef, *cacheDir, supplied)
 		if err != nil {
 			return fail(err)
 		}
 		fmt.Fprintln(errOut, "Workspace:", workspace.Root)
 		fmt.Fprintln(errOut, "Commit:", workspace.Commit)
 		*root = workspace.Root
-		target := filepath.Join(*root, config.Filename)
-		if supplied != nil {
-			if err = os.WriteFile(target, supplied, 0644); err != nil {
-				return fail(err)
-			}
-		} else if _, err = os.Stat(target); os.IsNotExist(err) {
-			draft, e := config.Discover(*root)
-			if e != nil {
-				return fail(fmt.Errorf("workspace retained at %s; cannot draft architecture: %w", *root, e))
-			}
-			if err = os.WriteFile(target, draft, 0644); err != nil {
-				return fail(err)
-			}
+		if created {
 			fmt.Fprintln(errOut, "Created exploratory seamgraph.yaml: review directory boundaries and define public seams.")
-		} else if err != nil {
-			return fail(err)
 		}
-		if _, err = config.Load(*root); err != nil {
-			return fail(fmt.Errorf("workspace retained at %s: %w", *root, err))
+		svc, err = svc.At(*root)
+		if err != nil {
+			return fail(err)
 		}
 		if *prepareOnly {
 			if *asJSON {
@@ -205,32 +170,22 @@ func runContext(ctx context.Context, args []string, out, errOut io.Writer) int {
 		command = "serve"
 	}
 	if command == "init" {
-		p := filepath.Join(*root, config.Filename)
-		f, err := os.OpenFile(p, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
-		if err != nil {
+		if err := svc.Initialize(*root); err != nil {
 			return fail(err)
 		}
-		_, err = io.WriteString(f, starter)
-		closeErr := f.Close()
-		if err != nil {
-			return fail(err)
-		}
-		if closeErr != nil {
-			return fail(closeErr)
-		}
-		fmt.Fprintln(out, "Created", p)
+		fmt.Fprintln(out, "Created", filepath.Join(*root, application.ConfigFilename))
 		return 0
 	}
 	if command == "validate" {
-		d, err := config.Load(*root)
+		count, err := svc.Validate(*root)
 		if err != nil {
 			return fail(err)
 		}
-		fmt.Fprintf(out, "Configuration valid: %d modules (analysis not performed)\n", len(d.Config.Modules))
+		fmt.Fprintf(out, "Configuration valid: %d modules (analysis not performed)\n", count)
 		return 0
 	}
 	if command == "fingerprint" {
-		rev, fingerprint, err := revision.Identity(ctx, *root)
+		rev, fingerprint, err := svc.Identity(ctx, *root)
 		if err != nil {
 			return fail(err)
 		}
@@ -243,7 +198,7 @@ func runContext(ctx context.Context, args []string, out, errOut io.Writer) int {
 		if *artifact == "" || *metadata == "" {
 			return fail(fmt.Errorf("import-tests requires --artifact and --metadata"))
 		}
-		store, err := importTests(*root, *format, *artifact, *metadata)
+		store, err := svc.ImportTests(*root, *format, *artifact, *metadata)
 		if err != nil {
 			return fail(err)
 		}
@@ -253,7 +208,7 @@ func runContext(ctx context.Context, args []string, out, errOut io.Writer) int {
 		return 0
 	}
 	if command == "test" {
-		store, err := runTests(ctx, *root, *runner)
+		store, err := svc.RunTests(ctx, *root, *runner)
 		if err != nil {
 			return fail(err)
 		}
@@ -267,37 +222,34 @@ func runContext(ctx context.Context, args []string, out, errOut io.Writer) int {
 		if err != nil {
 			return fail(err)
 		}
-		load := func(ctx context.Context) (server.Model, error) {
-			s, p, err := analyze(ctx, rootPath)
-			if err != nil {
-				return server.Model{}, err
-			}
-			r, err := policy.Evaluate(s, p)
-			if err != nil {
-				return server.Model{}, err
-			}
-			cr, err := contractReport(ctx, rootPath, s)
-			return server.Model{Snapshot: s, Check: r, Contracts: cr, Policy: p}, err
-		}
-		cache := &gitdiff.Cache{Context: runtime.Version() + "|" + strings.Join(os.Environ(), "\x00")}
-		app, err := server.New(rootPath, load, func(ctx context.Context, base, head string) (gitdiff.Result, error) {
-			return cache.Compare(ctx, rootPath, base, head, analyze, revisionContracts(rootPath))
-		})
+		svc, err = svc.At(rootPath)
 		if err != nil {
 			return fail(err)
 		}
-		if *allowNetwork {
-			fmt.Fprintln(out, "SeamGraph listening on", *addr, "(container binding; open the published localhost port)")
-		} else {
-			fmt.Fprintln(out, "SeamGraph listening at http://"+*addr)
+		app, err := server.New(svc)
+		if err != nil {
+			return fail(err)
 		}
-		if err = server.Serve(ctx, *addr, app.Handler(), *allowNetwork); err != nil {
+		announce := func(bound string) error {
+			if *listenFile != "" {
+				if err := os.WriteFile(*listenFile, []byte(bound+"\n"), 0600); err != nil {
+					return err
+				}
+			}
+			if *allowNetwork {
+				fmt.Fprintln(out, "SeamGraph listening on", bound, "(container binding; open the published localhost port)")
+			} else {
+				fmt.Fprintln(out, "SeamGraph listening at http://"+bound)
+			}
+			return nil
+		}
+		if err = server.Serve(ctx, *addr, app.Handler(), *allowNetwork, announce); err != nil {
 			return fail(err)
 		}
 		return 0
 	}
 	if command == "diff" {
-		r, err := gitdiff.Compare(ctx, *root, *base, *head, analyze, revisionContracts(*root))
+		r, err := svc.Compare(ctx, *base, *head)
 		if err != nil {
 			return fail(err)
 		}
@@ -317,31 +269,13 @@ func runContext(ctx context.Context, args []string, out, errOut io.Writer) int {
 	if !strings.Contains("|scan|snapshot|check|inspect|", "|"+command+"|") {
 		return fail(fmt.Errorf("unknown/unavailable command %q", command))
 	}
-	storeRoot := *root
-	selectedCommit := ""
-	if *revisionRef != "" {
-		dir, commit, cleanup, err := gitdiff.Extract(ctx, *root, *revisionRef)
-		if err != nil {
-			return fail(err)
-		}
-		defer cleanup()
-		selectedCommit = commit
-		*root = dir
-	}
-	s, p, err := analyze(ctx, *root)
+	session, err := svc.InspectProject(ctx, *root, *revisionRef)
 	if err != nil {
 		return fail(err)
 	}
-	result, err := policy.Evaluate(s, p)
-	if err != nil {
-		return fail(err)
-	}
-	verify := func() (verification.Report, error) {
-		if selectedCommit != "" {
-			return revisionContracts(storeRoot)(ctx, *root, s, selectedCommit)
-		}
-		return contractReport(ctx, *root, s)
-	}
+	defer session.Close()
+	s, result := session.Snapshot, session.Check
+	verify := func() (verification.Report, error) { return session.Verify(ctx) }
 	var file *os.File
 	if *output != "" {
 		file, err = os.Create(*output)
@@ -413,59 +347,11 @@ func runContext(ctx context.Context, args []string, out, errOut io.Writer) int {
 		if inspectID == "" {
 			return fail(fmt.Errorf("inspect requires a stable architecture ID"))
 		}
-		var entity any
-		ids := []string{}
-		for _, m := range s.Modules {
-			ids = append(ids, m.ID)
-			if m.ID == inspectID {
-				entity = m
-			}
+		inspection, err := application.Inspect(s, result, inspectID)
+		if err != nil {
+			return fail(err)
 		}
-		for _, x := range s.Seams {
-			ids = append(ids, x.ID)
-			if x.ID == inspectID {
-				entity = x
-			}
-		}
-		for _, x := range s.Symbols {
-			ids = append(ids, x.ID)
-			if x.ID == inspectID {
-				entity = x
-			}
-		}
-		for _, r := range s.Relations {
-			ids = append(ids, r.ID)
-			if r.ID == inspectID {
-				entity = r
-			}
-		}
-		for _, v := range result.Violations {
-			ids = append(ids, v.ID)
-			if v.ID == inspectID {
-				entity = v
-			}
-		}
-		if entity == nil {
-			if len(ids) > 12 {
-				ids = ids[:12]
-			}
-			return fail(fmt.Errorf("unknown ID %q; candidate IDs: %s", inspectID, strings.Join(ids, ", ")))
-		}
-		related := []ir.Relation{}
-		owner := ir.Owners(s)[inspectID]
-		members := map[string]bool{inspectID: true}
-		for _, seam := range s.Seams {
-			if seam.ID == inspectID {
-				for _, m := range seam.ContractMembers {
-					members[m] = true
-				}
-			}
-		}
-		for _, r := range s.Relations {
-			if members[r.FromID] || members[r.ToID] || (strings.HasPrefix(inspectID, "module:") && (ir.Owners(s)[r.FromID] == owner || ir.Owners(s)[r.ToID] == owner)) {
-				related = append(related, r)
-			}
-		}
+		entity, related := inspection.Entity, inspection.Relations
 		var cr *verification.Report
 		if *tests {
 			r, err := verify()

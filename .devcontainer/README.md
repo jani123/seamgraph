@@ -17,25 +17,38 @@ devbox shell
 task devcontainer:up
 task devcontainer:check
 task devcontainer:shell
+task devcontainer:dev
+# In another host terminal, print the browser URL:
+task devcontainer:url
 task devcontainer:codex
 # Later:
 task devcontainer:codex -- resume --last
 ```
 
-`up` creates the container and installs Devbox packages. `check` verifies the
+`up` creates the container and installs Devbox packages, project development
+dependencies and pinned Air. `check` verifies the
 toolchain, Codex, proxy allow/deny behavior, direct-egress blocking, DNS policy,
 and dropped network capabilities. It requires internet access through the proxy.
 To run only network checks, use `task devcontainer:check-network`.
 
-In VS Code/Cursor choose **Reopen in Container** with its Dev Containers
-extension installed. Terminals open `devbox shell`; port 8765 is forwarded.
-The checkout is mounted at `/workspaces/seamgraph`. No application is started
-automatically. Use `devbox run -- <command>` for noninteractive tool execution.
+`up` and `rebuild` automatically start Air in the background through the
+post-start hook. `task devcontainer:dev` ensures it is running, prints the host
+browser URL, and follows `.build/dev-server.log`. Ctrl-C closes the log stream;
+`task devcontainer:dev-stop` stops Air. Docker picks an available localhost port for the fixed-target UI relay;
+`task devcontainer:url` discovers it without relying on editor forwarding or
+hard-coded Compose project/container names. Run `task devcontainer:rebuild` once
+after this configuration change to create the relay and port mapping.
+
+The checkout is mounted at `/workspaces/seamgraph`. Startup waits up to 120
+seconds for HTTP readiness and reports the log path if the build fails. Use `devbox run -- <command>` for noninteractive tool execution.
+VS Code/Cursor's **Reopen in Container** is also supported; its integrated port
+forwarding is optional. See [development](../docs/development.md) for Air details.
 
 ## Network boundary
 
 The workspace is attached only to an internal Docker bridge with an isolated
-gateway. Only the proxy has an external network. Public DNS forwarding is
+gateway. The Squid proxy and fixed-target HTTP ingress relay have external networks.
+The ingress relay forwards only to workspace:8765 and publishes on host localhost. Public DNS forwarding is
 disabled for the workspace, while Docker service discovery resolves `proxy`.
 `NET_ADMIN` and `NET_RAW` are dropped. No Docker socket, host home, desktop
 sockets, or host network is mounted.

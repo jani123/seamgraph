@@ -131,3 +131,19 @@ workspace. The server binds to loopback only.
 [adapter limits](docs/adapters.md), [policy and comparison](docs/policy-and-diff.md),
 and [architecture decisions](docs/adr/0003-adapters.md) describe the implementation
 and its limits. The full specification is [SEAMGRAPH_PLAN.md](SEAMGRAPH_PLAN.md).
+
+## SeamGraph's own architecture
+
+The root [seamgraph.yaml](seamgraph.yaml) defines explicit modules, public seams and
+default-deny connections for SeamGraph itself. Run `task architecture:check`, or
+`.build/seamgraph serve --root .` to explore it. CI and releases enforce the same
+configuration. See [self-architecture](docs/self-architecture.md) for boundaries
+and analysis scope.
+
+## Live development
+
+From the host, run `task devcontainer:rebuild` once after updating the container,
+which starts Air automatically. `task devcontainer:dev` follows its logs and
+prints Docker's randomly assigned localhost URL. `task devcontainer:url`
+prints it again. This works with the standalone Dev Container CLI; VS Code is
+optional. See [development setup](docs/development.md).

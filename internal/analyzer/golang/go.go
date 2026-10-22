@@ -14,7 +14,7 @@ import (
 	"strings"
 
 	"golang.org/x/tools/go/packages"
-	"seamgraph/internal/analyzer"
+	analyzer "seamgraph/internal/analysis"
 	"seamgraph/internal/config"
 	"seamgraph/internal/ir"
 )

@@ -14,7 +14,9 @@ jobs:
           go-version-file: go.mod
           cache: true
       - name: Test release source
-        run: go test ./...
+        run: |
+          go test ./...
+          go run ./cmd/seamgraph check --root .
       - name: Test installer failure and checksum handling
         run: python3 -m unittest discover -s scripts/tests -v
       - name: Package all supported operating systems and architectures

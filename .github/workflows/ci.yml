@@ -46,6 +46,7 @@ jobs:
         run: |
           mkdir -p .build
           go build -o .build/seamgraph ./cmd/seamgraph
+          .build/seamgraph check --root . --json
           go vet ./...
           go test -race ./...
           python3 -m unittest discover -s scripts/tests -v
@@ -83,3 +84,28 @@ jobs:
           assert len(model['snapshot']['seams']) == 3
           assert not model['check']['incomplete']
           PY
+      - name: Verify CLI-only devcontainer ingress preserves isolated workspace networking
+        run: |
+          docker compose -f .devcontainer/compose.yaml config --quiet
+          docker build -t seamgraph-dev-ui:ci .devcontainer/dev-ui
+          docker network create --internal --opt com.docker.network.bridge.gateway_mode_ipv4=isolated seamgraph-private-ci
+          docker network create seamgraph-ingress-ci
+          trap 'docker logs seamgraph-relay-ci; docker rm -f seamgraph-relay-ci seamgraph-backend-ci; docker network rm seamgraph-private-ci seamgraph-ingress-ci' EXIT
+          docker run -d --name seamgraph-backend-ci --network seamgraph-private-ci --network-alias workspace --cap-drop NET_ADMIN --cap-drop NET_RAW --label "devcontainer.local_folder=$PWD" --label "devcontainer.config_file=$PWD/.devcontainer/devcontainer.json" --label com.docker.compose.project=seamgraph-ingress-ci -v "$PWD/testdata/projects/mixed:/project:ro" seamgraph:ci serve --root /project --addr 0.0.0.0:8765 --allow-network
+          docker create --name seamgraph-relay-ci --network seamgraph-ingress-ci --cap-drop ALL --read-only --tmpfs /tmp --label com.docker.compose.project=seamgraph-ingress-ci --label com.docker.compose.service=dev-ui -p 127.0.0.1::8080 seamgraph-dev-ui:ci
+          docker network connect seamgraph-private-ci seamgraph-relay-ci
+          docker start seamgraph-relay-ci
+          url=$(python3 .devcontainer/browser-url.py --workspace-folder "$PWD")
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent "$url/" > /dev/null; then break; fi
+            sleep 1
+          done
+          curl --fail --silent "$url/api/model" > /tmp/seamgraph-relay-model.json
+          python3 - <<'PY'
+          import json
+          with open('/tmp/seamgraph-relay-model.json') as f:
+              model = json.load(f)
+          assert len(model['snapshot']['modules']) == 6
+          assert len(model['snapshot']['seams']) == 3
+          PY
+          test "$(curl --silent -o /dev/null -w '%{http_code}' -H 'Host: untrusted.example' "$url/")" = 403

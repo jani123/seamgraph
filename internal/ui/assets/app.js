@@ -47,28 +47,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     const { snapshot: s, check } = await response.json();
     document.querySelector("#summary").textContent =
       `${s.modules.length} modules · ${s.seams.length} seams · ${check.violations.length} violations${check.incomplete ? " · analysis incomplete" : ""}`;
-    const owners = new Map(s.modules.map((m) => [m.id, m.id]));
-    for (const x of [...s.seams, ...s.symbols]) owners.set(x.id, x.moduleId);
-    const violated = new Set(check.violations.map((v) => v.relationId));
-    const pairs = new Map();
-    for (const r of s.relations) {
-      const from = owners.get(r.fromId),
-        to = owners.get(r.toId);
-      if (from === to || !["imports", "uses", "calls"].includes(r.kind))
-        continue;
-      const id = from + "→" + to;
-      if (!pairs.has(id))
-        pairs.set(id, {
-          id,
-          source: from,
-          target: to,
-          count: 0,
-          violated: false,
-        });
-      const p = pairs.get(id);
-      p.count++;
-      p.violated ||= violated.has(r.id);
-    }
+    const { owners, pairs } = SeamGraphLayout.project(s, check.violations);
+    if (![...pairs.values()].some(p => p.categories.includes("api")))
+      document.querySelector("#dependency-view").value = "all";
     const nodes = s.modules.map((m) => ({
       data: {
         id: m.id,
@@ -98,12 +79,13 @@ document.addEventListener("DOMContentLoaded", async () => {
             "border-color": "#34d399",
             label: "data(label)",
             color: "#e2e8f0",
-            "font-size": 12,
-            width: 68,
-            height: 68,
+            "font-size": 14,
+            width: 130,
+            height: 56,
+            shape: "round-rectangle",
             "text-valign": "center",
             "text-wrap": "wrap",
-            "text-max-width": 80,
+            "text-max-width": 120,
           },
         },
         {
@@ -113,9 +95,13 @@ document.addEventListener("DOMContentLoaded", async () => {
             "line-color": "#475569",
             "target-arrow-color": "#475569",
             "target-arrow-shape": "triangle",
-            "curve-style": "bezier",
+            "curve-style": "taxi",
+            "taxi-direction": "horizontal",
+            "source-endpoint": "outside-to-line",
+            "target-endpoint": "outside-to-line",
           },
         },
+        {selector: 'node[kind="seam"]',style:{"border-style":"dashed","border-color":"#fbbf24","font-size":12,height:44}},
         { selector: "node[?violated]", style: { "border-color": "#fb7185" } },
         {
           selector: "edge[?violated]",
@@ -152,15 +138,72 @@ document.addEventListener("DOMContentLoaded", async () => {
             "target-arrow-color": "#fbbf24",
           },
         },
+        {
+          selector: "edge.hover-connected",
+          style: {
+            width: 3.5,
+            "line-color": "#67e8f9",
+            "target-arrow-color": "#67e8f9",
+            "z-index": 10,
+          },
+        },
+        {
+          selector: "edge.hover-connected.added",
+          style: { "line-color": "#34d399", "target-arrow-color": "#34d399" },
+        },
+        {
+          selector: "edge.hover-connected.changed",
+          style: { "line-color": "#fbbf24", "target-arrow-color": "#fbbf24" },
+        },
+        {
+          selector: "edge.hover-connected[?violated], edge.hover-connected.removed",
+          style: { "line-color": "#fb7185", "target-arrow-color": "#fb7185" },
+        },
         { selector: ".hidden", style: { display: "none" } },
       ],
-      layout: {
-        name: s.modules.length > 40 ? "grid" : "cose",
-        animate: false,
-        nodeRepulsion: () => 9000,
-      },
+      layout: {name: "preset"},
       wheelSensitivity: 0.25,
     });
+    let focusedModule = null;
+    const clearHover = () => cy.edges(".hover-connected").removeClass("hover-connected");
+    cy.on("mouseover", "node", (event) => {
+      clearHover();
+      event.target.connectedEdges().addClass("hover-connected");
+    });
+    cy.on("mouseout", "node", clearHover);
+    document.querySelector("#graph").addEventListener("pointerleave", clearHover);
+    const routeEdges = () => {
+      const routes = SeamGraphLayout.orthogonal(
+        cy.nodes(":visible").map(n => ({id:n.id(),...n.position(),width:n.outerWidth(),height:n.outerHeight()})),
+        cy.edges(":visible").map(e => ({id:e.id(),source:e.data("source"),target:e.data("target")})));
+      cy.batch(() => {
+        cy.edges(":visible").filter(e => !routes.has(e.id())).style({
+          "curve-style":"taxi", "source-endpoint":"outside-to-line", "target-endpoint":"outside-to-line",
+        });
+        for (const [id,route] of routes) cy.getElementById(id).style({
+          "curve-style":"segments", "edge-distances":"node-position",
+          "source-endpoint":route.sourceEndpoint,"target-endpoint":route.targetEndpoint,
+          "segment-weights":route.weights,"segment-distances":route.distances,
+        });
+      });
+    };
+    let routeFrame;
+    cy.on("drag dragfree select unselect", "node", () => {
+      cancelAnimationFrame(routeFrame);
+      routeFrame = requestAnimationFrame(routeEdges);
+    });
+    const arrange = () => {
+      const visible = cy.nodes().filter(n => !n.data("moduleId") && !n.hasClass("hidden"));
+      const positions = SeamGraphLayout.positions(visible.map(n => n.id()),
+        cy.edges().filter(e => !e.hasClass("hidden") && !e.data("seamEdge")).map(e => ({source: e.data("source"), target: e.data("target")})));
+      cy.nodes().filter(n => !n.data("moduleId")).positions(n => positions.get(n.id()) || {x: 0, y: 0});
+      cy.nodes().filter(n => n.data("moduleId")).forEach((n, i) => {
+        const p = positions.get(n.data("moduleId")) || {x: 0, y: 0};
+        n.position({x: p.x + 85, y: p.y + 75 + i * 50});
+      });
+      routeEdges();
+      cy.fit(cy.elements(":visible"), 45);
+    };
     const graphObserver = new ResizeObserver(() => {
       cy.resize();
       cy.fit(cy.elements(":visible"), 35);
@@ -176,67 +219,68 @@ document.addEventListener("DOMContentLoaded", async () => {
           children.remove();
           button.textContent = "Expand seams in graph";
         } else {
-          for (const seam of s.seams.filter((x) => x.moduleId === id))
+          for (const seam of s.seams.filter((x) => x.moduleId === id)) {
             cy.add({
               data: {
                 id: seam.id,
                 moduleId: id,
-                parent: id,
                 kind: "seam",
                 label: seam.id.split(".").at(-1),
                 search: seam.id.toLowerCase(),
               },
             });
+            const members = new Set(seam.contractMembers);
+            const projection = SeamGraphLayout.project({...s, relations: s.relations.filter(r => members.has(r.toId))}, check.violations);
+            let violated = false;
+            for (const pair of projection.pairs.values()) if (pair.target === id) {
+              violated ||= pair.violated;
+              cy.add({data: {...pair, id: pair.source + "→" + seam.id, target: seam.id, seamEdge: true}});
+            }
+            cy.getElementById(seam.id).data("violated", violated);
+          }
           button.textContent = "Collapse seams in graph";
         }
-        cy.layout({
-          name: cy.nodes().length > 40 ? "grid" : "cose",
-          animate: false,
-        }).run();
+        filter();
       }
-      if (event.target.closest('[data-view="architecture"]')) cy.fit();
+      if (event.target.closest('[data-view="architecture"]')) {focusedModule = null; filter();}
     });
-    cy.on("tap", "node", (event) =>
-      htmx.ajax(
-        "GET",
-        "/module?id=" +
-          encodeURIComponent(
-            event.target.data("moduleId") || event.target.id(),
-          ),
-        {
-          target: "#details",
-        },
-      ),
-    );
-    cy.on("tap", "edge", (event) =>
-      htmx.ajax(
-        "GET",
-        "/edge?from=" +
-          encodeURIComponent(event.target.data("source")) +
-          "&to=" +
-          encodeURIComponent(event.target.data("target")),
-        { target: "#details" },
-      ),
-    );
+    cy.on("tap", "node", (event) => {
+      focusedModule = event.target.id();
+      filter();
+      htmx.ajax("GET", "/module?id=" + encodeURIComponent(event.target.data("moduleId") || focusedModule), {target: "#details"});
+    });
+    cy.on("tap", "edge", (event) => {
+      const target = cy.getElementById(event.target.data("target"));
+      htmx.ajax("GET", "/edge?from=" + encodeURIComponent(event.target.data("source")) +
+        "&to=" + encodeURIComponent(target.data("moduleId") || target.id()), {target: "#details"});
+    });
     const filter = () => {
       const query = document.querySelector("#search").value.toLowerCase(),
-        only = document.querySelector("#violations-only").checked;
-      cy.nodes().forEach((n) =>
-        n.toggleClass(
-          "hidden",
-          !n.data("search").includes(query) || (only && !n.data("violated")),
-        ),
-      );
-      cy.edges().forEach((e) =>
-        e.toggleClass(
-          "hidden",
-          e.source().hasClass("hidden") ||
-            e.target().hasClass("hidden") ||
-            (only && !e.data("violated")),
-        ),
-      );
-      cy.fit(cy.elements(":visible"), 45);
+        only = document.querySelector("#violations-only").checked,
+        view = document.querySelector("#dependency-view").value;
+      const neighbors = new Set([focusedModule, owners.get(focusedModule)]);
+      if (focusedModule) for (const edge of cy.edges()) {
+        const source = edge.data("source"), target = edge.data("target");
+        if (source === focusedModule) neighbors.add(target);
+        if (target === focusedModule) neighbors.add(source);
+      }
+      cy.nodes().forEach(n => n.toggleClass("hidden",
+        !n.data("search").includes(query) || (only && !n.data("violated")) ||
+        (focusedModule && !neighbors.has(n.id()) && n.data("moduleId") !== focusedModule)));
+      cy.edges().forEach(e => e.toggleClass("hidden",
+        e.source().hasClass("hidden") || e.target().hasClass("hidden") ||
+        (only && !e.data("violated")) ||
+        (view !== "all" && !e.data("categories")?.includes(view))));
+      if (view !== "all") {
+        const connected = new Set();
+        cy.edges().filter(e => !e.hasClass("hidden")).forEach(e => {connected.add(e.data("source")); connected.add(e.data("target"));});
+        cy.nodes().forEach(n => {if (!connected.has(n.id()) && n.id() !== focusedModule) n.addClass("hidden");});
+      }
+      arrange();
     };
+    document.querySelector("#dependency-view").addEventListener("change", filter);
+    document.querySelector("#reset-focus").addEventListener("click", () => {focusedModule = null; filter();});
+    filter();
     document.querySelector("#search").addEventListener("input", filter);
     document
       .querySelector("#violations-only")
@@ -294,8 +338,10 @@ document.addEventListener("DOMContentLoaded", async () => {
           }
         }
       }
-      if (cy.elements(".revision-only").length)
-        cy.layout({ name: "grid", animate: false }).run();
+      // Revision changes stay inspectable even when their original category is
+      // absent from the current snapshot.
+      cy.elements(".revision-only").forEach(e => {if (e.isEdge()) e.data("categories", ["api", "data", "imports", "construction"]);});
+      filter();
     });
   } catch (error) {
     status.textContent = String(error);

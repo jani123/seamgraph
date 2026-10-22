@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"seamgraph/internal/projectfiles"
 	"seamgraph/internal/verification"
 	"testing"
 )
@@ -146,10 +147,10 @@ func mustRead(t *testing.T, p string) []byte {
 func TestEvidenceStoreSerializesAndDeduplicates(t *testing.T) {
 	root := t.TempDir()
 	e := verification.Evidence{ID: "e:one", TestID: "Read", Runner: "test", Revision: "abc", Fingerprint: "inputs", RunID: "run", ObservedAt: "2026-10-16T00:00:00Z", Outcome: "passed", EvidenceKind: "test-execution"}
-	if _, err := appendEvidence(root, []verification.Evidence{e}); err != nil {
+	if _, err := projectfiles.AppendEvidence(root, []verification.Evidence{e}); err != nil {
 		t.Fatal(err)
 	}
-	s, err := appendEvidence(root, []verification.Evidence{e})
+	s, err := projectfiles.AppendEvidence(root, []verification.Evidence{e})
 	if err != nil || len(s.Evidence) != 1 {
 		t.Fatal("same evidence not idempotent", err, s)
 	}
@@ -158,10 +159,10 @@ func TestEvidenceStoreSerializesAndDeduplicates(t *testing.T) {
 		t.Fatal(err)
 	}
 	e.ID = "e:two"
-	if _, err = appendEvidence(root, []verification.Evidence{e}); err == nil {
+	if _, err = projectfiles.AppendEvidence(root, []verification.Evidence{e}); err == nil {
 		t.Fatal("concurrent writer bypassed lock")
 	}
-	s, err = readStore(root)
+	s, err = projectfiles.ReadStore(root)
 	if err != nil || len(s.Evidence) != 1 {
 		t.Fatal("lock failure changed evidence", err, s)
 	}

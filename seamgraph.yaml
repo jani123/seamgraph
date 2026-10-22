@@ -1,0 +1,223 @@
+# Self architecture: explicit capability seams, default-deny, disjoint roots.
+version: 1
+modules:
+  cli:
+    language: go
+    paths: [cmd/seamgraph]
+  bootstrap:
+    language: go
+    paths: [internal/bootstrap]
+    seams:
+      construction:
+        symbols: [New]
+  application:
+    language: go
+    paths: [internal/application]
+    seams:
+      inspection:
+        symbols: [internal/application.Service.InspectProject, InspectionSession, Inspect]
+      explorer:
+        symbols: [internal/application.Service.Load, internal/application.Service.Source]
+      comparison:
+        symbols: [internal/application.Service.Compare]
+      project:
+        symbols: [internal/application.Service.At, internal/application.Service.Root, internal/application.Service.Validate, internal/application.Service.ConfiguredLanguages, ValidateConfiguration, ConfigFilename, internal/application.Service.Identity, internal/application.Service.Initialize, internal/application.Service.Open]
+      evidence:
+        symbols: [internal/application.Service.RunTests, internal/application.Service.ImportTests]
+      rules:
+        symbols: [internal/application.Service.Propose, internal/application.Service.Cancel, internal/application.Service.Confirm]
+      views:
+        symbols: [Model, Result, Proposal, Workspace, Inspection, SourceError, ErrUnknownProposal]
+      ports:
+        symbols: [Ports, RuleEdit, internal/application.Extract, EvidenceRun]
+      construction:
+        symbols: [New, Service]
+  analysis:
+    language: go
+    paths: [internal/analysis]
+    seams:
+      scan:
+        symbols: [Scanner]
+      adapter-protocol:
+        symbols: [Project, Adapter, Builder, NewBuilder, RunHelper]
+  go-adapter:
+    language: go
+    paths: [internal/analyzer/golang]
+    seams:
+      construction:
+        symbols: [Adapter]
+  typescript-adapter:
+    language: go
+    paths: [internal/analyzer/typescript]
+    seams:
+      construction:
+        symbols: [Adapter]
+  python-adapter:
+    language: go
+    paths: [internal/analyzer/python]
+    seams:
+      construction:
+        symbols: [Adapter]
+  project:
+    language: go
+    paths: [internal/config]
+    seams:
+      documents:
+        symbols: [Config, Module, Seam, Policies, Rule, Document, Filename, Parse, ValidateNodes]
+  project-files:
+    language: go
+    paths: [internal/projectfiles]
+    seams:
+      access:
+        symbols: [Load, LoadContracts, ReadStore, AppendEvidence, EvidenceDir, Initialize, PrepareProject, PrepareRule, Edit, Source, ConfigKey]
+  git-workspaces:
+    language: go
+    paths: [internal/gitworkspace]
+    seams:
+      access:
+        symbols: [Workspace, Open, Extract, Identity, Revision]
+  test-runners:
+    language: go
+    paths: [internal/analyzer/testresults]
+    seams:
+      collection:
+        symbols: [Run, Import, Execute]
+  model:
+    language: go
+    paths: [internal/ir]
+    seams:
+      graph:
+        symbols: [SchemaVersion, Module, Seam, Symbol, Evidence, Relation, Diagnostic, Snapshot, PartialSnapshot, ValidName, ModuleID, SeamID, SymbolID, RelationID, ViolationID, ValidPath, ValidRoot, Merge, Decode, Owners, IsConsumerRelation]
+  policy:
+    language: go
+    paths: [internal/policy]
+    seams:
+      model:
+        symbols: [Rule, Policy, Decision, Violation, Result]
+      evaluation:
+        symbols: [Evaluate]
+  comparison:
+    language: go
+    paths: [internal/snapshot]
+    seams:
+      model:
+        symbols: [Change, Diff]
+      architecture:
+        symbols: [Compare, ComparePolicies, SortChanges]
+      contracts:
+        symbols: [CompareVerification]
+  verification:
+    language: go
+    paths: [internal/verification]
+    seams:
+      model:
+        symbols: [Requirement, Link, Evidence, Manifest, Store, Coverage, Result, Report]
+      evaluation:
+        symbols: [Evaluate]
+  reporting:
+    language: go
+    paths: [internal/report]
+    seams:
+      output:
+        symbols: [Write, ApplyBaseline]
+  runtimes:
+    language: go
+    paths: [internal/runtimecheck]
+    seams:
+      tools:
+        symbols: [Tool, Check, ToolsForLanguages]
+  web:
+    language: go
+    paths: [internal/server]
+    seams:
+      http:
+        symbols: [App, Explorer, New, Serve]
+  ui:
+    language: go
+    paths: [internal/ui]
+    seams:
+      components:
+        symbols: [Assets, Page, ModuleDetails, Relationship, Rules, Proposal, Message, Source, Changes]
+  release-tools:
+    language: go
+    paths: [scripts/packagezip]
+policies:
+  default: deny
+  unresolved: error
+  allow:
+    - {from: cli, to: bootstrap.construction}
+    - {from: cli, to: application.inspection}
+    - {from: cli, to: application.comparison}
+    - {from: cli, to: application.project}
+    - {from: cli, to: application.evidence}
+    - {from: cli, to: application.views}
+    - {from: cli, to: model.graph}
+    - {from: cli, to: policy.model}
+    - {from: cli, to: verification.model}
+    - {from: cli, to: comparison.model}
+    - {from: cli, to: reporting.output}
+    - {from: cli, to: runtimes.tools}
+    - {from: cli, to: web.http}
+    - {from: bootstrap, to: application.construction}
+    - {from: bootstrap, to: application.ports}
+    - {from: bootstrap, to: application.views}
+    - {from: bootstrap, to: analysis.scan}
+    - {from: bootstrap, to: analysis.adapter-protocol}
+    - {from: bootstrap, to: go-adapter.construction}
+    - {from: bootstrap, to: typescript-adapter.construction}
+    - {from: bootstrap, to: python-adapter.construction}
+    - {from: bootstrap, to: project-files.access}
+    - {from: bootstrap, to: git-workspaces.access}
+    - {from: bootstrap, to: test-runners.collection}
+    - {from: bootstrap, to: project.documents}
+    - {from: bootstrap, to: model.graph}
+    - {from: bootstrap, to: verification.model}
+    - {from: application, to: project.documents}
+    - {from: application, to: model.graph}
+    - {from: application, to: policy.model}
+    - {from: application, to: policy.evaluation}
+    - {from: application, to: comparison.model}
+    - {from: application, to: comparison.architecture}
+    - {from: application, to: comparison.contracts}
+    - {from: application, to: verification.model}
+    - {from: application, to: verification.evaluation}
+    - {from: analysis, to: project.documents}
+    - {from: analysis, to: model.graph}
+    - {from: go-adapter, to: analysis.adapter-protocol}
+    - {from: go-adapter, to: project.documents}
+    - {from: go-adapter, to: model.graph}
+    - {from: python-adapter, to: analysis.adapter-protocol}
+    - {from: python-adapter, to: project.documents}
+    - {from: python-adapter, to: model.graph}
+    - {from: typescript-adapter, to: analysis.adapter-protocol}
+    - {from: typescript-adapter, to: project.documents}
+    - {from: typescript-adapter, to: model.graph}
+    - {from: project, to: model.graph}
+    - {from: project-files, to: project.documents}
+    - {from: project-files, to: application.views}
+    - {from: project-files, to: model.graph}
+    - {from: project-files, to: verification.model}
+    - {from: git-workspaces, to: model.graph}
+    - {from: test-runners, to: model.graph}
+    - {from: test-runners, to: verification.model}
+    - {from: policy, to: model.graph}
+    - {from: comparison, to: model.graph}
+    - {from: comparison, to: policy.model}
+    - {from: comparison, to: policy.evaluation}
+    - {from: comparison, to: verification.model}
+    - {from: verification, to: model.graph}
+    - {from: web, to: application.explorer}
+    - {from: web, to: application.comparison}
+    - {from: web, to: application.rules}
+    - {from: web, to: application.views}
+    - {from: web, to: model.graph}
+    - {from: web, to: policy.model}
+    - {from: web, to: verification.model}
+    - {from: web, to: ui.components}
+    - {from: ui, to: application.views}
+    - {from: ui, to: model.graph}
+    - {from: ui, to: policy.model}
+    - {from: ui, to: verification.model}
+    - {from: ui, to: comparison.model}
+    - {from: reporting, to: model.graph}
+    - {from: reporting, to: policy.model}

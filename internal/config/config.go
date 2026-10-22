@@ -5,8 +5,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"os"
-	"path/filepath"
 	"slices"
 	"strings"
 
@@ -63,7 +61,7 @@ func Parse(data []byte) (*Document, error) {
 		}
 		return nil, fmt.Errorf("only one YAML document is allowed")
 	}
-	if err := strictNodes(&d.Node, map[*yaml.Node]bool{}); err != nil {
+	if err := ValidateNodes(&d.Node, map[*yaml.Node]bool{}); err != nil {
 		return nil, err
 	}
 	typed := yaml.NewDecoder(bytes.NewReader(data))
@@ -79,7 +77,7 @@ func Parse(data []byte) (*Document, error) {
 	}
 	return d, nil
 }
-func strictNodes(n *yaml.Node, seen map[*yaml.Node]bool) error {
+func ValidateNodes(n *yaml.Node, seen map[*yaml.Node]bool) error {
 	if seen[n] {
 		return fmt.Errorf("recursive YAML alias at line %d", n.Line)
 	}
@@ -105,18 +103,11 @@ func strictNodes(n *yaml.Node, seen map[*yaml.Node]bool) error {
 		}
 	}
 	for _, child := range n.Content {
-		if err := strictNodes(child, seen); err != nil {
+		if err := ValidateNodes(child, seen); err != nil {
 			return err
 		}
 	}
 	return nil
-}
-func Load(root string) (*Document, error) {
-	b, err := os.ReadFile(filepath.Join(root, Filename))
-	if err != nil {
-		return nil, err
-	}
-	return Parse(b)
 }
 func inside(file, root string) bool {
 	return root == "." || file == root || strings.HasPrefix(file, root+"/")

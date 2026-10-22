@@ -13,9 +13,7 @@
     "source=seamgraph-npm-${devcontainerId},target=/home/devbox/.local/npm,type=volume"
   ],
   "postCreateCommand": "bash .devcontainer/prepare.sh",
-  "forwardPorts": [
-    8765
-  ],
+  "postStartCommand": "python3 .devcontainer/start-dev.py",
   "customizations": {
     "vscode": {
       "extensions": [
@@ -32,8 +30,22 @@
               "shell"
             ]
           }
-        }
+        },
+        "remote.autoForwardPorts": true,
+        "remote.autoForwardPortsSource": "process"
       }
     }
+  },
+  "portsAttributes": {
+    ".*seamgraph.*": {
+      "label": "SeamGraph dev",
+      "protocol": "http",
+      "onAutoForward": "notify",
+      "requireLocalPort": false
+    }
+  },
+  "otherPortsAttributes": {
+    "onAutoForward": "notify",
+    "requireLocalPort": false
   }
 }

@@ -195,3 +195,114 @@ or published by this session.
 Fixed the unanchored `seamgraph` .gitignore rule, which had hidden the entire
 cmd/seamgraph source directory from Git. The now-visible cmd directory must be
 included in the next source commit. See docs/installation.md.
+
+## Self-enforced architecture
+
+Root seamgraph.yaml declares 16 disjoint Go modules and 23 named public seams,
+default-deny rules and strict uncertainty. Every allow targets a seam. The actual
+scan resolves 455 relations with zero violations/diagnostics. Normal checks and
+release CI enforce the root configuration; negative tests exercise prohibited
+core/web adapter access, concrete adapter bypass, CLI UI/rule editing, repository
+comparison and UI verifier execution. The analysis subtree remains one module;
+embedded JavaScript/Python and tests are covered by their separate suites, not
+misrepresented as source-language graph edges. See docs/self-architecture.md.
+
+## Air development and dynamic ports
+
+Added pinned Air v1.65.3, task dev:setup/dev:tools/dev, generated-asset rebuilds,
+dependency-tree exclusions and per-session dynamic listen addresses. Server
+startup now binds before announcing the actual URL and optionally records it
+for Air restart reuse. Devcontainer process-based port forwarding replaces the
+hard-coded port list and permits a different available local port. A real Air
+smoke run rebuilt twice while retaining its OS-assigned port and served the self
+graph. Native listener tests cover ephemeral-port announcement/shutdown; IDE host
+forwarding remains untestable in this headless workspace. See docs/development.md.
+
+## CLI-first devcontainer access
+
+The standalone Dev Container CLI is now the primary documented development path.
+Host tasks devcontainer:dev/url launch Air and discover the published host URL by
+Docker labels and actual Compose project identity. The workspace uses a stable
+internal backend port; Docker assigns a localhost host port to a fixed-target
+Nginx ingress relay on the private/internet networks. Workspace isolated routing,
+Squid egress policy and capabilities are retained. Native task dev keeps its
+OS-selected per-session loopback port; VS Code support remains optional. Unit
+checks cover discovery and launcher modes. CI now exercises the real relay with
+an isolated backend and Host validation; Docker execution remains unavailable
+in this workspace. Recreate the container to apply the new service/mapping.
+
+## Module architecture refactoring — 2026-10-18
+
+Implemented the self-architecture refactoring in docs/self-architecture.md.
+Application workflows now own inspection/revision lifetimes, comparison caching,
+evidence sequencing and rule proposal state through consumer-owned capability
+ports. CLI keeps dispatch/output; HTTP keeps routing/security. Project storage,
+exact Git/workspace operations and fixed test runners implement separate effects.
+Pure project definitions no longer load files or construct engine policy inputs.
+Shared analysis protocol/builders moved to a disjoint root; bootstrap registers
+Go, TypeScript and Python implementations, with each adapter independently owned.
+
+The root configuration now declares 20 modules and 31 capability seams. Web cannot
+collect evidence or initialize projects, CLI cannot confirm rules, and UI has no
+engine/query/command execution grant. Production-source probes verify actual
+forbidden connections and module-level acyclicity; import checks guard pure and
+application code against infrastructure access. Domain data references remain
+explicit instead of being hidden behind an opaque shared object.
+
+The graph now uses dependency layers, preserves cycles in their own layer,
+distinguishes callable/data/import/construction references, focuses module/seam
+neighbors and connects expanded seams to consumers. Module labels fit rectangular
+nodes. All references and original evidence remain accessible. The live server
+serves 20 modules, 31 seams and zero violations; the additional explicit adapter
+boundaries intentionally increase the complete dependency graph's pair count.
+
+Validation: task check passes, including ten browser tests, pure graph projection
+checks, installer/devcontainer scripts, compiler/AST helpers and real Go/pytest/
+Vitest runner acceptance. Full Go race tests passed, followed by race checks of
+the final application/storage/server/boundary changes. The latest seam-focus
+browser case also passes. A live preview is saved at .build/architecture-after.png.
+
+
+## Dependency-aware graph ordering — 2026-10-22
+
+Replaced alphabetical row ordering with bounded barycenter sweeps, temporary
+vertices for long dependencies, exact adjacent-swap crossing deltas, and weighted
+neighbor alignment with enforced label spacing. The best layered crossing score
+is retained; module-ID ties, canonical input traversal and contiguous cycle
+blocks keep layouts reproducible. Internal layout points never enter the graph
+or source evidence. No new dependencies were added.
+
+Seven graph tests cover direction, cycles, long arrows, shared endpoints,
+alignment, shuffled/duplicate inputs, independent two-layer intersection counts,
+and a 100-module/500-edge graph. The latter takes roughly 40–70 ms locally.
+On the saved self-graph, straight-segment intersections decrease from 58 to 17
+in the callable view and from 191 to 111 with all references. Those geometric
+measurements are distinct from the internal adjacent-layer crossing score.
+
+Validation for the completed ordering change: all seven graph tests and all twelve
+browser tests pass. The browser suite verifies stable positions during hover,
+filter/refit behavior, mobile/desktop rendering, and existing explorer workflows.
+The focus test now checks its module-details request rather than assuming the
+mocked seam name also exists in a shared real fixture changed by earlier tests.
+The live preview at .build/architecture-after.png shows the new ordering.
+
+
+## Orthogonal dependency arrows — 2026-10-22
+
+Changed the graph renderer to horizontal/vertical polylines with 90-degree
+corners. A deterministic router distributes per-edge attachment points along
+module sides, avoids node rectangles with clearance, and uses horizontal lanes
+for dependencies that span columns. Cycles and expanded seams can use alternate
+sides. Route coordinates are converted to the bundled Cytoscape segment API;
+original edge identities, evidence, violation/revision colors, hover and click
+handling remain intact. Routes update after filtering, expansion and dragging.
+
+Geometry tests check obstacle clearance, orthogonality, distributed ports,
+cycles/seams, determinism and renderer-coordinate conversion. A real browser
+case checks rendered paths, clicks a routed arrow and verifies drag updates.
+The live preview at .build/architecture-after.png includes the orthogonal routes.
+
+Validation: all nine graph tests and all thirteen browser tests pass. The final
+hover/routing cases were rerun after the drag-end and overlap fallback handling
+and both pass. The projection/focus browser fixture now mocks module details as
+well as graph data, isolating it from earlier real-project editing tests.

@@ -4,10 +4,11 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"seamgraph/internal/application"
+	"seamgraph/internal/projectfiles"
 	"testing"
 
-	"seamgraph/internal/analyzer"
-	"seamgraph/internal/config"
+	analyzer "seamgraph/internal/analysis"
 	"seamgraph/internal/ir"
 	"seamgraph/internal/policy"
 )
@@ -17,7 +18,7 @@ func TestCompilerResolvedArchitecture(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	doc, err := config.Load(root)
+	doc, err := projectfiles.Load(root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -29,7 +30,7 @@ func TestCompilerResolvedArchitecture(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	p, _ := doc.Config.Policy()
+	p, _ := application.NormalizePolicy(doc.Config)
 	r, err := policy.Evaluate(snapshot, p)
 	if err != nil {
 		t.Fatal(err)
@@ -69,7 +70,7 @@ func TestConcreteBypassAndLoadErrors(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(root, "npc/npc.go"), []byte("package npc\nimport w \"example.test/architecture/world\"\nvar Bad w.Concrete\n"), 0644); err != nil {
 		t.Fatal(err)
 	}
-	doc, _ := config.Load(root)
+	doc, _ := projectfiles.Load(root)
 	partial, err := (Adapter{}).Analyze(context.Background(), analyzer.Project{Root: root}, doc.Config)
 	if err != nil {
 		t.Fatal(err)
@@ -78,7 +79,7 @@ func TestConcreteBypassAndLoadErrors(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	p, _ := doc.Config.Policy()
+	p, _ := application.NormalizePolicy(doc.Config)
 	r, err := policy.Evaluate(s, p)
 	if err != nil || r.ExitCode() != 1 || r.Violations[0].Code != "SEAM_BYPASS" {
 		t.Fatal(r, err)

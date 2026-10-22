@@ -13,6 +13,25 @@ tasks:
     cmds:
       - env -u LD_LIBRARY_PATH "{{.DEVCONTAINER}}" up --workspace-folder "{{.ROOT_DIR}}"
 
+  dev:
+    desc: Ensure Air is running, print the browser URL, and follow its logs
+    interactive: true
+    deps: [up]
+    cmds:
+      - env -u LD_LIBRARY_PATH "{{.DEVCONTAINER}}" exec --workspace-folder "{{.ROOT_DIR}}" python3 .devcontainer/start-dev.py {{.CLI_ARGS}}
+      - task: url
+      - env -u LD_LIBRARY_PATH "{{.DEVCONTAINER}}" exec --workspace-folder "{{.ROOT_DIR}}" tail -n 50 -f .build/dev-server.log
+
+  dev-stop:
+    desc: Stop the background development server
+    cmds:
+      - env -u LD_LIBRARY_PATH "{{.DEVCONTAINER}}" exec --workspace-folder "{{.ROOT_DIR}}" python3 .devcontainer/start-dev.py --stop
+
+  url:
+    desc: Print the localhost URL assigned by Docker for this workspace
+    cmds:
+      - python3 "{{.ROOT_DIR}}/.devcontainer/browser-url.py" --workspace-folder "{{.ROOT_DIR}}"
+
   codex:
     desc: Start Codex in the project Dev Container
     interactive: true

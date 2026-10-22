@@ -3,13 +3,19 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
+	"seamgraph/internal/application"
+	"seamgraph/internal/bootstrap"
+	"seamgraph/internal/projectfiles"
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"seamgraph/internal/ir"
 	"seamgraph/internal/policy"
@@ -55,9 +61,14 @@ policies:
 	if err != nil {
 		t.Fatal(err)
 	}
-	a, err := New(root, func(context.Context) (Model, error) {
-		return Model{Snapshot: s, Check: r, Policy: p, Contracts: verification.Report{SchemaVersion: 1, Results: []verification.Result{}}}, nil
-	}, nil)
+	service, err := bootstrap.New(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	backend := &testExplorer{Service: service, load: func(context.Context) (application.Model, error) {
+		return application.Model{Snapshot: s, Check: r, Policy: p, Contracts: verification.Report{SchemaVersion: 1, Results: []verification.Result{}}}, nil
+	}}
+	a, err := New(backend)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -110,19 +121,17 @@ func TestConfirmedRulesAndConcurrentChanges(t *testing.T) {
 		return w
 	}
 	values := url.Values{"token": {a.token}, "from": {"module:npc"}, "to": {"seam:world.reader"}, "effect": {"allow"}}
-	original, _ := os.ReadFile(filepath.Join(a.Root, "seamgraph.yaml"))
+	original, _ := os.ReadFile(filepath.Join(a.backend.(*testExplorer).Root(), "seamgraph.yaml"))
 	w := request("/rules/propose", values, "")
 	if w.Code != 200 {
 		t.Fatal(w.Code, w.Body.String())
 	}
-	after, _ := os.ReadFile(filepath.Join(a.Root, "seamgraph.yaml"))
+	after, _ := os.ReadFile(filepath.Join(a.backend.(*testExplorer).Root(), "seamgraph.yaml"))
 	if string(original) != string(after) {
 		t.Fatal("preview modified file")
 	}
 	proposal := ""
-	for id := range a.proposals {
-		proposal = id
-	}
+	proposal = proposalID(t, w.Body.String())
 	if proposal == "" {
 		t.Fatal("no confirmation proposal")
 	}
@@ -138,7 +147,7 @@ func TestConfirmedRulesAndConcurrentChanges(t *testing.T) {
 	if w.Code != 200 {
 		t.Fatal(w.Code, w.Body.String())
 	}
-	if _, err := os.Stat(filepath.Join(a.Root, "seamgraph.yaml.bak")); err != nil {
+	if _, err := os.Stat(filepath.Join(a.backend.(*testExplorer).Root(), "seamgraph.yaml.bak")); err != nil {
 		t.Fatal(err)
 	}
 	values.Set("from", "module:world")
@@ -146,10 +155,8 @@ func TestConfirmedRulesAndConcurrentChanges(t *testing.T) {
 	if w = request("/rules/propose", values, ""); w.Code != 200 {
 		t.Fatal(w.Code, w.Body.String())
 	}
-	for id := range a.proposals {
-		proposal = id
-	}
-	f, err := os.OpenFile(filepath.Join(a.Root, "seamgraph.yaml"), os.O_APPEND|os.O_WRONLY, 0600)
+	proposal = proposalID(t, w.Body.String())
+	f, err := os.OpenFile(filepath.Join(a.backend.(*testExplorer).Root(), "seamgraph.yaml"), os.O_APPEND|os.O_WRONLY, 0600)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -166,7 +173,7 @@ func TestConfirmedRulesAndConcurrentChanges(t *testing.T) {
 }
 func TestLargeModel(t *testing.T) {
 	a := fixtureApp(t)
-	m, _ := a.Load(context.Background())
+	m, _ := a.backend.Load(context.Background())
 	s := ir.Snapshot{SchemaVersion: 1}
 	for i := 0; i < 100; i++ {
 		name := fmtInt(i)
@@ -181,10 +188,10 @@ func TestLargeModel(t *testing.T) {
 	if err := s.Validate(); err != nil {
 		t.Fatal(err)
 	}
-	a.Load = func(context.Context) (Model, error) { return Model{Snapshot: s}, nil }
+	a.backend.(*testExplorer).load = func(context.Context) (application.Model, error) { return application.Model{Snapshot: s}, nil }
 	w := httptest.NewRecorder()
 	a.Handler().ServeHTTP(w, httptest.NewRequest("GET", "http://127.0.0.1/api/model", nil))
-	var got Model
+	var got application.Model
 	if err := json.Unmarshal(w.Body.Bytes(), &got); err != nil || len(got.Snapshot.Modules) != 100 || len(got.Snapshot.Relations) != 500 {
 		t.Fatal("large model lost data", err)
 	}
@@ -200,14 +207,13 @@ func TestCanceledProposalCannotBeConfirmed(t *testing.T) {
 		a.Handler().ServeHTTP(w, req)
 		return w
 	}
-	original, _ := os.ReadFile(filepath.Join(a.Root, "seamgraph.yaml"))
-	if w := post("/rules/propose", url.Values{"token": {a.token}, "effect": {"allow"}, "from": {"module:npc"}, "to": {"seam:world.reader"}}); w.Code != 200 {
+	original, _ := os.ReadFile(filepath.Join(a.backend.(*testExplorer).Root(), "seamgraph.yaml"))
+	w := post("/rules/propose", url.Values{"token": {a.token}, "effect": {"allow"}, "from": {"module:npc"}, "to": {"seam:world.reader"}})
+	if w.Code != 200 {
 		t.Fatal(w.Code, w.Body.String())
 	}
 	id := ""
-	for key := range a.proposals {
-		id = key
-	}
+	id = proposalID(t, w.Body.String())
 	values := url.Values{"token": {a.token}, "proposal": {id}}
 	if w := post("/rules/cancel", values); w.Code != 200 {
 		t.Fatal(w.Code)
@@ -215,7 +221,7 @@ func TestCanceledProposalCannotBeConfirmed(t *testing.T) {
 	if w := post("/rules/confirm", values); w.Code != 400 {
 		t.Fatal("canceled proposal still confirmable", w.Code)
 	}
-	after, _ := os.ReadFile(filepath.Join(a.Root, "seamgraph.yaml"))
+	after, _ := os.ReadFile(filepath.Join(a.backend.(*testExplorer).Root(), "seamgraph.yaml"))
 	if string(original) != string(after) {
 		t.Fatal("canceled rule wrote configuration")
 	}
@@ -243,4 +249,68 @@ func TestContainerBindIsExplicit(t *testing.T) {
 	if w.Code != 403 {
 		t.Fatalf("non-local Host accepted: %d", w.Code)
 	}
+}
+
+func TestEphemeralPortAnnouncement(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	announced := make(chan string, 1)
+	finished := make(chan error, 1)
+	go func() {
+		finished <- Serve(ctx, "127.0.0.1:0", fixtureHandler(), false, func(bound string) error { announced <- bound; return nil })
+	}()
+	var addr string
+	select {
+	case addr = <-announced:
+	case err := <-finished:
+		t.Fatalf("server stopped before listening: %v", err)
+	case <-time.After(5 * time.Second):
+		t.Fatal("server did not announce its port")
+	}
+	if strings.HasSuffix(addr, ":0") {
+		t.Fatal("announced requested address instead of actual port")
+	}
+	response, err := http.Get("http://" + addr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	response.Body.Close()
+	cancel()
+	select {
+	case err := <-finished:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("server did not stop")
+	}
+}
+func fixtureHandler() http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(200) })
+}
+
+type testExplorer struct {
+	*application.Service
+	load func(context.Context) (application.Model, error)
+}
+
+func (e *testExplorer) Load(ctx context.Context) (application.Model, error) { return e.load(ctx) }
+func (e *testExplorer) Source(ctx context.Context, file string) (string, error) {
+	m, err := e.load(ctx)
+	if err != nil {
+		return "", err
+	}
+	locations := []ir.Evidence{}
+	for _, relation := range m.Snapshot.Relations {
+		locations = append(locations, relation.Evidence...)
+	}
+	return projectfiles.Source(e.Root(), file, locations)
+}
+func proposalID(t *testing.T, body string) string {
+	t.Helper()
+	matches := regexp.MustCompile(`name="proposal" value="([a-f0-9]+)"`).FindStringSubmatch(body)
+	if len(matches) != 2 {
+		t.Fatalf("missing proposal input: %s", body)
+	}
+	return matches[1]
 }

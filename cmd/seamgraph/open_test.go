@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"seamgraph/internal/repository"
+	repository "seamgraph/internal/gitworkspace"
 )
 
 func TestOpenPreparesDiscoverableRemote(t *testing.T) {

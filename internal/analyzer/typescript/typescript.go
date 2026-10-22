@@ -6,7 +6,7 @@ import (
 	"io/fs"
 	"path/filepath"
 
-	"seamgraph/internal/analyzer"
+	analyzer "seamgraph/internal/analysis"
 	"seamgraph/internal/config"
 	"seamgraph/internal/ir"
 )

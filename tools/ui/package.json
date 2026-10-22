@@ -4,7 +4,7 @@
   "version": "1.0.0",
   "scripts": {
     "build": "node vendor.cjs && tailwindcss -i input.css -o ../../internal/ui/assets/styles.css --minify",
-    "test": "playwright test"
+    "test": "node --test graph.test.cjs && playwright test"
   },
   "dependencies": {
     "@alpinejs/csp": "3.15.0",
