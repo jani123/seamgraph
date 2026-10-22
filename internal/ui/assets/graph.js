@@ -222,7 +222,7 @@
   }
   function positions(ids, edges) {return layout(ids, edges).positions;}
   // Route original edges through clear horizontal/vertical corridors. Ports are
-  // distributed along node sides so a shared provider does not become one line.
+  // shared by related edges so fan-in and fan-out form common trunks.
   function orthogonal(nodes, edges) {
     const boxes = new Map(nodes.map(n => [n.id, {...n, width: n.width || 130, height: n.height || 56}]));
     const valid = edges.filter(e => boxes.has(e.source) && boxes.has(e.target) && e.source !== e.target)
@@ -246,18 +246,21 @@
       group.forEach((entry,i) => {
         if (!ports.has(entry.edge.id)) ports.set(entry.edge.id, {});
         ports.get(entry.edge.id)[entry.role] = {side: entry.side,
-          offset: group.length === 1 ? 0 : ((i + 1) / (group.length + 1) - 0.5) * (entry.box.height - 16),
-          lead: 18 + (group.length === 1 ? 0 : 20 * i / (group.length - 1))};
+          offset: 0,
+          lead: 28 + (compare(entry.edge.source,entry.edge.target)>0 && valid.some(e => e.source===entry.edge.target && e.target===entry.edge.source) ? 12 : 0)};
       });
     }
     const obstacles = [...boxes.values()].map(n => ({id:n.id,left:n.x-n.width/2-8,right:n.x+n.width/2+8,top:n.y-n.height/2-8,bottom:n.y+n.height/2+8}));
     const rows = [...new Set(obstacles.flatMap(b => [b.top-6,b.bottom+6]))].sort((a,b)=>a-b);
-    const rowUse = new Map(), result = new Map();
+    const routed = [], result = new Map();
     const span = e => Math.abs(boxes.get(e.source).x-boxes.get(e.target).x);
     valid.sort((a,b)=>span(a)-span(b)||compare(a.id,b.id));
     for (const edge of valid) {
       const source = boxes.get(edge.source), target = boxes.get(edge.target), assigned = ports.get(edge.id);
       let best = null, bestCost = Infinity;
+      const related = routed.filter(r => r.edge.source === edge.source || r.edge.target === edge.target);
+      const sharedRows = routed.flatMap(r => r.points.map(p => p.y));
+      const sharedColumns = [...new Set(routed.flatMap(r => r.points.map(p => p.x)))];
       // Prefer flow-facing sides; opposite sides handle back edges, cycles and
       // expanded seam nodes without changing the dependency direction.
       for (const [sourceSide,targetSide,penalty] of [
@@ -270,34 +273,74 @@
         const end = {x:target.x+targetSide*target.width/2,y:target.y+assigned.target.offset};
         const from = {x:start.x+sourceSide*assigned.source.lead,y:start.y};
         const to = {x:end.x+targetSide*assigned.target.lead,y:end.y};
-        for (const row of [...new Set([start.y,end.y,(start.y+end.y)/2,...rows])]) {
-          const points = simplify([start,from,{x:from.x,y:row},{x:to.x,y:row},to,end]);
+        const candidates = [...new Set([start.y,end.y,(start.y+end.y)/2,...sharedRows,...rows])]
+          .map(row => [start,from,{x:from.x,y:row},{x:to.x,y:row},to,end]);
+        // Reuse vertical corridors even when the original connections have
+        // different endpoints. The entry and exit branches remain separate.
+        for (const x of sharedColumns) candidates.push([
+          start,from,{x,y:from.y},{x,y:to.y},to,end,
+        ]);
+        // Join an existing destination route upstream, then follow its whole
+        // suffix. This allows sources in different columns to share a trunk
+        // instead of only meeting at the final attachment point.
+        for (const route of related) {
+          if (route.edge.target !== edge.target) continue;
+          const last=route.points[route.points.length-1];
+          if (last.x!==end.x || last.y!==end.y) continue;
+          for (let j=1;j<route.points.length-1;j++) {
+            const join=route.points[j],suffix=route.points.slice(j);
+            candidates.push([start,from,{x:from.x,y:join.y},...suffix]);
+            candidates.push([start,from,{x:join.x,y:from.y},...suffix]);
+          }
+        }
+        for (const candidate of candidates) {
+          const points = simplify(candidate);
           if (!clearPath(points,obstacles,edge.source,edge.target)) continue;
           let cost = penalty + (points.length-2)*20;
           for (let i=1;i<points.length;i++) {
-            cost += Math.abs(points[i].x-points[i-1].x)+Math.abs(points[i].y-points[i-1].y);
-            if (points[i].y===points[i-1].y) cost += (rowUse.get(points[i].y)||0)*16;
+            const a=points[i-1], b=points[i];
+            const length=Math.abs(b.x-a.x)+Math.abs(b.y-a.y);
+            // Reusing a related corridor costs less than opening another one.
+            // Cap the discount so long detours never win merely by overlapping.
+            let discount=0;
+            for (const route of routed) for (let j=1;j<route.points.length;j++) {
+              const c=route.points[j-1],d=route.points[j];
+              const preference=route.edge.source===edge.source || route.edge.target===edge.target ? 0.65 : 0.45;
+              let overlap=0;
+              if (a.y===b.y && c.y===d.y && a.y===c.y && (b.x-a.x)*(d.x-c.x)>0)
+                overlap=Math.max(overlap,Math.max(0,Math.min(Math.max(a.x,b.x),Math.max(c.x,d.x))-Math.max(Math.min(a.x,b.x),Math.min(c.x,d.x))));
+              if (a.x===b.x && c.x===d.x && a.x===c.x && (b.y-a.y)*(d.y-c.y)>0)
+                overlap=Math.max(overlap,Math.max(0,Math.min(Math.max(a.y,b.y),Math.max(c.y,d.y))-Math.max(Math.min(a.y,b.y),Math.min(c.y,d.y))));
+              discount=Math.max(discount,overlap*preference);
+            }
+            cost += length - discount;
           }
           if (cost < bestCost) {bestCost=cost;best={points,sourceSide,targetSide};}
-          // Remaining distinct rows need four bends. A clear shortest path
-          // with at most two bends cannot be improved by those detours.
-          if (bestCost <= Math.abs(start.x-end.x)+Math.abs(start.y-end.y)+40) break;
         }
         if (best && penalty === 0) break;
       }
-      // Overlapping user-dragged nodes may have no clear corridor. Retain a
-      // right-angle edge rather than dropping the original relationship.
+      // Simple corridor candidates can all be blocked. Search the obstacle
+      // boundary grid instead of drawing an unchecked fallback through nodes.
       if (!best) {
-        const side = assigned.source.side, targetSide=assigned.target.side;
-        const start={x:source.x+side*source.width/2,y:source.y+assigned.source.offset};
-        const end={x:target.x+targetSide*target.width/2,y:target.y+assigned.target.offset};
-        const x=side>0?Math.max(start.x,end.x)+40:Math.min(start.x,end.x)-40;
-        best={points:simplify([start,{x,y:start.y},{x,y:end.y},end]),sourceSide:side,targetSide};
+        for (const [sourceSide,targetSide] of [
+          [assigned.source.side,assigned.target.side],[-assigned.source.side,assigned.target.side],
+          [assigned.source.side,-assigned.target.side],[-assigned.source.side,-assigned.target.side],
+        ]) {
+          const start={x:source.x+sourceSide*source.width/2,y:source.y};
+          const end={x:target.x+targetSide*target.width/2,y:target.y};
+          const from={x:start.x+sourceSide*28,y:start.y},to={x:end.x+targetSide*28,y:end.y};
+          const middle=obstacleRoute(from,to,obstacles);
+          if (!middle) continue;
+          const points=simplify([start,...middle,end]);
+          if (clearPath(points,obstacles,edge.source,edge.target)) {best={points,sourceSide,targetSide};break;}
+        }
       }
-      for (let i=1;i<best.points.length;i++) if (best.points[i].y===best.points[i-1].y)
-        rowUse.set(best.points[i].y,(rowUse.get(best.points[i].y)||0)+1);
+      // Overlapping nodes can make routing impossible. Never display a path
+      // through a box; retain the edge record with an explicit hidden route.
+      if (!best) {result.set(edge.id,{blocked:true});continue;}
+      routed.push({edge,points:best.points});
       const dx=target.x-source.x,dy=target.y-source.y,length2=dx*dx+dy*dy;
-      if (length2<1e-8) continue;
+      if (length2<1e-8) {result.set(edge.id,{blocked:true});continue;}
       const bends=best.points.length>2?best.points.slice(1,-1):[{x:(best.points[0].x+best.points[1].x)/2,y:(best.points[0].y+best.points[1].y)/2}];
       result.set(edge.id,{points:best.points,
         sourceEndpoint:`${best.sourceSide*source.width/2}px ${assigned.source.offset}px`,
@@ -307,6 +350,37 @@
       });
     }
     return result;
+  }
+  function obstacleRoute(start,end,boxes) {
+    const xs=[...new Set([start.x,end.x,...boxes.flatMap(b=>[b.left-6,b.right+6])])].sort((a,b)=>a-b);
+    const ys=[...new Set([start.y,end.y,...boxes.flatMap(b=>[b.top-6,b.bottom+6])])].sort((a,b)=>a-b);
+    const inside=p=>boxes.some(b=>p.x>b.left&&p.x<b.right&&p.y>b.top&&p.y<b.bottom);
+    if (inside(start)||inside(end)) return null;
+    const key=(x,y)=>y*xs.length+x;
+    const sx=xs.indexOf(start.x),sy=ys.indexOf(start.y),goal=key(xs.indexOf(end.x),ys.indexOf(end.y));
+    const first=key(sx,sy),costs=new Map([[first,0]]),parents=new Map(),open=[{x:sx,y:sy,id:first,score:0}],closed=new Set();
+    while(open.length) {
+      open.sort((a,b)=>b.score-a.score||b.id-a.id);
+      const current=open.pop();
+      if(closed.has(current.id))continue;
+      if(current.id===goal){
+        const path=[];let id=goal;
+        while(id!==undefined){path.push({x:xs[id%xs.length],y:ys[Math.floor(id/xs.length)]});id=parents.get(id);}
+        return path.reverse();
+      }
+      closed.add(current.id);
+      const a={x:xs[current.x],y:ys[current.y]};
+      for(const [x,y] of [[current.x-1,current.y],[current.x+1,current.y],[current.x,current.y-1],[current.x,current.y+1]]){
+        if(x<0||y<0||x>=xs.length||y>=ys.length)continue;
+        const id=key(x,y),b={x:xs[x],y:ys[y]};
+        if(closed.has(id)||inside(b)||!clearPath([a,b],boxes,null,null))continue;
+        const cost=costs.get(current.id)+Math.abs(b.x-a.x)+Math.abs(b.y-a.y);
+        if(cost>=(costs.get(id)??Infinity))continue;
+        costs.set(id,cost);parents.set(id,current.id);
+        open.push({x,y,id,score:cost+Math.abs(b.x-end.x)+Math.abs(b.y-end.y)});
+      }
+    }
+    return null;
   }
   function simplify(points) {
     const result=[];
@@ -327,9 +401,10 @@
     for (let i=1;i<points.length;i++) {
       const a=points[i-1],b=points[i];
       for (const box of boxes) {
-        if ((i===1&&box.id===source)||(i===points.length-1&&box.id===target)) continue;
-        if (a.y===b.y && a.y>box.top && a.y<box.bottom && Math.max(Math.min(a.x,b.x),box.left)<Math.min(Math.max(a.x,b.x),box.right)) return false;
-        if (a.x===b.x && a.x>box.left && a.x<box.right && Math.max(Math.min(a.y,b.y),box.top)<Math.min(Math.max(a.y,b.y),box.bottom)) return false;
+        const endpoint=(i===1&&box.id===source)||(i===points.length-1&&box.id===target);
+        const bounds=endpoint ? {left:box.left+8,right:box.right-8,top:box.top+8,bottom:box.bottom-8} : box;
+        if (a.y===b.y && a.y>bounds.top && a.y<bounds.bottom && Math.max(Math.min(a.x,b.x),bounds.left)<Math.min(Math.max(a.x,b.x),bounds.right)) return false;
+        if (a.x===b.x && a.x>bounds.left && a.x<bounds.right && Math.max(Math.min(a.y,b.y),bounds.top)<Math.min(Math.max(a.y,b.y),bounds.bottom)) return false;
       }
     }
     return true;

@@ -559,7 +559,10 @@ test("neighbor ordering removes crossings and stays stable while hovering or ref
 
 test("orthogonal arrows avoid module boxes, remain clickable, and follow dragged nodes", async () => {
   const snapshot=JSON.parse(fs.readFileSync(path.join(repo,'testdata/ir/go.json')));
-  snapshot.modules.push({id:'module:middle',displayName:'middle',sourceRoots:['middle'],seams:[]});
+  snapshot.modules.push({id:'module:middle',displayName:'middle',sourceRoots:['middle'],seams:[]},
+    {id:'module:bootstrap',displayName:'bootstrap',sourceRoots:['bootstrap'],seams:[]});
+  snapshot.relations.push({id:'bootstrap-middle',fromId:'module:bootstrap',toId:'module:middle',kind:'imports',evidence:[]},
+    {id:'bootstrap-world',fromId:'module:bootstrap',toId:'module:world',kind:'imports',evidence:[]});
   snapshot.symbols.push({id:'symbol:middle:Run',moduleId:'module:middle',kind:'function',displaySignature:'Run()',visibility:'public'});
   snapshot.relations.push({id:'npc-middle',fromId:'module:npc',toId:'symbol:middle:Run',kind:'uses',evidence:[]},
     {id:'middle-world',fromId:'module:middle',toId:snapshot.symbols[0].id,kind:'uses',evidence:[]});
@@ -584,7 +587,7 @@ test("orthogonal arrows avoid module boxes, remain clickable, and follow dragged
   });
   try{
     await page.goto(url);
-    await expect(page.locator('#summary')).toContainText('3 modules');
+    await expect(page.locator('#summary')).toContainText('4 modules');
     await expect.poll(geometry).toEqual({diagonal:0,intersections:0});
     const click=await page.evaluate(()=>{
       const graph=document.querySelector('#graph'),edge=graph._cyreg.cy.getElementById('module:npc→module:world');
@@ -598,6 +601,14 @@ test("orthogonal arrows avoid module boxes, remain clickable, and follow dragged
     await response;
     await expect(page.locator('#details')).toContainText('Observed relationship');
     await page.evaluate(()=>{const n=document.querySelector('#graph')._cyreg.cy.getElementById('module:npc');n.position({x:n.position('x'),y:n.position('y')+30});n.emit('drag');});
+    await expect.poll(geometry).toEqual({diagonal:0,intersections:0});
+    // Construction/import-only nodes start hidden. Showing them must apply
+    // custom routes immediately, rather than leaving default taxi geometry.
+    await page.locator('#dependency-view').selectOption('all');
+    await expect.poll(()=>page.evaluate(()=>{
+      const cy=document.querySelector('#graph')._cyreg.cy;
+      return cy.getElementById('module:bootstrap').connectedEdges().map(e=>e.style('curve-style'));
+    })).toEqual(['segments','segments']);
     await expect.poll(geometry).toEqual({diagonal:0,intersections:0});
   }finally{await page.unroute('**/api/model');}
 });

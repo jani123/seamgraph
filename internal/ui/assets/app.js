@@ -174,13 +174,14 @@ document.addEventListener("DOMContentLoaded", async () => {
     document.querySelector("#graph").addEventListener("pointerleave", clearHover);
     const routeEdges = () => {
       const routes = SeamGraphLayout.orthogonal(
-        cy.nodes(":visible").map(n => ({id:n.id(),...n.position(),width:n.outerWidth(),height:n.outerHeight()})),
-        cy.edges(":visible").map(e => ({id:e.id(),source:e.data("source"),target:e.data("target")})));
+        cy.nodes().filter(n => !n.hasClass("hidden")).map(n => ({id:n.id(),...n.position(),
+          width:n.numericStyle("width")+2*n.numericStyle("border-width"),
+          height:n.numericStyle("height")+2*n.numericStyle("border-width")})),
+        cy.edges().filter(e => !e.hasClass("hidden")).map(e => ({id:e.id(),source:e.data("source"),target:e.data("target")})));
       cy.batch(() => {
-        cy.edges(":visible").filter(e => !routes.has(e.id())).style({
-          "curve-style":"taxi", "source-endpoint":"outside-to-line", "target-endpoint":"outside-to-line",
-        });
-        for (const [id,route] of routes) cy.getElementById(id).style({
+        cy.edges().filter(e => !e.hasClass("hidden") && !routes.has(e.id())).style({opacity:0});
+        for (const [id,route] of routes) cy.getElementById(id).style(route.blocked ? {opacity:0} : {
+          opacity:1,
           "curve-style":"segments", "edge-distances":"node-position",
           "source-endpoint":route.sourceEndpoint,"target-endpoint":route.targetEndpoint,
           "segment-weights":route.weights,"segment-distances":route.distances,

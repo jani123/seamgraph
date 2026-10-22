@@ -130,7 +130,6 @@ function assertClearRoutes(nodes,edges,routes) {
     for(let i=1;i<route.points.length;i++) {
       const a=route.points[i-1],b=route.points[i];
       for(const n of nodes) {
-        if((i===1&&n.id===edge.source)||(i===route.points.length-1&&n.id===edge.target)) continue;
         const left=n.x-n.width/2,right=n.x+n.width/2,top=n.y-n.height/2,bottom=n.y+n.height/2;
         const horizontal=a.y===b.y&&a.y>top&&a.y<bottom&&Math.max(Math.min(a.x,b.x),left)<Math.min(Math.max(a.x,b.x),right);
         const vertical=a.x===b.x&&a.x>left&&a.x<right&&Math.max(Math.min(a.y,b.y),top)<Math.min(Math.max(a.y,b.y),bottom);
@@ -139,13 +138,14 @@ function assertClearRoutes(nodes,edges,routes) {
     }
   }
 }
-test('orthogonal routes avoid intermediate boxes and distribute shared ports',()=>{
+test('orthogonal routes avoid intermediate boxes and bundle shared ports',()=>{
   const nodes=[{id:'a',x:0,y:0,width:132,height:58},{id:'blocker',x:360,y:0,width:132,height:58},
     {id:'b',x:720,y:0,width:132,height:58},{id:'c',x:720,y:140,width:132,height:58}];
   const edges=[{id:'ab',source:'a',target:'b'},{id:'ac',source:'a',target:'c'}];
   const routes=orthogonal(nodes,edges);
   assertClearRoutes(nodes,edges,routes);
-  assert.notEqual(routes.get('ab').sourceEndpoint,routes.get('ac').sourceEndpoint);
+  assert.equal(routes.get('ab').sourceEndpoint,routes.get('ac').sourceEndpoint);
+  assert.deepEqual(routes.get('ab').points.slice(0,2),routes.get('ac').points.slice(0,2));
   assert.deepEqual(orthogonal([...nodes].reverse(),[...edges].reverse()),routes);
   // Independently reconstruct Cytoscape's segment coordinates from the styles.
   for(const edge of edges){const r=routes.get(edge.id),a=nodes.find(n=>n.id===edge.source),b=nodes.find(n=>n.id===edge.target);
@@ -163,4 +163,66 @@ test('orthogonal cycles and expanded seams use distinct clear corridors',()=>{
   const routes=orthogonal(nodes,edges);
   assertClearRoutes(nodes,edges,routes);
   assert.notDeepEqual(routes.get('ab').points,[...routes.get('ba').points].reverse());
+});
+
+test('fan-in shares a destination trunk while retaining individual edge IDs',()=>{
+  const nodes=[{id:'a',x:0,y:0,width:130,height:56},{id:'b',x:0,y:160,width:130,height:56},
+    {id:'provider',x:360,y:80,width:130,height:56}];
+  const edges=[{id:'ap',source:'a',target:'provider'},{id:'bp',source:'b',target:'provider'}];
+  const routes=orthogonal(nodes,edges);
+  assertClearRoutes(nodes,edges,routes);
+  assert.equal(routes.size,2);
+  assert.deepEqual(routes.get('ap').points.slice(-2),routes.get('bp').points.slice(-2));
+  assert.deepEqual(orthogonal([...nodes].reverse(),[...edges].reverse()),routes);
+});
+
+test('sources in different columns merge upstream of their destination',()=>{
+  const nodes=[{id:'a',x:0,y:240,width:130,height:56},{id:'b',x:300,y:160,width:130,height:56},
+    {id:'provider',x:720,y:80,width:130,height:56}];
+  const edges=[{id:'ap',source:'a',target:'provider'},{id:'bp',source:'b',target:'provider'}];
+  const routes=orthogonal(nodes,edges);
+  assertClearRoutes(nodes,edges,routes);
+  // Both routes must use the vertical trunk from y=160 down to y=80,
+  // as well as the short final horizontal attachment.
+  for(const route of routes.values()) assert.ok(route.points.some((p,i)=>{
+    const next=route.points[i+1];
+    return next && p.x===627 && next.x===627 && Math.min(p.y,next.y)<=80 && Math.max(p.y,next.y)>=160;
+  }));
+  assert.deepEqual(orthogonal([...nodes].reverse(),[...edges].reverse()),routes);
+});
+
+test('independent connections reuse a nearby vertical corridor',()=>{
+  const nodes=[{id:'a',x:0,y:0},{id:'b',x:360,y:200},{id:'c',x:20,y:40},{id:'d',x:380,y:240}]
+    .map(n=>({...n,width:20,height:20}));
+  const edges=[{id:'ab',source:'a',target:'b'},{id:'cd',source:'c',target:'d'}];
+  const routes=orthogonal(nodes,edges);
+  assertClearRoutes(nodes,edges,routes);
+  const vertical=id=>routes.get(id).points.flatMap((p,i,points)=>{
+    const next=points[i+1];return next&&p.x===next.x?[{x:p.x,top:Math.min(p.y,next.y),bottom:Math.max(p.y,next.y)}]:[];
+  });
+  assert.ok(vertical('ab').some(a=>vertical('cd').some(b=>a.x===b.x&&Math.min(a.bottom,b.bottom)-Math.max(a.top,b.top)>=160)));
+  assert.deepEqual(orthogonal([...nodes].reverse(),[...edges].reverse()),routes);
+});
+
+
+test('bundled connections never double back through their endpoint boxes',()=>{
+  const nodes=[{id:'bootstrap',x:0,y:80},{id:'files',x:240,y:30},
+    {id:'python',x:240,y:160},{id:'analysis',x:540,y:40},
+    {id:'model',x:820,y:220}].map(n=>({...n,width:130,height:56}));
+  const edges=[{id:'bf',source:'bootstrap',target:'files'},{id:'ba',source:'bootstrap',target:'analysis'},
+    {id:'pa',source:'python',target:'analysis'},{id:'fm',source:'files',target:'model'},
+    {id:'am',source:'analysis',target:'model'}];
+  assertClearRoutes(nodes,edges,orthogonal(nodes,edges));
+});
+
+test('blocked corridors use obstacle search and overlapping endpoints never draw through boxes',()=>{
+  const nodes=[{id:'a',x:0,y:0,width:130,height:56},{id:'b',x:600,y:0,width:130,height:56},
+    {id:'left-wall',x:120,y:0,width:30,height:200},{id:'right-wall',x:480,y:0,width:30,height:300},
+    {id:'middle',x:300,y:0,width:130,height:260}];
+  const edges=[{id:'ab',source:'a',target:'b'}];
+  assertClearRoutes(nodes,edges,orthogonal(nodes,edges));
+  const overlapping=[{id:'a',x:0,y:0,width:130,height:56},{id:'b',x:10,y:0,width:130,height:56}];
+  assertClearRoutes(overlapping,edges,orthogonal(overlapping,edges));
+  overlapping[1].x=0;
+  assert.equal(orthogonal(overlapping,edges).get('ab').blocked,true);
 });
