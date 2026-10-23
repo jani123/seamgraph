@@ -27,6 +27,97 @@ binaries are cross-compiled; the release workflow smoke-tests native startup on 
 Windows runner. Full native Windows adapter behavior is not certified by that
 startup check. WSL uses the Linux installer.
 
+## Install into any project with Devbox
+
+After a GitHub release is published and its hashes are committed in
+`nix/release.json`, add SeamGraph to an existing project's Devbox environment.
+Before the first release is pinned, the flake fails with an explicit setup message:
+
+```sh
+cd your-project
+devbox init # only for projects without devbox.json
+devbox add 'github:jani123/seamgraph#seamgraph'
+devbox run seamgraph init --root .
+# Edit seamgraph.yaml to define your modules and seams.
+devbox run seamgraph serve --root .
+```
+
+Commit `devbox.json`, `devbox.lock` and `seamgraph.yaml`. The lock pins the
+packaging revision; updating is explicit with `devbox update`. For an explicit
+packaging pin, use `github:jani123/seamgraph/<packaging-commit>#seamgraph`,
+replacing the placeholder with a commit containing the desired release metadata.
+The binary version is pinned separately in that commit's `nix/release.json`.
+An application release tag is created before the packaging update, so using
+that tag as the flake reference can select the previous release or no release.
+
+The flake supports Intel and ARM on Linux and macOS; Windows users need WSL.
+It downloads the matching prebuilt archive from GitHub Releases, verifies the
+SHA-256 hash committed in `nix/release.json`, and installs the binary without
+modifying it. No Go compiler, npm build, frontend generation, Cachix account,
+or custom Nix cache configuration is required. Language runtimes still come
+from the consuming project. The flake never follows `latest` at installation
+time; unavailable or modified release assets cause installation to fail.
+
+Reuse the consuming project's language runtimes. Add only missing dependencies,
+for example:
+
+```sh
+devbox add python@3.12 # Python projects
+# devbox add nodejs@22 # TypeScript projects
+# Go projects: provide Go 1.26.10 or later, matching the project's requirements.
+devbox run seamgraph doctor --languages python
+```
+
+Git and OpenSSH are needed for remote repository access. Project dependencies
+and test tools remain part of that project's setup. Installation never creates
+or changes `seamgraph.yaml`; `init` is a separate, explicit command.
+
+Remove the package with `devbox rm` using its package reference. Configuration
+and analysis outputs remain in the project.
+
+To test local packaging from a Git checkout with tracked flake files, run
+`sh scripts/test-devbox.sh`. This creates an isolated
+consumer environment, installs the pinned release plus Python, and verifies
+runtime discovery, a real scan, and policy checking. To test candidate archives
+before publication, generate their metadata and run:
+
+```sh
+python3 scripts/update-devbox-release.py v0.1.0 --assets-dir dist --output dist/devbox-release.json
+sh scripts/test-devbox-release.sh dist
+```
+
+The candidate test seeds Nix's fixed-hash downloads from local archives and uses
+a temporary copy of the same flake; it does not change the committed release pin.
+The Devbox workflow runs it on all four supported platforms, including native
+Intel and ARM macOS runners. Release publication waits for these checks.
+
+## Update the Devbox package after a release
+
+The first release has not been published or pinned by this implementation.
+`nix/release.json` is deliberately `null` until real release assets are available;
+there are no placeholder hashes or silent source-build fallbacks.
+
+The release workflow publishes the archives, `SHA256SUMS`, and a verified
+`devbox-release.json`. After publication, run:
+
+```sh
+python3 scripts/update-devbox-release.py v0.1.0
+sh scripts/test-devbox.sh
+```
+
+Replace the example with the actual published version. The updater downloads the
+checksum manifest and all four Linux/macOS archives from that exact release,
+verifies every archive, and only then atomically replaces `nix/release.json`.
+A failed download, missing checksum, or mismatch leaves the existing pin intact.
+For a fork, pass `--repository owner/repo`.
+
+Ensure the flake files are tracked before testing a new checkout. Review and
+commit the metadata update to the default branch, then publish that packaging
+commit. Consumers can run `devbox update` to adopt it. Do not move or overwrite
+the application release tag to include this later update. The hashes provide
+integrity against the reviewed pin; the updater trusts the selected GitHub
+release and its checksum manifest, rather than independent code signing.
+
 ## Select the dependencies you actually need
 
 | Selection | External runtime | Already shipped inside SeamGraph |

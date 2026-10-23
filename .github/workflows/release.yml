@@ -5,6 +5,12 @@ on:
 permissions:
   contents: read
 jobs:
+  devbox:
+    needs: build
+    uses: ./.github/workflows/devbox.yml
+    with:
+      artifact: release
+      version: ${{ github.ref_name }}
   build:
     runs-on: ubuntu-latest
     steps:
@@ -25,6 +31,8 @@ jobs:
         run: python3 -m unittest discover -s scripts/tests -v
       - name: Package all supported operating systems and architectures
         run: scripts/package-release.sh "$GITHUB_REF_NAME" "$GITHUB_REPOSITORY" dist
+      - name: Generate verified Devbox release metadata
+        run: python3 scripts/update-devbox-release.py "$GITHUB_REF_NAME" --repository "$GITHUB_REPOSITORY" --assets-dir dist --output dist/devbox-release.json
       - uses: actions/upload-artifact@v4
         with:
           name: release
@@ -56,7 +64,7 @@ jobs:
           }
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
   publish:
-    needs: [build, smoke]
+    needs: [build, smoke, devbox]
     runs-on: ubuntu-latest
     permissions:
       contents: write

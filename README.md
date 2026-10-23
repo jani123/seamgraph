@@ -19,6 +19,62 @@ analyze; the installer checks their existing runtimes. See [installation and
 devcontainer setup](docs/installation.md) for pinned versions, runtime provisioning
 and Windows downloads.
 
+## Add to a project with Devbox
+
+After the first GitHub release is published and pinned in `nix/release.json`,
+run these commands from the project you want to analyze. Devbox must already
+be installed. Until then, the flake reports that no release is pinned.
+
+```sh
+cd /path/to/your-project
+devbox init # only if this project does not already have devbox.json
+devbox add 'github:jani123/seamgraph#seamgraph'
+```
+
+Reuse your project's existing language runtimes, or add only the ones you need:
+
+```sh
+devbox add python@3.12 # for Python analysis
+# devbox add nodejs@22 # for TypeScript analysis
+# For Go analysis, provide Go 1.26.10 or later as required by your project.
+devbox run seamgraph doctor --languages python
+```
+
+Initialize the architecture configuration, edit `seamgraph.yaml` to define your
+modules and seams, then check the project or open the explorer:
+
+```sh
+devbox run seamgraph init --root . # only when seamgraph.yaml does not exist
+# Edit seamgraph.yaml before running analysis.
+devbox run seamgraph check --root .
+devbox run seamgraph serve --root .
+```
+
+Open **http://127.0.0.1:8765**. Commit `devbox.json`, `devbox.lock` and
+`seamgraph.yaml` so teammates get the same package revision and configuration.
+For intentional upgrades, run `devbox update`. To keep a specific package
+definition, replace the unversioned reference with
+`github:jani123/seamgraph/<packaging-commit>#seamgraph`, substituting a real
+commit containing the desired `nix/release.json`. The application release tag
+precedes its packaging update, so that tag may still reference an older binary.
+
+Supports Linux and macOS on Intel and ARM (Windows through WSL). The flake
+downloads the matching prebuilt GitHub release archive, verifies its pinned
+SHA-256 hash, and installs the binary. Installing SeamGraph requires no Go
+compiler, frontend build, or Cachix setup. Project language runtimes, dependencies
+and test runners remain part of your project's setup.
+See [Devbox installation](docs/installation.md#install-into-any-project-with-devbox)
+for more details.
+
+Maintainers activate or update the Devbox package after publishing a release:
+
+```sh
+python3 scripts/update-devbox-release.py v0.1.0 # use the actual published version
+```
+
+The updater verifies all four archives before changing `nix/release.json`.
+Review, commit, and publish that metadata update so Devbox users can install it.
+
 ## Build from source
 
 ```sh

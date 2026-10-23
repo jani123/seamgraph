@@ -1,0 +1,67 @@
+name: Devbox package
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      artifact:
+        type: string
+        default: ''
+      version:
+        type: string
+        default: v0.0.0-devbox
+permissions:
+  contents: read
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        if: inputs.artifact == ''
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Build candidate release binaries
+        if: inputs.artifact == ''
+        run: sh scripts/package-release.sh v0.0.0-devbox "$GITHUB_REPOSITORY" dist
+      - uses: actions/download-artifact@v4
+        if: inputs.artifact != ''
+        with:
+          name: ${{ inputs.artifact }}
+          path: dist
+      - name: Verify archives and generate pinned Devbox metadata
+        env:
+          RELEASE_VERSION: ${{ inputs.version || 'v0.0.0-devbox' }}
+        run: python3 scripts/update-devbox-release.py "$RELEASE_VERSION" --repository "$GITHUB_REPOSITORY" --assets-dir dist --output dist/devbox-release.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: devbox-release-candidate
+          path: dist/
+          if-no-files-found: error
+  install:
+    needs: package
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, ubuntu-24.04-arm, macos-15-intel, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: devbox-release-candidate
+          path: dist
+      - name: Prepare empty bootstrap environment
+        run: |
+          mkdir -p /tmp/seamgraph-devbox-bootstrap
+          echo '{"packages": []}' > /tmp/seamgraph-devbox-bootstrap/devbox.json
+      - uses: jetify-com/devbox-install-action@v0.14.0
+        with:
+          devbox-version: '0.18.3'
+          enable-cache: 'false'
+          skip-nix-installation: 'false'
+          project-path: /tmp/seamgraph-devbox-bootstrap
+      - name: Verify release install, runtime discovery and architecture scan
+        run: sh scripts/test-devbox-release.sh dist
