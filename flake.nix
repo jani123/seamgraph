@@ -1,8 +1,7 @@
 {
   description = "SeamGraph architecture explorer and CLI (GitHub release binaries)";
 
-  # 26.05 retains Intel macOS support, which unstable has dropped.
-  inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-26.05-darwin";
+  inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
 
   outputs = { nixpkgs, ... }:
     let
@@ -10,7 +9,7 @@
       release = if metadata == null then
         throw "No SeamGraph release is pinned yet. Publish a release, then run python3 scripts/update-devbox-release.py vX.Y.Z and commit nix/release.json."
       else metadata;
-      systems = [ "x86_64-linux" "aarch64-linux" "x86_64-darwin" "aarch64-darwin" ];
+      systems = [ "x86_64-linux" "aarch64-linux" "aarch64-darwin" ];
     in {
       packages = nixpkgs.lib.genAttrs systems (system:
         let

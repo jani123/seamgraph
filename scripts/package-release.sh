@@ -14,6 +14,7 @@ tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 for os in linux darwin windows; do
  for arch in amd64 arm64; do
+  [ "$os/$arch" != darwin/amd64 ] || continue
   binary=seamgraph
   [ "$os" != windows ] || binary=seamgraph.exe
   CGO_ENABLED=0 GOOS=$os GOARCH=$arch go build -trimpath -ldflags "-s -w -X main.version=$version -X main.commit=$commit -X main.buildDate=$date" -o "$tmp/$binary" ./cmd/seamgraph

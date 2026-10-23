@@ -9,7 +9,8 @@ curl -fsSL https://github.com/jani123/seamgraph/releases/latest/download/install
 sh /tmp/install-seamgraph.sh --languages python,typescript
 ```
 
-The Linux/macOS installer detects amd64/arm64, downloads the corresponding binary,
+The installer supports Linux amd64/arm64 and macOS arm64 (Apple Silicon),
+detects the platform, downloads the corresponding binary,
 verifies its SHA-256 checksum and installs it in `~/.local/bin`. It does not need
 Go, Node or Python to install SeamGraph. It needs the usual curl, tar, awk and
 sha256sum (or macOS shasum) commands. Add `~/.local/bin` to PATH if it is not already
@@ -50,7 +51,7 @@ The binary version is pinned separately in that commit's `nix/release.json`.
 An application release tag is created before the packaging update, so using
 that tag as the flake reference can select the previous release or no release.
 
-The flake supports Intel and ARM on Linux and macOS; Windows users need WSL.
+The flake supports Linux on Intel and ARM, and macOS on Apple Silicon; Windows users need WSL.
 It downloads the matching prebuilt archive from GitHub Releases, verifies the
 SHA-256 hash committed in `nix/release.json`, and installs the binary without
 modifying it. No Go compiler, npm build, frontend generation, Cachix account,
@@ -88,8 +89,8 @@ sh scripts/test-devbox-release.sh dist
 
 The candidate test seeds Nix's fixed-hash downloads from local archives and uses
 a temporary copy of the same flake; it does not change the committed release pin.
-The Devbox workflow runs it on all four supported platforms, including native
-Intel and ARM macOS runners. Release publication waits for these checks.
+The Devbox workflow runs it on all three supported platforms, including a native
+Apple Silicon macOS runner. Release publication waits for these checks.
 
 ## Update the Devbox package after a release
 
@@ -106,7 +107,7 @@ sh scripts/test-devbox.sh
 ```
 
 Replace the example with the actual published version. The updater downloads the
-checksum manifest and all four Linux/macOS archives from that exact release,
+checksum manifest and all three Linux/macOS archives from that exact release,
 verifies every archive, and only then atomically replaces `nix/release.json`.
 A failed download, missing checksum, or mismatch leaves the existing pin intact.
 For a fork, pass `--repository owner/repo`.
@@ -214,7 +215,7 @@ allowing `cmd/seamgraph/` to be included in Git. It was previously hidden by an
 unanchored ignore rule and must be included in the commit.
 
 Push a version tag on the desired committed source, for example `v0.1.0`. The
-release workflow runs Go and installer tests, cross-compiles six binaries,
+release workflow runs Go and installer tests, cross-compiles five binaries,
 packages tar.gz/ZIP assets, creates SHA256SUMS and stamps install.sh. Native
 Linux/macOS/Windows startup smoke tests run before publication. Tags containing
 a hyphen publish a prerelease. Published releases are not overwritten on reruns.
@@ -226,7 +227,7 @@ Local packaging:
 scripts/package-release.sh v0.1.0 jani123/seamgraph .build/release
 ```
 
-The local verification built all six targets and exercised the actual installer
+The local verification built all supported targets and exercised the actual installer
 with controlled downloads, including tampered checksums, existing installations,
 missing runtimes and version-pinned releases. Non-Linux binaries cannot be
 executed in this workspace; native startup is delegated to release CI. The

@@ -12,7 +12,6 @@ from urllib.request import urlopen
 ASSETS = {
     'x86_64-linux': 'seamgraph_linux_amd64.tar.gz',
     'aarch64-linux': 'seamgraph_linux_arm64.tar.gz',
-    'x86_64-darwin': 'seamgraph_darwin_amd64.tar.gz',
     'aarch64-darwin': 'seamgraph_darwin_arm64.tar.gz',
 }
 ROOT = Path(__file__).resolve().parents[1]

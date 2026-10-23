@@ -43,7 +43,7 @@ class DevboxReleaseTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0, result.stdout)
         self.assertEqual(self.output.read_text(), 'existing pin\n')
 
-    def test_pins_all_four_verified_archives(self):
+    def test_pins_all_supported_verified_archives(self):
         result = self.update(version='v1.2.3-rc.1')
         self.assertEqual(result.returncode, 0, result.stderr)
         metadata = json.loads(self.output.read_text())
@@ -90,4 +90,4 @@ class DevboxReleaseTests(unittest.TestCase):
             metadata = MODULE.release_metadata('v1.2.3', 'example/seamgraph')
         base = 'https://github.com/example/seamgraph/releases/download/v1.2.3/'
         self.assertEqual(fetched, [base + name for name in ['SHA256SUMS', *MODULE.ASSETS.values()]])
-        self.assertEqual(len(metadata['assets']), 4)
+        self.assertEqual(len(metadata['assets']), 3)

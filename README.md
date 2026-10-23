@@ -58,7 +58,7 @@ definition, replace the unversioned reference with
 commit containing the desired `nix/release.json`. The application release tag
 precedes its packaging update, so that tag may still reference an older binary.
 
-Supports Linux and macOS on Intel and ARM (Windows through WSL). The flake
+Supports Linux on Intel and ARM, and macOS on Apple Silicon (Windows through WSL). The flake
 downloads the matching prebuilt GitHub release archive, verifies its pinned
 SHA-256 hash, and installs the binary. Installing SeamGraph requires no Go
 compiler, frontend build, or Cachix setup. Project language runtimes, dependencies
@@ -72,7 +72,7 @@ Maintainers activate or update the Devbox package after publishing a release:
 python3 scripts/update-devbox-release.py v0.1.0 # use the actual published version
 ```
 
-The updater verifies all four archives before changing `nix/release.json`.
+The updater verifies all three archives before changing `nix/release.json`.
 Review, commit, and publish that metadata update so Devbox users can install it.
 
 ## Build from source

@@ -8,7 +8,7 @@ bin_dir=${SEAMGRAPH_BIN_DIR:-"$HOME/.local/bin"}
 languages=
 usage() {
   cat <<'HELP'
-Install a prebuilt SeamGraph binary (Linux/macOS, amd64/arm64).
+Install a prebuilt SeamGraph binary (Linux amd64/arm64, macOS arm64).
 Usage: sh install.sh [--repository owner/repo] [--version vX.Y.Z|latest]
                      [--bin-dir DIR] [--languages python,typescript,go]
 The installer verifies SHA-256 checksums. Language runtimes are checked only when
@@ -37,6 +37,7 @@ case "$version" in __*) version=latest ;; esac
 case "$version" in latest) ;; v[0-9]*) printf '%s\n' "$version" | LC_ALL=C awk '/^v[0-9]+\.[0-9]+\.[0-9]+([-.][A-Za-z0-9.-]+)?$/ {ok=1} END {exit !ok}' || fail 'invalid release version' ;; *) fail 'version must be latest or vX.Y.Z' ;; esac
 case "$(uname -s)" in Linux) os=linux ;; Darwin) os=darwin ;; *) fail 'supported installer platforms: Linux and macOS; use the release assets for other platforms' ;; esac
 case "$(uname -m)" in x86_64|amd64) arch=amd64 ;; arm64|aarch64) arch=arm64 ;; *) fail 'supported architectures: amd64 and arm64' ;; esac
+[ "$os/$arch" != darwin/amd64 ] || fail 'Intel macOS is not supported; macOS requires Apple Silicon (arm64)'
 command -v curl >/dev/null 2>&1 || fail 'curl is required'
 command -v tar >/dev/null 2>&1 || fail 'tar is required'
 if command -v sha256sum >/dev/null 2>&1; then checksum=sha256sum

@@ -70,6 +70,13 @@ case "$url" in */SHA256SUMS) cp "$TEST_SUMS" "$last";; *) cp "$TEST_ARCHIVE" "$l
         self.assertTrue((self.install / 'seamgraph').exists())
         self.assertIn('SeamGraph is installed', result.stderr)
 
+    def test_intel_macos_is_rejected_before_download(self):
+        self.executable('uname', '#!/bin/sh\ncase "$1" in -s) echo Darwin;; -m) echo x86_64;; esac\n')
+        result = self.run_install()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('Intel macOS is not supported', result.stderr)
+        self.assertFalse(self.install.exists())
+
     def test_unsupported_platform_does_not_install(self):
         self.executable('uname', '#!/bin/sh\necho Unsupported\n')
         result = self.run_install()
