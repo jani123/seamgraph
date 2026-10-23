@@ -217,12 +217,20 @@ func TestWorkingComparisonIncludesInternalChangesAndRefreshesCache(t *testing.T)
 		t.Fatalf("stale or incomplete working comparison: %+v", next)
 	}
 	// Isolate a policy document comment: config badge, no source badge.
-	os.WriteFile(world, original, 0644)
-	os.Remove(filepath.Join(root, "npc/internal.go"))
-	os.Remove(filepath.Join(root, "world/untracked.go"))
+	if err := os.WriteFile(world, original, 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(filepath.Join(root, "npc/internal.go")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(filepath.Join(root, "world/untracked.go")); err != nil {
+		t.Fatal(err)
+	}
 	configFile := filepath.Join(root, "seamgraph.yaml")
 	data, _ := os.ReadFile(configFile)
-	os.WriteFile(configFile, append(data, []byte("\n# policy note\n")...), 0644)
+	if err := os.WriteFile(configFile, append(data, []byte("\n# policy note\n")...), 0644); err != nil {
+		t.Fatal(err)
+	}
 	configOnly, err := svc.Compare(context.Background(), "HEAD", "WORKTREE")
 	if err != nil {
 		t.Fatal(err)

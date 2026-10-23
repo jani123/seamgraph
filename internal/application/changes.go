@@ -82,6 +82,21 @@ func moduleChanges(before, after ir.Snapshot, files []FileChange, architecture [
 		}
 		return changes[id]
 	}
+	markModulePresence(before, after, get)
+	attributeFileChanges(before, after, files, get)
+	attributeArchitectureChanges(before, after, architecture, get)
+	result := []ModuleChange{}
+	for _, change := range changes {
+		if change.Status == "" {
+			change.Status = "modified"
+		}
+		result = append(result, *change)
+	}
+	slices.SortFunc(result, func(a, b ModuleChange) int { return strings.Compare(a.ID, b.ID) })
+	return result
+}
+
+func markModulePresence(before, after ir.Snapshot, get func(string) *ModuleChange) {
 	bm, hm := map[string]bool{}, map[string]bool{}
 	for _, m := range before.Modules {
 		bm[m.ID] = true
@@ -99,6 +114,9 @@ func moduleChanges(before, after ir.Snapshot, files []FileChange, architecture [
 			get(id).Status = "added"
 		}
 	}
+}
+
+func attributeFileChanges(before, after ir.Snapshot, files []FileChange, get func(string) *ModuleChange) {
 	for _, file := range files {
 		// The rule document is configuration, even when a module owns the root.
 		if file.Path == ConfigFilename || file.OldPath == ConfigFilename {
@@ -121,6 +139,9 @@ func moduleChanges(before, after ir.Snapshot, files []FileChange, architecture [
 			}
 		}
 	}
+}
+
+func attributeArchitectureChanges(before, after ir.Snapshot, architecture []snapshot.Change, get func(string) *ModuleChange) {
 	owners := ir.Owners(before)
 	for id, owner := range ir.Owners(after) {
 		owners[id] = owner
@@ -134,40 +155,35 @@ func moduleChanges(before, after ir.Snapshot, files []FileChange, architecture [
 		}
 	}
 	for _, change := range architecture {
-		switch change.Kind {
-		case "violation":
-			raw := change.After
-			if len(raw) == 0 {
-				raw = change.Before
-			}
-			var violation policy.Violation
-			if json.Unmarshal(raw, &violation) == nil {
-				for _, id := range []string{violation.ConsumerID, violation.ProviderID} {
-					if owner := owners[id]; owner != "" {
-						get(owner).PolicyChanged = true
-					}
+		attributeArchitectureChange(change, owners, members, get)
+	}
+}
+
+func attributeArchitectureChange(change snapshot.Change, owners map[string]string, members map[string]bool, get func(string) *ModuleChange) {
+	switch change.Kind {
+	case "violation":
+		raw := change.After
+		if len(raw) == 0 {
+			raw = change.Before
+		}
+		var violation policy.Violation
+		if json.Unmarshal(raw, &violation) == nil {
+			for _, id := range []string{violation.ConsumerID, violation.ProviderID} {
+				if owner := owners[id]; owner != "" {
+					get(owner).PolicyChanged = true
 				}
 			}
-		case "module":
-			if change.Status == "modified" {
-				get(change.EntityID).DefinitionChanged = true
-			}
-		case "seam", "symbol":
-			if change.Kind == "symbol" && !members[change.EntityID] {
-				continue
-			}
-			if id := owners[change.EntityID]; id != "" {
-				get(id).Seams = append(get(id).Seams, change)
-			}
+		}
+	case "module":
+		if change.Status == "modified" {
+			get(change.EntityID).DefinitionChanged = true
+		}
+	case "seam", "symbol":
+		if change.Kind == "symbol" && !members[change.EntityID] {
+			return
+		}
+		if id := owners[change.EntityID]; id != "" {
+			get(id).Seams = append(get(id).Seams, change)
 		}
 	}
-	result := []ModuleChange{}
-	for _, change := range changes {
-		if change.Status == "" {
-			change.Status = "modified"
-		}
-		result = append(result, *change)
-	}
-	slices.SortFunc(result, func(a, b ModuleChange) int { return strings.Compare(a.ID, b.ID) })
-	return result
 }

@@ -16,8 +16,8 @@ func TestVersionRequirements(t *testing.T) {
 		major, minor int
 		ok           bool
 	}{
-		{"go version go1.25.0 linux/amd64", 1, 25, true},
-		{"go version go1.24.9 linux/amd64", 1, 25, false},
+		{"go version go1.26.10 linux/amd64", 1, 26, true},
+		{"go version go1.25.14 linux/amd64", 1, 26, false},
 		{"v22.23.3", 18, 0, true},
 		{"v16.0.0", 18, 0, false},
 		{"Python 3.10.0", 3, 10, true},

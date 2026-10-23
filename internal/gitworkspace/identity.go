@@ -19,10 +19,15 @@ func Identity(ctx context.Context, root string) (string, string, error) {
 	if err != nil {
 		return "", "", err
 	}
+	scope, err := os.OpenRoot(root)
+	if err != nil {
+		return "", "", err
+	}
+	defer func() { _ = scope.Close() }()
 	h := sha256.New()
-	fmt.Fprintf(h, "runtime:%s:%s:%s\x00", runtime.GOOS, runtime.GOARCH, runtime.Version())
+	_, _ = fmt.Fprintf(h, "runtime:%s:%s:%s\x00", runtime.GOOS, runtime.GOARCH, runtime.Version())
 	for _, key := range []string{"GOOS", "GOARCH", "GOFLAGS", "CGO_ENABLED", "GOWORK", "GOTOOLCHAIN", "NODE_OPTIONS", "PYTHONPATH", "PYTHONHASHSEED", "PYTHONOPTIMIZE", "VIRTUAL_ENV"} {
-		fmt.Fprintf(h, "env:%s=%s\x00", key, os.Getenv(key))
+		_, _ = fmt.Fprintf(h, "env:%s=%s\x00", key, os.Getenv(key))
 	}
 	ignored := map[string]bool{".git": true, ".seamgraph": true, "node_modules": true, ".build": true, ".venv": true, "__pycache__": true, ".devbox": true, ".codex-local": true, ".pytest_cache": true, ".mypy_cache": true, ".ruff_cache": true}
 	err = filepath.WalkDir(root, func(file string, d fs.DirEntry, err error) error {
@@ -52,8 +57,8 @@ func Identity(ctx context.Context, root string) (string, string, error) {
 		if !info.Mode().IsRegular() {
 			return fmt.Errorf("unsupported project file %s", rel)
 		}
-		fmt.Fprintf(h, "%s\x00%d\x00", filepath.ToSlash(rel), info.Size())
-		f, err := os.Open(file)
+		_, _ = fmt.Fprintf(h, "%s\x00%d\x00", filepath.ToSlash(rel), info.Size())
+		f, err := scope.Open(rel)
 		if err != nil {
 			return err
 		}

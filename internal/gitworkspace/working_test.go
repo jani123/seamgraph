@@ -35,7 +35,9 @@ func TestWorkingTreeCapturesFinalBytesWithoutChangingIndex(t *testing.T) {
 	write("tracked.py", "final")
 	write("new.ts", "new")
 	write("ignored.py", "ignore")
-	os.Remove(filepath.Join(root, "gone.py"))
+	if err := os.Remove(filepath.Join(root, "gone.py")); err != nil {
+		t.Fatal(err)
+	}
 	status := git("status", "--porcelain=v1")
 	index := git("show", ":tracked.py")
 	tree, id, cleanup, err := Extract(context.Background(), root, "WORKTREE")

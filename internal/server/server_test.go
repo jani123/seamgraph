@@ -160,8 +160,12 @@ func TestConfirmedRulesAndConcurrentChanges(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	f.WriteString("# concurrent change\n")
-	f.Close()
+	if _, err := f.WriteString("# concurrent change\n"); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.Close(); err != nil {
+		t.Fatal(err)
+	}
 	w = request("/rules/confirm", url.Values{"token": {a.token}, "proposal": {proposal}}, "")
 	if w.Code != 409 {
 		t.Fatal("concurrent config overwritten", w.Code)
@@ -274,7 +278,7 @@ func TestEphemeralPortAnnouncement(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	response.Body.Close()
+	_ = response.Body.Close()
 	cancel()
 	select {
 	case err := <-finished:

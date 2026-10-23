@@ -47,6 +47,7 @@ func Execute(ctx context.Context, root, artifactDir, runner string) (output []by
 	}
 	output, runErr = cmd.CombinedOutput()
 	if artifact != "" {
+		// #nosec G304 -- The runner selects a fixed artifact filename inside the application-owned run directory.
 		output, err = os.ReadFile(artifact)
 		if err != nil {
 			err = fmt.Errorf("runner did not produce an artifact: %w (runner: %v)", err, runErr)

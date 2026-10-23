@@ -16,107 +16,11 @@ import (
 // seams: public architecture contracts cannot be inferred from directory names.
 func Discover(root string) ([]byte, error) {
 	c := config.Config{Version: 1, Modules: map[string]config.Module{}, Policies: config.Policies{Default: "allow", Unresolved: "warn"}}
-	type tree struct {
-		path      string
-		direct    map[string]bool
-		languages map[string]bool
-		children  []*tree
-	}
-	var walk func(string) (*tree, error)
-	walk = func(rel string) (*tree, error) {
-		t := &tree{path: rel, direct: map[string]bool{}, languages: map[string]bool{}}
-		entries, err := os.ReadDir(filepath.Join(root, rel))
-		if err != nil {
-			return nil, err
-		}
-		for _, e := range entries {
-			if e.Type()&os.ModeSymlink != 0 {
-				return nil, fmt.Errorf("discovery does not follow symlinks: %s", filepath.Join(rel, e.Name()))
-			}
-			if e.IsDir() {
-				if strings.HasPrefix(e.Name(), ".") || skippedSourceDir(e.Name()) {
-					continue
-				}
-				child, err := walk(filepath.Join(rel, e.Name()))
-				if err != nil {
-					return nil, err
-				}
-				if len(child.languages) > 0 {
-					t.children = append(t.children, child)
-				}
-				for lang := range child.languages {
-					t.languages[lang] = true
-				}
-			} else {
-				var lang string
-				switch strings.ToLower(filepath.Ext(e.Name())) {
-				case ".go":
-					lang = "go"
-				case ".ts", ".tsx", ".mts", ".cts":
-					lang = "typescript"
-				case ".py", ".pyi":
-					lang = "python"
-				}
-				if lang != "" {
-					t.direct[lang] = true
-					t.languages[lang] = true
-				}
-			}
-		}
-		return t, nil
-	}
-	t, err := walk(".")
+	t, err := discoverTree(root, ".")
 	if err != nil {
 		return nil, err
 	}
-	var selectRoots func(*tree) error
-	selectRoots = func(t *tree) error {
-		if len(t.direct) == 0 {
-			for _, child := range t.children {
-				if err := selectRoots(child); err != nil {
-					return err
-				}
-			}
-			return nil
-		}
-		if len(t.languages) != 1 {
-			return fmt.Errorf("mixed languages share directory %s; supply an explicit --config with disjoint language roots", filepath.ToSlash(t.path))
-		}
-		var language string
-		for lang := range t.languages {
-			language = lang
-		}
-		name := strings.Map(func(r rune) rune {
-			if unicode.IsLetter(r) && r < 128 || unicode.IsDigit(r) && r < 128 || r == '_' || r == '-' {
-				return r
-			}
-			return '-'
-		}, filepath.ToSlash(t.path))
-		name = strings.Trim(name, "-")
-		if name == "" {
-			name = "project"
-		}
-		original := name
-		for n := 2; ; n++ {
-			if _, ok := c.Modules[name]; !ok {
-				break
-			}
-			name = fmt.Sprintf("%s-%d", original, n)
-		}
-		m := config.Module{Language: language, Paths: []string{filepath.ToSlash(t.path)}}
-		if language == "python" {
-			parts := strings.Split(filepath.ToSlash(t.path), "/")
-			for i, part := range parts {
-				if part == "src" {
-					m.ImportRoots = []string{strings.Join(parts[:i+1], "/")}
-					break
-				}
-			}
-		}
-		c.Modules[name] = m
-		return nil
-	}
-	if err = selectRoots(t); err != nil {
+	if err = selectModuleRoots(t, &c); err != nil {
 		return nil, err
 	}
 	if len(c.Modules) == 0 {
@@ -135,4 +39,111 @@ func skippedSourceDir(name string) bool {
 	names := []string{"__pycache__", "build", "coverage", "dist", "env", "node_modules", "site-packages", "vendor", "venv"}
 	i := sort.SearchStrings(names, name)
 	return i < len(names) && names[i] == name
+}
+
+type sourceTree struct {
+	path      string
+	direct    map[string]bool
+	languages map[string]bool
+	children  []*sourceTree
+}
+
+func discoverTree(root, rel string) (*sourceTree, error) {
+	t := &sourceTree{path: rel, direct: map[string]bool{}, languages: map[string]bool{}}
+	entries, err := os.ReadDir(filepath.Join(root, rel))
+	if err != nil {
+		return nil, err
+	}
+	for _, e := range entries {
+		if e.Type()&os.ModeSymlink != 0 {
+			return nil, fmt.Errorf("discovery does not follow symlinks: %s", filepath.Join(rel, e.Name()))
+		}
+		if e.IsDir() {
+			if strings.HasPrefix(e.Name(), ".") || skippedSourceDir(e.Name()) {
+				continue
+			}
+			child, err := discoverTree(root, filepath.Join(rel, e.Name()))
+			if err != nil {
+				return nil, err
+			}
+			if len(child.languages) > 0 {
+				t.children = append(t.children, child)
+			}
+			for lang := range child.languages {
+				t.languages[lang] = true
+			}
+		} else {
+			var lang string
+			switch strings.ToLower(filepath.Ext(e.Name())) {
+			case ".go":
+				lang = "go"
+			case ".ts", ".tsx", ".mts", ".cts":
+				lang = "typescript"
+			case ".py", ".pyi":
+				lang = "python"
+			}
+			if lang != "" {
+				t.direct[lang] = true
+				t.languages[lang] = true
+			}
+		}
+	}
+	return t, nil
+}
+
+func selectModuleRoots(t *sourceTree, c *config.Config) error {
+	if len(t.direct) == 0 {
+		for _, child := range t.children {
+			if err := selectModuleRoots(child, c); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	if len(t.languages) != 1 {
+		return fmt.Errorf("mixed languages share directory %s; supply an explicit --config with disjoint language roots", filepath.ToSlash(t.path))
+	}
+	var language string
+	for lang := range t.languages {
+		language = lang
+	}
+	name := discoveredModuleName(t.path, c)
+	m := discoveredModule(t.path, language)
+	c.Modules[name] = m
+	return nil
+}
+
+func discoveredModuleName(rel string, c *config.Config) string {
+	name := strings.Map(func(r rune) rune {
+		if unicode.IsLetter(r) && r < 128 || unicode.IsDigit(r) && r < 128 || r == '_' || r == '-' {
+			return r
+		}
+		return '-'
+	}, filepath.ToSlash(rel))
+	name = strings.Trim(name, "-")
+	if name == "" {
+		name = "project"
+	}
+	original := name
+	for n := 2; ; n++ {
+		if _, ok := c.Modules[name]; !ok {
+			break
+		}
+		name = fmt.Sprintf("%s-%d", original, n)
+	}
+	return name
+}
+
+func discoveredModule(rel, language string) config.Module {
+	m := config.Module{Language: language, Paths: []string{filepath.ToSlash(rel)}}
+	if language == "python" {
+		parts := strings.Split(filepath.ToSlash(rel), "/")
+		for i, part := range parts {
+			if part == "src" {
+				m.ImportRoots = []string{strings.Join(parts[:i+1], "/")}
+				break
+			}
+		}
+	}
+	return m
 }

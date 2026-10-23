@@ -78,7 +78,7 @@ func TestSelfArchitectureAndRealForbiddenReferences(t *testing.T) {
 			if err := os.WriteFile(file, []byte(tc.source), 0644); err != nil {
 				t.Fatal(err)
 			}
-			defer os.Remove(file)
+			defer func() { _ = os.Remove(file) }()
 			_, result := check()
 			found := false
 			for _, v := range result.Violations {

@@ -128,3 +128,44 @@ func TestConflictingSameTimeEvidenceCannotChoosePassByID(t *testing.T) {
 		}
 	}
 }
+
+func TestCurrentIdentityWinsOverLaterUnrelatedRun(t *testing.T) {
+	m := manifest()
+	current := verification.Evidence{ID: "e:current", TestID: m.Links[0].TestID, Runner: "test", Revision: "abc", Fingerprint: "inputs", RunID: "current", ObservedAt: "2026-10-16T00:00:00Z", Outcome: "passed", EvidenceKind: "test-execution"}
+	unrelated := current
+	unrelated.ID, unrelated.RunID = "e:later", "later"
+	unrelated.Fingerprint = "different-checkout"
+	unrelated.ObservedAt, unrelated.Outcome = "2026-10-17T00:00:00Z", "failed"
+	coverage := current
+	coverage.ID, coverage.EvidenceKind = "e:coverage", "coverage"
+	coverage.MemberIDs = m.Links[0].MemberIDs
+	for _, evidence := range [][]verification.Evidence{{current, unrelated, coverage}, {coverage, unrelated, current}} {
+		r, err := verification.Evaluate(model(t), m, verification.Store{SchemaVersion: 1, Evidence: evidence}, "abc", "inputs")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if r.ExitCode != 0 || r.Results[0].Status != "verified" || !r.Results[0].MemberCoverage.Known || len(r.Results[0].StaleEvidence) != 0 {
+			t.Fatal("unrelated execution or coverage superseded current assertion evidence", r)
+		}
+	}
+}
+
+func TestIncompleteSeamKeepsPrecedenceOverLaterViolation(t *testing.T) {
+	s := model(t)
+	s.Seams = append(s.Seams, ir.Seam{ID: "seam:world.writer", ModuleID: "module:world", ContractMembers: []string{}})
+	for i := range s.Modules {
+		if s.Modules[i].ID == "module:world" {
+			s.Modules[i].Seams = append(s.Modules[i].Seams, "seam:world.writer")
+		}
+	}
+	m := manifest()
+	m.Policies["seam:world.writer"] = "require-verified"
+	m.Requirements = append(m.Requirements, verification.Requirement{ID: "behavior:write", SeamID: "seam:world.writer", Description: "Write preserves its input", Kind: "behavior"})
+	r, err := verification.Evaluate(s, m, verification.Store{SchemaVersion: 1}, "abc", "inputs")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.ExitCode != 2 || len(r.Results) != 2 || r.Results[0].Status != "unknown" || r.Results[1].Status != "unverified" {
+		t.Fatal("later missing requirement hid incomplete evidence from an earlier seam", r)
+	}
+}

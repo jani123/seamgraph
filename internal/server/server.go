@@ -53,155 +53,16 @@ func (a *App) Handler() http.Handler {
 	mux.Handle("GET /assets/", http.StripPrefix("/assets/", http.FileServer(http.FS(assets))))
 	mux.HandleFunc("GET /{$}", func(w http.ResponseWriter, r *http.Request) { render(w, r, ui.Page(a.token)) })
 	mux.HandleFunc("GET /help", func(w http.ResponseWriter, r *http.Request) { render(w, r, ui.Help()) })
-	load := func(w http.ResponseWriter, r *http.Request) (application.Model, bool) {
-		m, err := a.backend.Load(r.Context())
-		if err != nil {
-			http.Error(w, err.Error(), 500)
-			return m, false
-		}
-		return m, true
-	}
-	mux.HandleFunc("GET /api/model", func(w http.ResponseWriter, r *http.Request) {
-		m, ok := load(w, r)
-		if !ok {
-			return
-		}
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(m)
-	})
-	mux.HandleFunc("GET /module", func(w http.ResponseWriter, r *http.Request) {
-		m, ok := load(w, r)
-		if !ok {
-			return
-		}
-		for _, module := range m.Snapshot.Modules {
-			if module.ID == r.URL.Query().Get("id") {
-				render(w, r, ui.ModuleDetails(module, m.Snapshot, m.Check, m.Contracts))
-				return
-			}
-		}
-		http.Error(w, "unknown module ID", 404)
-	})
-	mux.HandleFunc("GET /edge", func(w http.ResponseWriter, r *http.Request) {
-		m, ok := load(w, r)
-		if !ok {
-			return
-		}
-		from, to := r.URL.Query().Get("from"), r.URL.Query().Get("to")
-		relations := []ir.Relation{}
-		owners := ir.Owners(m.Snapshot)
-		for _, rel := range m.Snapshot.Relations {
-			if owners[rel.FromID] == from && owners[rel.ToID] == to {
-				relations = append(relations, rel)
-			}
-		}
-		if len(relations) == 0 {
-			http.Error(w, "unknown relationship", 404)
-			return
-		}
-		render(w, r, ui.Relationship(relations, m.Check, a.token, from, to))
-	})
-	mux.HandleFunc("GET /rules", func(w http.ResponseWriter, r *http.Request) {
-		m, ok := load(w, r)
-		if ok {
-			render(w, r, ui.RulesPage(m.Policy))
-		}
-	})
-	mux.HandleFunc("GET /source", func(w http.ResponseWriter, r *http.Request) {
-		file := r.URL.Query().Get("file")
-		if !ir.ValidPath(file) {
-			http.Error(w, "invalid source location", 400)
-			return
-		}
-		source, err := a.backend.Source(r.Context(), file)
-		if err != nil {
-			code := 500
-			var sourceError *application.SourceError
-			if errors.As(err, &sourceError) {
-				code = 404
-				if sourceError.Kind == "invalid" {
-					code = 400
-				}
-				if sourceError.Kind == "forbidden" {
-					code = 403
-				}
-				if sourceError.Kind == "large" {
-					code = 400
-				}
-			}
-			http.Error(w, err.Error(), code)
-			return
-		}
-		render(w, r, ui.Source(file, source))
-	})
-	mux.HandleFunc("GET /changes", func(w http.ResponseWriter, r *http.Request) {
-		if a.backend == nil {
-			http.Error(w, "revision comparison unavailable", 503)
-			return
-		}
-		base, head := r.URL.Query().Get("base"), r.URL.Query().Get("head")
-		if r.URL.Query().Get("scope") == "working" {
-			base, head = "HEAD", "WORKTREE"
-		}
-		result, err := a.backend.Compare(r.Context(), base, head)
-		if err != nil {
-			render(w, r, ui.Message(err.Error()))
-			return
-		}
-		render(w, r, ui.Changes(result))
-	})
-	validate := func(w http.ResponseWriter, r *http.Request) bool {
-		r.Body = http.MaxBytesReader(w, r.Body, 64*1024)
-		if err := r.ParseForm(); err != nil {
-			http.Error(w, "invalid form", 400)
-			return false
-		}
-		if r.Form.Get("token") != a.token {
-			http.Error(w, "invalid confirmation token", 403)
-			return false
-		}
-		origin := r.Header.Get("Origin")
-		if origin != "" {
-			u, err := url.Parse(origin)
-			if err != nil || u.Host != r.Host || u.Scheme != "http" {
-				http.Error(w, "cross-origin writes denied", 403)
-				return false
-			}
-		}
-		return true
-	}
-	mux.HandleFunc("POST /rules/propose", func(w http.ResponseWriter, r *http.Request) {
-		if !validate(w, r) {
-			return
-		}
-		proposal, err := a.backend.Propose(r.Form.Get("effect"), r.Form.Get("from"), r.Form.Get("to"))
-		if err != nil {
-			http.Error(w, err.Error(), 400)
-			return
-		}
-		render(w, r, ui.Proposal(proposal.Diff, a.token, proposal.ID))
-	})
-	mux.HandleFunc("POST /rules/cancel", func(w http.ResponseWriter, r *http.Request) {
-		if !validate(w, r) {
-			return
-		}
-		a.backend.Cancel(r.Form.Get("proposal"))
-		w.WriteHeader(http.StatusOK)
-	})
-	mux.HandleFunc("POST /rules/confirm", func(w http.ResponseWriter, r *http.Request) {
-		if !validate(w, r) {
-			return
-		}
-		if err := a.backend.Confirm(r.Form.Get("proposal")); err != nil {
-			code := 409
-			if errors.Is(err, application.ErrUnknownProposal) {
-				code = 400
-			}
-			http.Error(w, err.Error(), code)
-			return
-		}
-		render(w, r, ui.Message("Rule saved. Reload the architecture to refresh policy results. Backup: seamgraph.yaml.bak"))
-	})
+
+	mux.HandleFunc("GET /api/model", a.model)
+	mux.HandleFunc("GET /module", a.module)
+	mux.HandleFunc("GET /edge", a.edge)
+	mux.HandleFunc("GET /rules", a.rules)
+	mux.HandleFunc("GET /source", a.source)
+	mux.HandleFunc("GET /changes", a.changes)
+	mux.HandleFunc("POST /rules/propose", a.propose)
+	mux.HandleFunc("POST /rules/cancel", a.cancel)
+	mux.HandleFunc("POST /rules/confirm", a.confirm)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		host, _, err := net.SplitHostPort(r.Host)
 		if err != nil {
@@ -209,7 +70,7 @@ func (a *App) Handler() http.Handler {
 		}
 		ip := net.ParseIP(host)
 		if host != "localhost" && (ip == nil || !ip.IsLoopback()) {
-			http.Error(w, "loopback host required", 403)
+			http.Error(w, "loopback host required", http.StatusForbidden)
 			return
 		}
 		w.Header().Set("X-Content-Type-Options", "nosniff")
@@ -243,7 +104,7 @@ func Serve(ctx context.Context, addr string, handler http.Handler, allowNetwork 
 	if err != nil {
 		return err
 	}
-	defer listener.Close()
+	defer func() { _ = listener.Close() }()
 	if announce != nil {
 		if err = announce(listener.Addr().String()); err != nil {
 			return err
@@ -258,13 +119,175 @@ func Serve(ctx context.Context, addr string, handler http.Handler, allowNetwork 
 		case <-done:
 			return
 		}
-		shutdown, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		shutdown, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 		defer cancel()
-		s.Shutdown(shutdown)
+		if err := s.Shutdown(shutdown); err != nil {
+			_ = s.Close()
+		}
 	}()
 	err = s.Serve(listener)
 	if err == http.ErrServerClosed {
 		return nil
 	}
 	return err
+}
+
+func (a *App) loadModel(w http.ResponseWriter, r *http.Request) (application.Model, bool) {
+	m, err := a.backend.Load(r.Context())
+	if err != nil {
+		http.Error(w, err.Error(), 500)
+		return m, false
+	}
+	return m, true
+}
+
+func (a *App) validateWrite(w http.ResponseWriter, r *http.Request) bool {
+	r.Body = http.MaxBytesReader(w, r.Body, 64*1024)
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "invalid form", 400)
+		return false
+	}
+	if r.Form.Get("token") != a.token {
+		http.Error(w, "invalid confirmation token", http.StatusForbidden)
+		return false
+	}
+	origin := r.Header.Get("Origin")
+	if origin != "" {
+		u, err := url.Parse(origin)
+		if err != nil || u.Host != r.Host || u.Scheme != "http" {
+			http.Error(w, "cross-origin writes denied", http.StatusForbidden)
+			return false
+		}
+	}
+	return true
+}
+
+func (a *App) model(w http.ResponseWriter, r *http.Request) {
+	m, ok := a.loadModel(w, r)
+	if !ok {
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(m) // The client may disconnect while receiving the response.
+}
+
+func (a *App) module(w http.ResponseWriter, r *http.Request) {
+	m, ok := a.loadModel(w, r)
+	if !ok {
+		return
+	}
+	for _, module := range m.Snapshot.Modules {
+		if module.ID == r.URL.Query().Get("id") {
+			render(w, r, ui.ModuleDetails(module, m.Snapshot, m.Check, m.Contracts))
+			return
+		}
+	}
+	http.Error(w, "unknown module ID", 404)
+}
+
+func (a *App) edge(w http.ResponseWriter, r *http.Request) {
+	m, ok := a.loadModel(w, r)
+	if !ok {
+		return
+	}
+	from, to := r.URL.Query().Get("from"), r.URL.Query().Get("to")
+	relations := []ir.Relation{}
+	owners := ir.Owners(m.Snapshot)
+	for _, rel := range m.Snapshot.Relations {
+		if owners[rel.FromID] == from && owners[rel.ToID] == to {
+			relations = append(relations, rel)
+		}
+	}
+	if len(relations) == 0 {
+		http.Error(w, "unknown relationship", 404)
+		return
+	}
+	render(w, r, ui.Relationship(relations, m.Check, a.token, from, to))
+}
+
+func (a *App) rules(w http.ResponseWriter, r *http.Request) {
+	m, ok := a.loadModel(w, r)
+	if ok {
+		render(w, r, ui.RulesPage(m.Policy))
+	}
+}
+
+func (a *App) source(w http.ResponseWriter, r *http.Request) {
+	file := r.URL.Query().Get("file")
+	if !ir.ValidPath(file) {
+		http.Error(w, "invalid source location", 400)
+		return
+	}
+	source, err := a.backend.Source(r.Context(), file)
+	if err != nil {
+		code := 500
+		var sourceError *application.SourceError
+		if errors.As(err, &sourceError) {
+			code = 404
+			if sourceError.Kind == "invalid" {
+				code = 400
+			}
+			if sourceError.Kind == "forbidden" {
+				code = 403
+			}
+			if sourceError.Kind == "large" {
+				code = 400
+			}
+		}
+		http.Error(w, err.Error(), code)
+		return
+	}
+	render(w, r, ui.Source(file, source))
+}
+
+func (a *App) changes(w http.ResponseWriter, r *http.Request) {
+	if a.backend == nil {
+		http.Error(w, "revision comparison unavailable", http.StatusServiceUnavailable)
+		return
+	}
+	base, head := r.URL.Query().Get("base"), r.URL.Query().Get("head")
+	if r.URL.Query().Get("scope") == "working" {
+		base, head = "HEAD", "WORKTREE"
+	}
+	result, err := a.backend.Compare(r.Context(), base, head)
+	if err != nil {
+		render(w, r, ui.Message(err.Error()))
+		return
+	}
+	render(w, r, ui.Changes(result))
+}
+
+func (a *App) propose(w http.ResponseWriter, r *http.Request) {
+	if !a.validateWrite(w, r) {
+		return
+	}
+	proposal, err := a.backend.Propose(r.Form.Get("effect"), r.Form.Get("from"), r.Form.Get("to"))
+	if err != nil {
+		http.Error(w, err.Error(), 400)
+		return
+	}
+	render(w, r, ui.Proposal(proposal.Diff, a.token, proposal.ID))
+}
+
+func (a *App) cancel(w http.ResponseWriter, r *http.Request) {
+	if !a.validateWrite(w, r) {
+		return
+	}
+	a.backend.Cancel(r.Form.Get("proposal"))
+	w.WriteHeader(http.StatusOK)
+}
+
+func (a *App) confirm(w http.ResponseWriter, r *http.Request) {
+	if !a.validateWrite(w, r) {
+		return
+	}
+	if err := a.backend.Confirm(r.Form.Get("proposal")); err != nil {
+		code := 409
+		if errors.Is(err, application.ErrUnknownProposal) {
+			code = 400
+		}
+		http.Error(w, err.Error(), code)
+		return
+	}
+	render(w, r, ui.Message("Rule saved. Reload the architecture to refresh policy results. Backup: seamgraph.yaml.bak"))
 }

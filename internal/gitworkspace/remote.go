@@ -30,20 +30,7 @@ func ValidateURL(raw string) error {
 		return fmt.Errorf("invalid repository URL")
 	}
 	if strings.Contains(raw, "://") {
-		u, err := url.Parse(raw)
-		if err != nil || u.Hostname() == "" || u.Path == "" || u.Path == "/" {
-			return fmt.Errorf("repository URL must include a host and repository path")
-		}
-		if u.Scheme != "https" && u.Scheme != "ssh" && u.Scheme != "git" {
-			return fmt.Errorf("use an HTTPS or SSH Git repository URL")
-		}
-		if u.RawQuery != "" || u.Fragment != "" {
-			return fmt.Errorf("repository URL cannot contain a query or fragment")
-		}
-		if u.User != nil && (u.Scheme != "ssh" || strings.Contains(u.User.String(), ":")) {
-			return fmt.Errorf("use Git credentials or an SSH agent instead of credentials in the URL")
-		}
-		return nil
+		return validateTransportURL(raw)
 	}
 	colon := strings.IndexByte(raw, ':')
 	if colon <= 0 || colon == len(raw)-1 || strings.ContainsAny(raw[:colon], "/\\ ") || !strings.Contains(raw[:colon], "@") {
@@ -101,52 +88,22 @@ func Open(ctx context.Context, remote, ref, cache string) (Workspace, error) {
 	success := false
 	defer func() {
 		if !success {
-			os.RemoveAll(dir)
+			_ = os.RemoveAll(dir)
 		}
 	}()
 	// No checkout: materialize blobs below without filters, hooks or submodules.
 	if _, err = remoteGit(ctx, "", "clone", "--no-checkout", "--no-local", "--template=", "--", remote, dir); err != nil {
 		return w, err
 	}
-	resolved := ref
-	if ref != "HEAD" {
-		// A branch name refers to the remote branch; tags and commit IDs resolve as-is.
-		if _, e := remoteGit(ctx, dir, "rev-parse", "--verify", "--end-of-options", "refs/remotes/origin/"+ref+"^{commit}"); e == nil {
-			resolved = "refs/remotes/origin/" + ref
-		}
-	}
-	b, err := remoteGit(ctx, dir, "rev-parse", "--verify", "--end-of-options", resolved+"^{commit}")
+	commit, err := resolveRemoteCommit(ctx, dir, ref)
 	if err != nil {
 		return w, err
 	}
-	commit := strings.TrimSpace(string(b))
-	// Extract reads raw Git blobs, including files excluded by export-ignore.
-	// It rejects symlinks/submodules rather than following them into other trees.
-	tree, _, cleanup, err := Extract(ctx, dir, commit)
-	if err != nil {
-		return w, err
-	}
-	defer cleanup()
-	entries, err := os.ReadDir(tree)
-	if err != nil {
-		return w, err
-	}
-	for _, entry := range entries {
-		if strings.EqualFold(entry.Name(), ".git") {
-			return w, fmt.Errorf("Git tree contains reserved .git path")
-		}
-		if err = copyTree(filepath.Join(tree, entry.Name()), filepath.Join(dir, entry.Name())); err != nil {
-			return w, err
-		}
-	}
-	if _, err = remoteGit(ctx, dir, "update-ref", "--no-deref", "HEAD", commit); err != nil {
-		return w, err
-	}
-	if _, err = remoteGit(ctx, dir, "read-tree", commit); err != nil {
+	if err := materializeRemoteCommit(ctx, dir, commit); err != nil {
 		return w, err
 	}
 	w = Workspace{Root: dir, URL: remote, Ref: ref, Commit: commit}
-	b, err = json.MarshalIndent(w, "", "  ")
+	b, err := json.MarshalIndent(w, "", "  ")
 	if err != nil {
 		return w, err
 	}
@@ -162,7 +119,7 @@ func copyTree(from, to string) error {
 		return err
 	}
 	if info.IsDir() {
-		if err = os.Mkdir(to, 0755); err != nil {
+		if err = os.Mkdir(to, 0700); err != nil {
 			return err
 		}
 		entries, err := os.ReadDir(from)
@@ -179,9 +136,73 @@ func copyTree(from, to string) error {
 	if !info.Mode().IsRegular() {
 		return fmt.Errorf("unsupported source file: %s", from)
 	}
+	// #nosec G304 G703 -- Source is the private extracted Git tree; Lstat above rejects nonregular files.
 	b, err := os.ReadFile(from)
 	if err != nil {
 		return err
 	}
+	// #nosec G703 -- Destination paths are derived from validated regular Git tree entries inside a private workspace.
 	return os.WriteFile(to, b, info.Mode().Perm())
+}
+
+func validateTransportURL(raw string) error {
+	u, err := url.Parse(raw)
+	if err != nil || u.Hostname() == "" || u.Path == "" || u.Path == "/" {
+		return fmt.Errorf("repository URL must include a host and repository path")
+	}
+	if u.Scheme != "https" && u.Scheme != "ssh" && u.Scheme != "git" {
+		return fmt.Errorf("use an HTTPS or SSH Git repository URL")
+	}
+	if u.RawQuery != "" || u.Fragment != "" {
+		return fmt.Errorf("repository URL cannot contain a query or fragment")
+	}
+	if u.User != nil && (u.Scheme != "ssh" || strings.Contains(u.User.String(), ":")) {
+		return fmt.Errorf("use Git credentials or an SSH agent instead of credentials in the URL")
+	}
+	return nil
+}
+
+func resolveRemoteCommit(ctx context.Context, dir, ref string) (string, error) {
+	resolved := ref
+	if ref != "HEAD" {
+		// A branch name refers to the remote branch; tags and commit IDs resolve as-is.
+		if _, e := remoteGit(ctx, dir, "rev-parse", "--verify", "--end-of-options", "refs/remotes/origin/"+ref+"^{commit}"); e == nil {
+			resolved = "refs/remotes/origin/" + ref
+		}
+	}
+	b, err := remoteGit(ctx, dir, "rev-parse", "--verify", "--end-of-options", resolved+"^{commit}")
+	if err != nil {
+		return "", err
+	}
+	commit := strings.TrimSpace(string(b))
+	return commit, nil
+}
+
+func materializeRemoteCommit(ctx context.Context, dir, commit string) error {
+	// Extract reads raw Git blobs, including files excluded by export-ignore.
+	// It rejects symlinks/submodules rather than following them into other trees.
+	tree, _, cleanup, err := Extract(ctx, dir, commit)
+	if err != nil {
+		return err
+	}
+	defer cleanup()
+	entries, err := os.ReadDir(tree)
+	if err != nil {
+		return err
+	}
+	for _, entry := range entries {
+		if strings.EqualFold(entry.Name(), ".git") {
+			return fmt.Errorf("git tree contains reserved .git path")
+		}
+		if err = copyTree(filepath.Join(tree, entry.Name()), filepath.Join(dir, entry.Name())); err != nil {
+			return err
+		}
+	}
+	if _, err = remoteGit(ctx, dir, "update-ref", "--no-deref", "HEAD", commit); err != nil {
+		return err
+	}
+	if _, err = remoteGit(ctx, dir, "read-tree", commit); err != nil {
+		return err
+	}
+	return nil
 }

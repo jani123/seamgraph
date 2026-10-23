@@ -51,8 +51,13 @@ func Inspect(graph ir.Snapshot, result policy.Result, id string) (Inspection, er
 		}
 		return Inspection{}, fmt.Errorf("unknown ID %q; candidate IDs: %s", id, strings.Join(ids, ", "))
 	}
+	return Inspection{entity, relatedRelations(graph, id)}, nil
+}
+
+func relatedRelations(graph ir.Snapshot, id string) []ir.Relation {
 	related := []ir.Relation{}
-	owner := ir.Owners(graph)[id]
+	owners := ir.Owners(graph)
+	owner := owners[id]
 	members := map[string]bool{id: true}
 	for _, seam := range graph.Seams {
 		if seam.ID == id {
@@ -62,9 +67,9 @@ func Inspect(graph ir.Snapshot, result policy.Result, id string) (Inspection, er
 		}
 	}
 	for _, r := range graph.Relations {
-		if members[r.FromID] || members[r.ToID] || (strings.HasPrefix(id, "module:") && (ir.Owners(graph)[r.FromID] == owner || ir.Owners(graph)[r.ToID] == owner)) {
+		if members[r.FromID] || members[r.ToID] || (strings.HasPrefix(id, "module:") && (owners[r.FromID] == owner || owners[r.ToID] == owner)) {
 			related = append(related, r)
 		}
 	}
-	return Inspection{entity, related}, nil
+	return related
 }

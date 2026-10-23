@@ -14,6 +14,7 @@ import (
 
 func LoadContracts(root string) (verification.Manifest, error) {
 	m := verification.Manifest{Version: 1, Requirements: []verification.Requirement{}, Links: []verification.Link{}, Policies: map[string]string{}}
+	// #nosec G304 -- Root is the selected project directory and the manifest filename is constant.
 	b, err := os.ReadFile(filepath.Join(root, "seamgraph-contracts.yaml"))
 	if os.IsNotExist(err) {
 		return m, nil

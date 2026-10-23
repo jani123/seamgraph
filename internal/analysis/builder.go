@@ -35,36 +35,8 @@ func NewBuilder(root string, c config.Config, language string) (*Builder, error)
 		if m.Language == language {
 			selected[ir.ModuleID(name)] = true
 			for _, r := range m.Paths {
-				p := filepath.Join(root, filepath.FromSlash(r))
-				resolved, err := filepath.EvalSymlinks(p)
-				if err != nil {
-					return nil, fmt.Errorf("module %s root: %w", name, err)
-				}
-				rel, err := filepath.Rel(root, resolved)
-				if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
-					return nil, fmt.Errorf("module root escapes project: %s", r)
-				}
-				if filepath.Clean(p) != filepath.Clean(resolved) {
-					return nil, fmt.Errorf("symlinked module roots are unsupported: %s", r)
-				}
-				err = filepath.WalkDir(p, func(file string, d os.DirEntry, err error) error {
-					if err != nil {
-						return err
-					}
-					if d.IsDir() && (d.Name() == "node_modules" || d.Name() == ".venv" || d.Name() == ".git" || d.Name() == "__pycache__" || d.Name() == ".build" || d.Name() == ".seamgraph" || d.Name() == ".devbox" || d.Name() == ".codex-local") {
-						return filepath.SkipDir
-					}
-					if d.Type()&os.ModeSymlink != 0 {
-						return fmt.Errorf("symlinked source is unsupported: %s", file)
-					}
-					return nil
-				})
-				if err != nil {
+				if err := validateModuleRoot(root, name, r); err != nil {
 					return nil, err
-				}
-				info, err := os.Stat(resolved)
-				if err != nil || !info.IsDir() {
-					return nil, fmt.Errorf("module root must be a directory: %s", r)
 				}
 			}
 		}
@@ -119,4 +91,41 @@ func (b *Builder) Finish() ir.PartialSnapshot {
 		}
 	}
 	return b.Partial
+}
+
+func validateModuleRoot(root, name, r string) error {
+	p := filepath.Join(root, filepath.FromSlash(r))
+	resolved, err := filepath.EvalSymlinks(p)
+	if err != nil {
+		return fmt.Errorf("module %s root: %w", name, err)
+	}
+	rel, err := filepath.Rel(root, resolved)
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return fmt.Errorf("module root escapes project: %s", r)
+	}
+	if filepath.Clean(p) != filepath.Clean(resolved) {
+		return fmt.Errorf("symlinked module roots are unsupported: %s", r)
+	}
+	err = filepath.WalkDir(p, validateSourceEntry)
+	if err != nil {
+		return err
+	}
+	info, err := os.Stat(resolved)
+	if err != nil || !info.IsDir() {
+		return fmt.Errorf("module root must be a directory: %s", r)
+	}
+	return nil
+}
+
+func validateSourceEntry(file string, d os.DirEntry, err error) error {
+	if err != nil {
+		return err
+	}
+	if d.IsDir() && (d.Name() == "node_modules" || d.Name() == ".venv" || d.Name() == ".git" || d.Name() == "__pycache__" || d.Name() == ".build" || d.Name() == ".seamgraph" || d.Name() == ".devbox" || d.Name() == ".codex-local") {
+		return filepath.SkipDir
+	}
+	if d.Type()&os.ModeSymlink != 0 {
+		return fmt.Errorf("symlinked source is unsupported: %s", file)
+	}
+	return nil
 }

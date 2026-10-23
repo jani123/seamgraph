@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -165,5 +166,22 @@ func TestEvidenceStoreSerializesAndDeduplicates(t *testing.T) {
 	s, err = projectfiles.ReadStore(root)
 	if err != nil || len(s.Evidence) != 1 {
 		t.Fatal("lock failure changed evidence", err, s)
+	}
+}
+
+type brokenOutput struct{ short bool }
+
+func (w brokenOutput) Write(p []byte) (int, error) {
+	if w.short {
+		return len(p) - 1, nil
+	}
+	return 0, io.ErrClosedPipe
+}
+func TestCLIReportsTextOutputFailures(t *testing.T) {
+	for _, short := range []bool{false, true} {
+		var diagnostics bytes.Buffer
+		if code := run([]string{"version"}, brokenOutput{short: short}, &diagnostics); code != 2 || diagnostics.Len() == 0 {
+			t.Fatalf("output failure reported as success: %d %q", code, diagnostics.String())
+		}
 	}
 }

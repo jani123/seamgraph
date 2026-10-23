@@ -53,16 +53,16 @@ func remoteFixture(t *testing.T) (string, string) {
 		t.Fatal(err)
 	}
 	port := l.Addr().(*net.TCPAddr).Port
-	l.Close()
+	_ = l.Close()
 	cmd := exec.Command("git", "daemon", "--reuseaddr", "--export-all", "--base-path="+base, "--listen=127.0.0.1", fmt.Sprintf("--port=%d", port), base)
 	if err = cmd.Start(); err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { cmd.Process.Kill(); cmd.Wait() })
+	t.Cleanup(func() { _ = cmd.Process.Kill(); _ = cmd.Wait() })
 	for i := 0; i < 100; i++ {
 		c, e := net.DialTimeout("tcp", fmt.Sprintf("127.0.0.1:%d", port), time.Millisecond*50)
 		if e == nil {
-			c.Close()
+			_ = c.Close()
 			return fmt.Sprintf("git://127.0.0.1:%d/project", port), first
 		}
 		time.Sleep(time.Millisecond * 10)

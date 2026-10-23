@@ -54,7 +54,7 @@ func ReadStore(root string) (verification.Store, error) {
 }
 func EvidenceDir(root string) (string, error) {
 	dir := filepath.Join(root, ".seamgraph")
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, 0700); err != nil {
 		return "", err
 	}
 	info, err := os.Lstat(dir)
@@ -73,12 +73,13 @@ func AppendEvidence(root string, evidence []verification.Evidence) (verification
 		return store, err
 	}
 	lock := filepath.Join(dir, "evidence.lock")
+	// #nosec G304 -- EvidenceDir validates the project evidence directory; lock name is constant and exclusive.
 	f, err := os.OpenFile(lock, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
 	if err != nil {
 		return store, fmt.Errorf("evidence store is locked or unavailable (%s): %w", lock, err)
 	}
-	f.Close()
-	defer os.Remove(lock)
+	_ = f.Close()
+	defer func() { _ = os.Remove(lock) }()
 	store, err = ReadStore(root)
 	if err != nil {
 		return store, err
@@ -107,13 +108,13 @@ func AppendEvidence(root string, evidence []verification.Evidence) (verification
 	if err != nil {
 		return store, err
 	}
-	defer os.Remove(temp.Name())
+	defer func() { _ = os.Remove(temp.Name()) }()
 	if _, err = temp.Write(append(data, '\n')); err != nil {
-		temp.Close()
+		_ = temp.Close()
 		return store, err
 	}
 	if err = temp.Sync(); err != nil {
-		temp.Close()
+		_ = temp.Close()
 		return store, err
 	}
 	if err = temp.Close(); err != nil {

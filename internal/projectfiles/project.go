@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"seamgraph/internal/application"
@@ -24,7 +25,8 @@ policies:
 `
 
 func Initialize(root string) error {
-	f, err := os.OpenFile(filepath.Join(root, config.Filename), os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
+	// #nosec G304 -- Local project initialization uses a constant filename with exclusive creation.
+	f, err := os.OpenFile(filepath.Join(root, config.Filename), os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
 	if err != nil {
 		return err
 	}
@@ -42,7 +44,7 @@ func PrepareProject(root string, supplied []byte) (bool, error) {
 		if _, err := config.Parse(supplied); err != nil {
 			return false, err
 		}
-		if err := os.WriteFile(target, supplied, 0644); err != nil {
+		if err := os.WriteFile(target, supplied, 0600); err != nil {
 			return false, err
 		}
 	} else if _, err := os.Stat(target); os.IsNotExist(err) {
@@ -50,7 +52,7 @@ func PrepareProject(root string, supplied []byte) (bool, error) {
 		if err != nil {
 			return false, fmt.Errorf("workspace retained at %s; cannot draft architecture: %w", root, err)
 		}
-		if err = os.WriteFile(target, draft, 0644); err != nil {
+		if err = os.WriteFile(target, draft, 0600); err != nil {
 			return false, err
 		}
 		created = true
@@ -75,21 +77,31 @@ func Source(root, file string, locations []ir.Evidence) (string, error) {
 	if !known {
 		return "", &application.SourceError{Kind: "missing", Message: "unknown source location"}
 	}
-	real, err := filepath.EvalSymlinks(filepath.Join(root, filepath.FromSlash(file)))
+	scope, err := os.OpenRoot(root)
 	if err != nil {
 		return "", &application.SourceError{Kind: "missing", Message: "source unavailable"}
 	}
-	rel, err := filepath.Rel(root, real)
-	if err != nil || !ir.ValidPath(filepath.ToSlash(rel)) {
-		return "", &application.SourceError{Kind: "forbidden", Message: "source escapes project"}
+	defer func() { _ = scope.Close() }()
+	source, err := scope.Open(filepath.FromSlash(file))
+	if err != nil {
+		kind := "forbidden"
+		if os.IsNotExist(err) {
+			kind = "missing"
+		}
+		return "", &application.SourceError{Kind: kind, Message: "source unavailable or outside project"}
 	}
-	info, err := os.Stat(real)
-	if err != nil || !info.Mode().IsRegular() || info.Size() > 2*1024*1024 {
+	defer func() { _ = source.Close() }()
+	info, err := source.Stat()
+	const maxSource = 2 * 1024 * 1024
+	if err != nil || !info.Mode().IsRegular() || info.Size() > maxSource {
 		return "", &application.SourceError{Kind: "large", Message: "source unavailable or too large"}
 	}
-	b, err := os.ReadFile(real)
+	b, err := io.ReadAll(io.LimitReader(source, maxSource+1))
 	if err != nil {
 		return "", &application.SourceError{Kind: "missing", Message: "source unavailable"}
+	}
+	if len(b) > maxSource {
+		return "", &application.SourceError{Kind: "large", Message: "source too large"}
 	}
 	var numbered strings.Builder
 	for i, line := range strings.Split(string(b), "\n") {
@@ -99,6 +111,7 @@ func Source(root, file string, locations []ir.Evidence) (string, error) {
 }
 
 func ConfigKey(root string) (string, error) {
+	// #nosec G304 -- The cache key reads only the selected project's constant configuration filename.
 	b, err := os.ReadFile(filepath.Join(root, config.Filename))
 	if err != nil {
 		return "", err

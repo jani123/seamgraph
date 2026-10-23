@@ -15,6 +15,7 @@ func Command(ctx context.Context, dir string, args ...string) *exec.Cmd {
 	if dir != "" {
 		prefix = append(prefix, "-C", dir)
 	}
+	// #nosec G204 -- Controlled git argv execution disables hooks/unsafe transports and uses no shell.
 	cmd := exec.CommandContext(ctx, "git", append(prefix, args...)...)
 	for _, entry := range os.Environ() {
 		key, _, _ := strings.Cut(entry, "=")

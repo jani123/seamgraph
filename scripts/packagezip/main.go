@@ -9,17 +9,23 @@ import (
 	"path/filepath"
 )
 
-func archive(source, target string) error {
+func archive(source, target string) (err error) {
+	// #nosec G304 G703 -- Local packaging CLI deliberately accepts caller-selected input and output paths.
 	in, err := os.Open(source)
 	if err != nil {
 		return err
 	}
-	defer in.Close()
+	defer func() { _ = in.Close() }()
+	// #nosec G304 G703 -- The output archive path is selected by the local packaging command, not a remote client.
 	out, err := os.Create(target)
 	if err != nil {
 		return err
 	}
-	defer out.Close()
+	defer func() {
+		if closeErr := out.Close(); err == nil {
+			err = closeErr
+		}
+	}()
 	writer := zip.NewWriter(out)
 	entry, err := writer.Create(filepath.Base(source))
 	if err != nil {
@@ -32,11 +38,11 @@ func archive(source, target string) error {
 }
 func main() {
 	if len(os.Args) != 3 {
-		fmt.Fprintln(os.Stderr, "usage: packagezip input output.zip")
+		_, _ = fmt.Fprintln(os.Stderr, "usage: packagezip input output.zip")
 		os.Exit(2)
 	}
 	if err := archive(os.Args[1], os.Args[2]); err != nil {
-		fmt.Fprintln(os.Stderr, err)
+		_, _ = fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 }

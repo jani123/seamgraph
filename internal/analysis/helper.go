@@ -26,7 +26,7 @@ func RunHelper(ctx context.Context, root string, c config.Config, executable, fi
 	if err != nil {
 		return partial, err
 	}
-	defer os.RemoveAll(dir)
+	defer func() { _ = os.RemoveAll(dir) }()
 	for name, data := range files {
 		p := filepath.Join(dir, name)
 		if err = os.MkdirAll(filepath.Dir(p), 0700); err != nil {
@@ -45,6 +45,7 @@ func RunHelper(ctx context.Context, root string, c config.Config, executable, fi
 	if err != nil {
 		return partial, err
 	}
+	// #nosec G204 -- Executable and script are fixed by embedded adapters; arguments are passed without a shell.
 	cmd := exec.CommandContext(ctx, path, append(flags, filepath.Join(dir, filename))...)
 	for _, v := range os.Environ() {
 		key, _, _ := strings.Cut(v, "=")

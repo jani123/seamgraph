@@ -141,92 +141,123 @@ func (c Config) Validate() error {
 	}
 	slices.Sort(names)
 	for _, name := range names {
-		m := c.Modules[name]
-		if !ir.ValidName(name) {
-			return fmt.Errorf("invalid module name %q", name)
-		}
-		if !slices.Contains([]string{"go", "typescript", "python"}, m.Language) {
-			return fmt.Errorf("module %s: unsupported language %q", name, m.Language)
-		}
-		if len(m.Paths) == 0 {
-			return fmt.Errorf("module %s needs paths", name)
-		}
-		for _, p := range m.Paths {
-			if err := cleanPath(p); err != nil && p != "." {
-				return fmt.Errorf("module %s: %w", name, err)
-			}
-			rootNames := make([]string, 0, len(roots))
-			for r := range roots {
-				rootNames = append(rootNames, r)
-			}
-			slices.Sort(rootNames)
-			for _, r := range rootNames {
-				if inside(p, r) || inside(r, p) {
-					return fmt.Errorf("overlapping module roots %q (%s) and %q (%s)", r, roots[r], p, name)
-				}
-			}
-			roots[p] = name
-		}
-		if m.TSConfig != "" {
-			if m.Language != "typescript" {
-				return fmt.Errorf("module %s: tsconfig applies only to typescript", name)
-			}
-			if err := cleanPath(m.TSConfig); err != nil {
-				return err
-			}
-		}
-		if len(m.ImportRoots) > 0 && m.Language != "python" {
-			return fmt.Errorf("module %s: importRoots is supported only for python", name)
-		}
-		for _, p := range m.ImportRoots {
-			if err := cleanPath(p); err != nil {
-				return err
-			}
-		}
-		seamNames := make([]string, 0, len(m.Seams))
-		for n := range m.Seams {
-			seamNames = append(seamNames, n)
-		}
-		slices.Sort(seamNames)
-		for _, n := range seamNames {
-			seam := m.Seams[n]
-			if !ir.ValidName(n) {
-				return fmt.Errorf("invalid seam name %q in module %s", n, name)
-			}
-			if len(seam.Symbols) == 0 && len(seam.Entrypoints) == 0 {
-				return fmt.Errorf("seam %s.%s needs symbols or entrypoints", name, n)
-			}
-			if m.Language == "go" && len(seam.Entrypoints) > 0 {
-				return fmt.Errorf("Go seam %s.%s must declare symbols, not entrypoints", name, n)
-			}
-			seen := map[string]bool{}
-			for _, sym := range seam.Symbols {
-				if strings.TrimSpace(sym) == "" || strings.TrimSpace(sym) != sym || seen[sym] {
-					return fmt.Errorf("invalid or duplicate symbol %q in %s.%s", sym, name, n)
-				}
-				seen[sym] = true
-			}
-			seen = map[string]bool{}
-			for _, p := range seam.Entrypoints {
-				if err := cleanPath(p); err != nil {
-					return err
-				}
-				owned := false
-				for _, r := range m.Paths {
-					if inside(p, r) {
-						owned = true
-					}
-				}
-				if !owned || seen[p] {
-					return fmt.Errorf("entrypoint %q must belong uniquely to module %s", p, name)
-				}
-				seen[p] = true
-				if m.Language == "python" && !strings.HasSuffix(p, ".py") {
-					return fmt.Errorf("Python entrypoint %q must be a .py file", p)
-				}
-			}
+		if err := validateModule(name, c.Modules[name], roots); err != nil {
+			return err
 		}
 	}
+	return c.validateRules()
+}
+
+func validateModule(name string, m Module, roots map[string]string) error {
+	if !ir.ValidName(name) {
+		return fmt.Errorf("invalid module name %q", name)
+	}
+	if !slices.Contains([]string{"go", "typescript", "python"}, m.Language) {
+		return fmt.Errorf("module %s: unsupported language %q", name, m.Language)
+	}
+	if len(m.Paths) == 0 {
+		return fmt.Errorf("module %s needs paths", name)
+	}
+	if err := validateRoots(name, m.Paths, roots); err != nil {
+		return err
+	}
+	if m.TSConfig != "" {
+		if m.Language != "typescript" {
+			return fmt.Errorf("module %s: tsconfig applies only to typescript", name)
+		}
+		if err := cleanPath(m.TSConfig); err != nil {
+			return err
+		}
+	}
+	if len(m.ImportRoots) > 0 && m.Language != "python" {
+		return fmt.Errorf("module %s: importRoots is supported only for python", name)
+	}
+	for _, p := range m.ImportRoots {
+		if err := cleanPath(p); err != nil {
+			return err
+		}
+	}
+	return validateSeams(name, m)
+}
+
+func validateRoots(name string, paths []string, roots map[string]string) error {
+	for _, p := range paths {
+		if err := cleanPath(p); err != nil && p != "." {
+			return fmt.Errorf("module %s: %w", name, err)
+		}
+		rootNames := make([]string, 0, len(roots))
+		for r := range roots {
+			rootNames = append(rootNames, r)
+		}
+		slices.Sort(rootNames)
+		for _, r := range rootNames {
+			if inside(p, r) || inside(r, p) {
+				return fmt.Errorf("overlapping module roots %q (%s) and %q (%s)", r, roots[r], p, name)
+			}
+		}
+		roots[p] = name
+	}
+	return nil
+}
+
+func validateSeams(name string, m Module) error {
+	seamNames := make([]string, 0, len(m.Seams))
+	for n := range m.Seams {
+		seamNames = append(seamNames, n)
+	}
+	slices.Sort(seamNames)
+	for _, n := range seamNames {
+		if err := validateSeam(name, n, m, m.Seams[n]); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func validateSeam(name, n string, m Module, seam Seam) error {
+	if !ir.ValidName(n) {
+		return fmt.Errorf("invalid seam name %q in module %s", n, name)
+	}
+	if len(seam.Symbols) == 0 && len(seam.Entrypoints) == 0 {
+		return fmt.Errorf("seam %s.%s needs symbols or entrypoints", name, n)
+	}
+	if m.Language == "go" && len(seam.Entrypoints) > 0 {
+		return fmt.Errorf("go seam %s.%s must declare symbols, not entrypoints", name, n)
+	}
+	seen := map[string]bool{}
+	for _, sym := range seam.Symbols {
+		if strings.TrimSpace(sym) == "" || strings.TrimSpace(sym) != sym || seen[sym] {
+			return fmt.Errorf("invalid or duplicate symbol %q in %s.%s", sym, name, n)
+		}
+		seen[sym] = true
+	}
+	return validateEntrypoints(name, m, seam)
+}
+
+func validateEntrypoints(name string, m Module, seam Seam) error {
+	seen := map[string]bool{}
+	for _, p := range seam.Entrypoints {
+		if err := cleanPath(p); err != nil {
+			return err
+		}
+		owned := false
+		for _, r := range m.Paths {
+			if inside(p, r) {
+				owned = true
+			}
+		}
+		if !owned || seen[p] {
+			return fmt.Errorf("entrypoint %q must belong uniquely to module %s", p, name)
+		}
+		seen[p] = true
+		if m.Language == "python" && !strings.HasSuffix(p, ".py") {
+			return fmt.Errorf("python entrypoint %q must be a .py file", p)
+		}
+	}
+	return nil
+}
+
+func (c Config) validateRules() error {
 	seenRules := map[string]bool{}
 	for _, group := range []struct {
 		name  string

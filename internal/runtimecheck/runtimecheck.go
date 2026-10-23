@@ -24,7 +24,7 @@ type spec struct {
 }
 
 var tools = []spec{
-	{"go", "Go analysis", []string{"version"}, 1, 25},
+	{"go", "Go analysis", []string{"version"}, 1, 26},
 	{"node", "TypeScript analysis (compiler embedded)", []string{"--version"}, 18, 0},
 	{"python3", "Python AST analysis", []string{"--version"}, 3, 10},
 	{"git", "Repository access and revision comparison", []string{"--version"}, 0, 0},
@@ -36,6 +36,7 @@ func check(ctx context.Context, s spec) Tool {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 	t := Tool{Name: s.name, Purpose: s.purpose}
+	// #nosec G204 -- Tool names and version arguments come from the fixed tools table.
 	b, err := exec.CommandContext(ctx, s.name, s.args...).CombinedOutput()
 	t.Version = strings.TrimSpace(string(b))
 	if err != nil {

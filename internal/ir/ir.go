@@ -115,23 +115,44 @@ func (s Snapshot) Validate() error {
 	if s.SchemaVersion != SchemaVersion {
 		return fmt.Errorf("unsupported IR schema version %d", s.SchemaVersion)
 	}
-	ids := map[string]string{}
-	add := func(id, kind string) error {
-		if id == "" {
-			return fmt.Errorf("empty %s ID", kind)
-		}
-		if _, ok := ids[id]; ok {
-			return fmt.Errorf("duplicate ID %q", id)
-		}
-		ids[id] = kind
-		return nil
+	ids := validationIDs{}
+	modules, seams, symbols := map[string]Module{}, map[string]Seam{}, map[string]Symbol{}
+	checks := []func() error{
+		func() error { return validateModules(s, ids, modules) },
+		func() error { return validateRootOwnership(s) },
+		func() error { return validateSeams(s, ids, modules, seams) },
+		func() error { return validateSymbols(s, ids, modules, symbols) },
+		func() error { return validateContractMembers(s, seams, symbols) },
+		func() error { return validateRelations(s, ids) },
+		func() error { return validateDiagnostics(s, ids) },
 	}
-	modules := map[string]Module{}
+	for _, check := range checks {
+		if err := check(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+type validationIDs map[string]string
+
+func (ids validationIDs) add(id, kind string) error {
+	if id == "" {
+		return fmt.Errorf("empty %s ID", kind)
+	}
+	if _, ok := ids[id]; ok {
+		return fmt.Errorf("duplicate ID %q", id)
+	}
+	ids[id] = kind
+	return nil
+}
+
+func validateModules(s Snapshot, ids validationIDs, modules map[string]Module) error {
 	for _, m := range s.Modules {
 		if !strings.HasPrefix(m.ID, "module:") || !ValidName(strings.TrimPrefix(m.ID, "module:")) {
 			return fmt.Errorf("invalid module ID %q", m.ID)
 		}
-		if err := add(m.ID, "module"); err != nil {
+		if err := ids.add(m.ID, "module"); err != nil {
 			return err
 		}
 		modules[m.ID] = m
@@ -147,6 +168,10 @@ func (s Snapshot) Validate() error {
 			return fmt.Errorf("duplicate roots or seams in %s", m.ID)
 		}
 	}
+	return nil
+}
+
+func validateRootOwnership(s Snapshot) error {
 	// Root ownership must also be unambiguous when graphs arrive from adapters.
 	type ownedRoot struct{ root, module string }
 	roots := []ownedRoot{}
@@ -160,7 +185,10 @@ func (s Snapshot) Validate() error {
 			roots = append(roots, ownedRoot{root, m.ID})
 		}
 	}
-	seams := map[string]Seam{}
+	return nil
+}
+
+func validateSeams(s Snapshot, ids validationIDs, modules map[string]Module, seams map[string]Seam) error {
 	for _, x := range s.Seams {
 		m, ok := modules[x.ModuleID]
 		if !ok {
@@ -173,7 +201,7 @@ func (s Snapshot) Validate() error {
 		if !slices.Contains(m.Seams, x.ID) {
 			return fmt.Errorf("module %s does not list seam %s", m.ID, x.ID)
 		}
-		if err := add(x.ID, "seam"); err != nil {
+		if err := ids.add(x.ID, "seam"); err != nil {
 			return err
 		}
 		seams[x.ID] = x
@@ -181,7 +209,10 @@ func (s Snapshot) Validate() error {
 			return fmt.Errorf("duplicate members in %s", x.ID)
 		}
 	}
-	symbols := map[string]Symbol{}
+	return nil
+}
+
+func validateSymbols(s Snapshot, ids validationIDs, modules map[string]Module, symbols map[string]Symbol) error {
 	for _, x := range s.Symbols {
 		if _, ok := modules[x.ModuleID]; !ok {
 			return fmt.Errorf("unknown module %q", x.ModuleID)
@@ -194,11 +225,15 @@ func (s Snapshot) Validate() error {
 		if x.Kind == "" || x.DisplaySignature == "" || (x.Visibility != "public" && x.Visibility != "private") {
 			return fmt.Errorf("invalid symbol %s", x.ID)
 		}
-		if err := add(x.ID, "symbol"); err != nil {
+		if err := ids.add(x.ID, "symbol"); err != nil {
 			return err
 		}
 		symbols[x.ID] = x
 	}
+	return nil
+}
+
+func validateContractMembers(s Snapshot, seams map[string]Seam, symbols map[string]Symbol) error {
 	for _, m := range s.Modules {
 		for _, id := range m.Seams {
 			if _, ok := seams[id]; !ok {
@@ -214,6 +249,10 @@ func (s Snapshot) Validate() error {
 			}
 		}
 	}
+	return nil
+}
+
+func validateRelations(s Snapshot, ids validationIDs) error {
 	for _, r := range s.Relations {
 		if !slices.Contains([]string{"imports", "uses", "implements", "exposes", "calls"}, r.Kind) {
 			return fmt.Errorf("invalid relation kind %q", r.Kind)
@@ -224,7 +263,7 @@ func (s Snapshot) Validate() error {
 		if ids[r.FromID] == "" || ids[r.ToID] == "" || ids[r.FromID] == "relation" || ids[r.ToID] == "relation" {
 			return fmt.Errorf("unknown relation endpoints in %s", r.ID)
 		}
-		if err := add(r.ID, "relation"); err != nil {
+		if err := ids.add(r.ID, "relation"); err != nil {
 			return err
 		}
 		if len(r.Evidence) == 0 {
@@ -244,6 +283,10 @@ func (s Snapshot) Validate() error {
 			}
 		}
 	}
+	return nil
+}
+
+func validateDiagnostics(s Snapshot, ids validationIDs) error {
 	for _, d := range s.Diagnostics {
 		if d.Code == "" || d.Message == "" || !slices.Contains([]string{"error", "warning", "info"}, d.Severity) {
 			return fmt.Errorf("invalid diagnostic %q", d.Code)
@@ -261,6 +304,7 @@ func (s Snapshot) Validate() error {
 	}
 	return nil
 }
+
 func hasDuplicate(ss []string) bool {
 	seen := map[string]bool{}
 	for _, s := range ss {
@@ -361,59 +405,9 @@ func Merge(parts ...PartialSnapshot) (Snapshot, error) {
 		return true, nil
 	}
 	for _, p := range parts {
-		for _, m := range p.Modules {
-			m.SourceRoots = sortedStrings(m.SourceRoots)
-			m.Seams = sortedStrings(m.Seams)
-			ok, err := add(m.ID, m)
-			if err != nil {
-				return s, err
-			}
-			if ok {
-				s.Modules = append(s.Modules, m)
-			}
+		if err := mergePartial(&s, p, add, relationIndex); err != nil {
+			return s, err
 		}
-		for _, x := range p.Seams {
-			x.ContractMembers = sortedStrings(x.ContractMembers)
-			ok, err := add(x.ID, x)
-			if err != nil {
-				return s, err
-			}
-			if ok {
-				s.Seams = append(s.Seams, x)
-			}
-		}
-		for _, x := range p.Symbols {
-			ok, err := add(x.ID, x)
-			if err != nil {
-				return s, err
-			}
-			if ok {
-				s.Symbols = append(s.Symbols, x)
-			}
-		}
-		for _, r := range p.Relations {
-			if i, ok := relationIndex[r.ID]; ok {
-				old := &s.Relations[i]
-				if old.FromID != r.FromID || old.ToID != r.ToID || old.Kind != r.Kind {
-					return s, fmt.Errorf("conflicting relation %s", r.ID)
-				}
-				if old.BypassesSeam && len(old.BypassEvidence) == 0 {
-					old.BypassEvidence = append([]Evidence{}, old.Evidence...)
-				}
-				if r.BypassesSeam && len(r.BypassEvidence) == 0 {
-					r.BypassEvidence = append([]Evidence{}, r.Evidence...)
-				}
-				old.Evidence = append(old.Evidence, r.Evidence...)
-				old.BypassesSeam = old.BypassesSeam || r.BypassesSeam
-				old.BypassEvidence = append(old.BypassEvidence, r.BypassEvidence...)
-			} else {
-				relationIndex[r.ID] = len(s.Relations)
-				r.Evidence = append([]Evidence{}, r.Evidence...)
-				r.BypassEvidence = append([]Evidence{}, r.BypassEvidence...)
-				s.Relations = append(s.Relations, r)
-			}
-		}
-		s.Diagnostics = append(s.Diagnostics, p.Diagnostics...)
 	}
 	return s.Canonical()
 }
@@ -459,3 +453,67 @@ func (e Evidence) Validate() error { return validateEvidence(e) }
 
 // ValidRoot permits the project directory itself as a literal module root.
 func ValidRoot(p string) bool { return p == "." || ValidPath(p) }
+
+func mergePartial(s *Snapshot, p PartialSnapshot, add func(string, any) (bool, error), relationIndex map[string]int) error {
+	for _, m := range p.Modules {
+		m.SourceRoots = sortedStrings(m.SourceRoots)
+		m.Seams = sortedStrings(m.Seams)
+		ok, err := add(m.ID, m)
+		if err != nil {
+			return err
+		}
+		if ok {
+			s.Modules = append(s.Modules, m)
+		}
+	}
+	for _, x := range p.Seams {
+		x.ContractMembers = sortedStrings(x.ContractMembers)
+		ok, err := add(x.ID, x)
+		if err != nil {
+			return err
+		}
+		if ok {
+			s.Seams = append(s.Seams, x)
+		}
+	}
+	for _, x := range p.Symbols {
+		ok, err := add(x.ID, x)
+		if err != nil {
+			return err
+		}
+		if ok {
+			s.Symbols = append(s.Symbols, x)
+		}
+	}
+	if err := mergeRelations(s, p.Relations, relationIndex); err != nil {
+		return err
+	}
+	s.Diagnostics = append(s.Diagnostics, p.Diagnostics...)
+	return nil
+}
+
+func mergeRelations(s *Snapshot, relations []Relation, relationIndex map[string]int) error {
+	for _, r := range relations {
+		if i, ok := relationIndex[r.ID]; ok {
+			old := &s.Relations[i]
+			if old.FromID != r.FromID || old.ToID != r.ToID || old.Kind != r.Kind {
+				return fmt.Errorf("conflicting relation %s", r.ID)
+			}
+			if old.BypassesSeam && len(old.BypassEvidence) == 0 {
+				old.BypassEvidence = append([]Evidence{}, old.Evidence...)
+			}
+			if r.BypassesSeam && len(r.BypassEvidence) == 0 {
+				r.BypassEvidence = append([]Evidence{}, r.Evidence...)
+			}
+			old.Evidence = append(old.Evidence, r.Evidence...)
+			old.BypassesSeam = old.BypassesSeam || r.BypassesSeam
+			old.BypassEvidence = append(old.BypassEvidence, r.BypassEvidence...)
+		} else {
+			relationIndex[r.ID] = len(s.Relations)
+			r.Evidence = append([]Evidence{}, r.Evidence...)
+			r.BypassEvidence = append([]Evidence{}, r.BypassEvidence...)
+			s.Relations = append(s.Relations, r)
+		}
+	}
+	return nil
+}
