@@ -92,9 +92,23 @@ test.beforeAll(async () => {
   page = await context.newPage();
 });
 test.afterAll(async () => {
-  await browser?.close();
   server?.kill();
-  fs.rmSync(root, { recursive: true, force: true });
+  try {
+    // Sparticuz Chromium can hang on browser.close() while pages remain open.
+    // Close every page explicitly, then its context, before stopping Chromium.
+    for (const browserContext of browser?.contexts() ?? []) {
+      for (const browserPage of browserContext.pages()) {
+        await browserPage.close();
+      }
+      await browserContext.close();
+    }
+  } finally {
+    try {
+      await browser?.close();
+    } finally {
+      if (root) fs.rmSync(root, { recursive: true, force: true });
+    }
+  }
 });
 test("offline graph, selection, copy IDs, seam consumers, and confirmed editing", async () => {
   const external = [],
