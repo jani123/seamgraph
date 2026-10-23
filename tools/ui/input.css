@@ -15,7 +15,7 @@
 .app-navigation { justify-content: center; }
 .workspace { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) clamp(20rem, 27vw, 28rem); gap: .75rem; }
 .graph-panel { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
-.graph-toolbar, .graph-hint { flex: none; }
+.graph-toolbar { flex: none; }
 .graph-toolbar { flex-wrap: wrap; align-items: center; }
 #search { flex: 1 1 10rem; width: auto; }
 #dependency-view { max-width: 12rem; padding-top: .4rem; padding-bottom: .4rem; }
@@ -42,7 +42,6 @@
   .details-content { padding: .75rem; }
   .graph-toolbar { padding: .5rem; gap: .5rem; }
   .graph-toolbar label { font-size: .65rem; }
-  .graph-hint { display: none; }
   .comparison { padding: .5rem; grid-template-columns: minmax(0, 1fr); gap: .375rem; }
   .comparison-form input { flex: 1; width: 0; padding: .375rem .5rem; }
   .comparison-form button { padding: .375rem .75rem; font-size: .8rem; }

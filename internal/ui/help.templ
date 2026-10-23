@@ -11,7 +11,7 @@ templ Help() {
      </nav>
      <section id="graph-controls">
       <h2>Graph controls</h2>
-      <p>Arrows point from consumers to providers. Each box is a module; each arrow groups references between two modules. The layout places dependencies in columns, keeps cycles together, and bundles connections into shared corridors.</p>
+      <p>Read the graph from left to right: arrows point from consumers to providers. Each box is a module; each arrow groups references between two modules. The layout places dependencies in columns, keeps cycles together, and bundles connections into shared corridors.</p>
       <ul>
        <li>Hover over a module to highlight its connections, or hover over an arrow to highlight that connection.</li>
        <li>Select a module to focus its neighbors and inspect its seams and evidence. Select an arrow to inspect its references.</li>
@@ -22,7 +22,7 @@ templ Help() {
      </section>
      <section id="reference-modes">
       <h2>Reference modes</h2>
-      <p>These modes filter the kinds of references grouped into the arrows. An arrow can appear in several modes when it contains different kinds of references. Filtered modes hide unconnected modules, except the focused module and changed modules during a comparison.</p>
+      <p>Use the view selector above the graph to choose a reference mode. All references shows every kind together. These modes filter the kinds of references grouped into the arrows. An arrow can appear in several modes when it contains different kinds of references. Filtered modes hide unconnected modules, except the focused module and changed modules during a comparison.</p>
       <div class="help-table">
        <table>
         <thead><tr><th scope="col">Mode</th><th scope="col">What it shows</th></tr></thead>
