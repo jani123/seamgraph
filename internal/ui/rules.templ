@@ -1,0 +1,14 @@
+package ui
+
+import "seamgraph/internal/policy"
+
+templ RulesPage(p policy.Policy) {
+ @pageLayout("Rules", "", false) {
+  <main class="help-main">
+    <article class="help-content">
+     @Rules(p)
+     <p><a href="/">Return to Architecture</a> to inspect connections and preview rule changes.</p>
+    </article>
+  </main>
+ }
+}

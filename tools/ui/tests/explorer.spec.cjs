@@ -155,13 +155,8 @@ test("offline graph, selection, copy IDs, seam consumers, and confirmed editing"
     { encoding: "utf8" },
   );
   expect(JSON.parse(inspect).entity.id).toBe("seam:world.reader");
-  await page.getByRole("button", { name: "About evidence" }).click();
-  await expect(
-    page.getByText("Edges show observed dependencies.", { exact: false }),
-  ).toBeVisible();
-  await page.evaluate(() =>
-    document.querySelector("#graph")._cyreg.cy.edges().first().emit("tap"),
-  );
+  await expect(page.getByRole("link", { name: "Help", exact:true })).toHaveAttribute("href","/help");
+  await page.evaluate(() => { document.querySelector("#graph")._cyreg.cy.edges().first().emit("tap"); });
   await expect(page.locator("#details")).toContainText("Observed relationship");
   const edgeCopy = page.locator('#details [data-copy^="edge:"]').first();
   const edgeId = await edgeCopy.getAttribute("data-copy");
@@ -256,9 +251,7 @@ test("stale confirmation and invalid rule proposals fail visibly", async () => {
   await page.waitForFunction(
     () => document.querySelector("#graph")._cyreg?.cy?.edges().length > 0,
   );
-  await page.evaluate(() =>
-    document.querySelector("#graph")._cyreg.cy.edges().first().emit("tap"),
-  );
+  await page.evaluate(() => { document.querySelector("#graph")._cyreg.cy.edges().first().emit("tap"); });
   await expect(page.locator("#details")).toContainText("Observed relationship");
   await page.locator('input[name="to"]').fill("module:absent");
   await page.getByRole("button", { name: "Preview YAML change" }).click();
@@ -293,12 +286,10 @@ for (const language of ["typescript", "python"])
     await page.waitForFunction(
       () => document.querySelector("#graph")._cyreg?.cy?.nodes().length === 2,
     );
-    await page.evaluate(() =>
-      document
+    await page.evaluate(() => { document
         .querySelector("#graph")
         ._cyreg.cy.getElementById("module:world")
-        .emit("tap"),
-    );
+        .emit("tap"); });
     await expect(page.locator("#details")).toContainText("seam:world.reader");
     await page.locator('[data-copy="seam:world.reader"]').click();
     await expect
@@ -476,7 +467,7 @@ test("dependency layers, reference views, seam edges and focus preserve the full
     await expect.poll(visibleNodes).toEqual(["module:bootstrap","module:npc","module:world"]);
     await page.locator("#dependency-view").selectOption("all");
     await expect.poll(visibleNodes).toHaveLength(4);
-    await page.evaluate(() => document.querySelector("#graph")._cyreg.cy.getElementById("module:world").emit("tap"));
+    await page.evaluate(() => { document.querySelector("#graph")._cyreg.cy.getElementById("module:world").emit("tap"); });
     await expect.poll(visibleNodes).toHaveLength(3);
     await page.locator('[data-expand-module="module:world"]').click();
     await expect.poll(() => page.evaluate(() => document.querySelector("#graph")._cyreg.cy.edges().some(e => e.data("target") === "seam:world.reader"))).toBe(true);
@@ -485,7 +476,7 @@ test("dependency layers, reference views, seam edges and focus preserve the full
       const request = new URL(response.url());
       return request.pathname === "/module" && request.searchParams.get("id") === "module:world";
     });
-    await page.evaluate(() => document.querySelector("#graph")._cyreg.cy.getElementById("seam:world.reader").emit("tap"));
+    await page.evaluate(() => { document.querySelector("#graph")._cyreg.cy.getElementById("seam:world.reader").emit("tap"); });
     await detailsResponse;
     await expect(page.locator("#details")).toContainText("module:world");
     await expect.poll(visibleNodes).toEqual(["module:bootstrap","module:npc","module:world","seam:world.reader"]);
@@ -565,11 +556,11 @@ test("neighbor ordering removes crossings and stays stable while hovering or ref
     const initial = await coordinates(), byId = Object.fromEntries(initial.map(p => [p.id,p]));
     expect(byId['module:a'].x).toBeLessThan(byId['module:d'].x);
     expect((byId['module:a'].y-byId['module:b'].y)*(byId['module:d'].y-byId['module:c'].y)).toBeGreaterThan(0);
-    await page.evaluate(() => document.querySelector('#graph')._cyreg.cy.getElementById('module:a').emit('mouseover'));
+    await page.evaluate(() => { document.querySelector('#graph')._cyreg.cy.getElementById('module:a').emit('mouseover'); });
     expect(await coordinates()).toEqual(initial);
     await page.locator('#dependency-view').selectOption('all');
     expect(await coordinates()).toEqual(initial);
-    await page.getByRole('button',{name:'Architecture',exact:true}).click();
+    await page.getByRole('link',{name:'Architecture',exact:true}).click();
     expect(await coordinates()).toEqual(initial);
   } finally { await page.unroute('**/api/model'); }
 });
@@ -652,7 +643,7 @@ test('working changes show internal edits and retain removed modules for inspect
     return {changed:cy.nodes('.changed').map(n=>n.id()).sort(),seamBadges:cy.nodes().filter(n=>n.data('label').includes('Seam changed')).length,changedEdges:cy.edges('.changed, .added, .removed').length};
   });
   await expect.poll(graph).toEqual({changed:['module:npc','module:world'],seamBadges:0,changedEdges:0});
-  await page.evaluate(()=>document.querySelector('#graph')._cyreg.cy.getElementById('module:world').emit('tap'));
+  await page.evaluate(() => { document.querySelector('#graph')._cyreg.cy.getElementById('module:world').emit('tap'); });
   await expect(page.locator('#details')).toContainText('world/world.go');
   await page.getByLabel('Changed + neighbors').check();
   await expect(page.locator('#details')).not.toContainText('Seam changes');
@@ -666,10 +657,10 @@ test('working changes show internal edits and retain removed modules for inspect
     const cy=document.querySelector('#graph')._cyreg.cy;
     return {removed:cy.getElementById('module:npc').hasClass('removed'),edges:cy.edges('.removed').length};
   })).toEqual({removed:true,edges:1});
-  await page.evaluate(()=>document.querySelector('#graph')._cyreg.cy.getElementById('module:npc').emit('tap'));
+  await page.evaluate(() => { document.querySelector('#graph')._cyreg.cy.getElementById('module:npc').emit('tap'); });
   await expect(page.locator('#details')).toContainText('removed');
   await expect(page.locator('#details')).toContainText('npc/npc.go');
-  await page.evaluate(()=>document.querySelector('#graph')._cyreg.cy.edges('.removed')[0].emit('tap'));
+  await page.evaluate(() => { document.querySelector('#graph')._cyreg.cy.edges('.removed')[0].emit('tap'); });
   await expect(page.locator('#details')).toContainText('Connection changes');
   await expect(page.locator('#details')).toContainText('removed');
   await expect(page.locator('#status')).not.toContainText('unknown');
@@ -677,4 +668,120 @@ test('working changes show internal edits and retain removed modules for inspect
   await page.setViewportSize({width:390,height:844});
   await expect.poll(()=>page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
   await expect(page.getByRole('button',{name:'Compare',exact:true})).toBeVisible();
+});
+
+
+test('Help is a standalone responsive page available when project analysis fails',async()=>{
+  await page.route('**/api/model',route=>route.fulfill({status:500,body:'Project analysis unavailable'}));
+  try {
+    await page.goto(url);
+    await expect(page.getByRole('alert')).toContainText('Project analysis unavailable');
+    await expect(page.getByRole('button',{name:'About evidence'})).toHaveCount(0);
+    await page.getByRole('link',{name:'Help',exact:true}).click();
+    await expect(page).toHaveURL(url+'/help');
+    await expect(page.getByRole('heading',{name:'Using SeamGraph'})).toBeVisible();
+    await expect(page.getByRole('link',{name:'Help',exact:true})).toHaveAttribute('aria-current','page');
+    await expect(page.locator('script')).toHaveCount(0);
+    await page.getByRole('link',{name:'Reference modes',exact:true}).click();
+    await expect(page.getByRole('heading',{name:'Reference modes',exact:true})).toBeInViewport();
+    await expect(page.locator('tbody tr')).toHaveCount(5);
+    await page.setViewportSize({width:390,height:844});
+    await expect.poll(()=>page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+    await page.getByRole('heading',{name:'Understanding evidence'}).scrollIntoViewIfNeeded();
+    await expect(page.getByText('Edges show observed dependencies.',{exact:false})).toBeVisible();
+    await page.getByRole('link',{name:'Architecture',exact:true}).click();
+    await expect(page).toHaveURL(url+'/');
+    await expect(page.getByRole('alert')).toBeVisible();
+  } finally { await page.unroute('**/api/model'); }
+});
+
+test('Rules opens its own responsive page with navigation to Help and Architecture',async()=>{
+  await page.goto(url);
+  await expect(page.locator('#summary')).toContainText('modules');
+  await page.getByRole('link',{name:'Rules',exact:true}).click();
+  await expect(page).toHaveURL(url+'/rules');
+  await expect(page).toHaveTitle('SeamGraph · Rules');
+  await expect(page.getByRole('heading',{name:'Architecture rules'})).toBeVisible();
+  await expect(page.getByRole('link',{name:'Rules',exact:true})).toHaveAttribute('aria-current','page');
+  await expect(page.locator('#details')).toHaveCount(0);
+  await expect(page.locator('script')).toHaveCount(0);
+  await expect(page.getByText('Default:',{exact:false})).toBeVisible();
+  await page.setViewportSize({width:390,height:844});
+  await expect.poll(()=>page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+  await page.getByRole('link',{name:'Help',exact:true}).click();
+  await expect(page).toHaveURL(url+'/help');
+  await page.getByRole('link',{name:'Rules',exact:true}).click();
+  await expect(page.getByRole('heading',{name:'Architecture rules'})).toBeVisible();
+  await page.getByRole('link',{name:'Architecture',exact:true}).click();
+  await expect(page).toHaveURL(url+'/');
+  await expect(page.locator('#graph')).toBeVisible();
+});
+
+test('Architecture, Rules and Help share the same responsive header and navigation',async()=>{
+  for(const viewport of [{width:1440,height:1000},{width:390,height:844}]){
+    await page.setViewportSize(viewport);
+    let expected;
+    for(const [path,title] of [['/','Architecture'],['/rules','Rules'],['/help','Help']]){
+      await page.goto(url+path);
+      if(path==='/')await expect(page.locator('#summary')).toContainText('modules');
+      const nav=page.getByRole('navigation',{name:'Main navigation',exact:true});
+      await expect(nav.locator('[aria-current="page"]')).toHaveText(title);
+      const chrome=await page.evaluate(()=>{
+        const header=document.querySelector('.app-header'),nav=document.querySelector('.app-navigation');
+        return {inHeader:header.contains(nav),brand:header.querySelector('div').textContent,headerHeight:header.getBoundingClientRect().height,
+          navTop:nav.getBoundingClientRect().top,navHeight:nav.getBoundingClientRect().height,
+          links:[...nav.querySelectorAll('a')].map(a=>[a.textContent,a.getAttribute('href')])};
+      });
+      expect(chrome.inHeader).toBe(true);
+      expected??=chrome;
+      expect(chrome).toEqual(expected);
+      expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+    }
+  }
+});
+
+test('details show loading feedback, replace slow selections, and clear loading on errors',async()=>{
+  const snapshot=JSON.parse(fs.readFileSync(path.join(repo,'testdata/ir/go.json')));
+  await page.route('**/api/model',route=>route.fulfill({json:{snapshot,check:{violations:[],incomplete:false}}}));
+  let release;
+  const gate=()=>new Promise(resolve=>{release=resolve;});
+  let pending=gate(),mode='delayed';
+  const moduleRoute=/\/module\?/;
+  await page.route(moduleRoute,async route=>{
+    const id=new URL(route.request().url()).searchParams.get('id');
+    if(mode==='error'){await pending;await route.fulfill({status:500,body:'Details could not be analyzed'});return;}
+    if(id==='module:world')await pending;
+    await route.fulfill({contentType:'text/html',body:`<p>${id} loaded</p><button data-expand-module="module:world">Expand seams in graph</button>`}).catch(()=>{});
+  });
+  const tap=id=>page.evaluate(id=>{document.querySelector('#graph')._cyreg.cy.getElementById(id).emit('tap');},id);
+  try {
+    await page.goto(url);
+    await expect(page.locator('#summary')).toContainText('2 modules');
+    await tap('module:world');
+    await expect(page.locator('#details-loading')).toBeVisible();
+    await expect(page.locator('#details')).toHaveAttribute('aria-busy','true');
+    release();
+    await expect(page.locator('#details')).toContainText('module:world loaded');
+    await expect(page.locator('#details-loading')).toBeHidden();
+    await expect(page.locator('#details')).toHaveAttribute('aria-busy','false');
+    // A seam selection uses its owning module's request and the same indicator.
+    await page.locator('[data-expand-module="module:world"]').click();
+    pending=gate();
+    await tap('seam:world.reader');
+    await expect(page.locator('#details-loading')).toBeVisible();
+    await tap('module:npc');
+    await expect(page.locator('#details')).toContainText('module:npc loaded');
+    release();
+    await expect(page.locator('#details-loading')).toBeHidden();
+    await expect(page.locator('#details')).not.toContainText('module:world loaded');
+    mode='error';pending=gate();
+    await tap('module:world');
+    await expect(page.locator('#details-loading')).toBeVisible();
+    release();
+    await expect(page.locator('#details [role="alert"]')).toHaveText('Details could not be analyzed');
+    await expect(page.locator('#details-loading')).toBeHidden();
+    await expect(page.locator('#details')).toHaveAttribute('aria-busy','false');
+  } finally {
+    release();if(!page.isClosed()){await page.unroute('**/api/model');await page.unroute(moduleRoute);}
+  }
 });

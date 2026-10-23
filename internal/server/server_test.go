@@ -76,7 +76,7 @@ policies:
 }
 func TestExplorerHTTP(t *testing.T) {
 	a := fixtureApp(t)
-	for _, path := range []string{"/", "/api/model", "/module?id=module:world", "/edge?from=module:npc&to=module:world", "/rules", "/assets/app.js", "/assets/styles.css", "/source?file=src/npc/main.go"} {
+	for _, path := range []string{"/", "/help", "/api/model", "/module?id=module:world", "/edge?from=module:npc&to=module:world", "/rules", "/assets/app.js", "/assets/styles.css", "/source?file=src/npc/main.go"} {
 		t.Run(path, func(t *testing.T) {
 			req := httptest.NewRequest("GET", "http://127.0.0.1"+path, nil)
 			w := httptest.NewRecorder()

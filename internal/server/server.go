@@ -52,6 +52,7 @@ func (a *App) Handler() http.Handler {
 	assets, _ := fs.Sub(ui.Assets, "assets")
 	mux.Handle("GET /assets/", http.StripPrefix("/assets/", http.FileServer(http.FS(assets))))
 	mux.HandleFunc("GET /{$}", func(w http.ResponseWriter, r *http.Request) { render(w, r, ui.Page(a.token)) })
+	mux.HandleFunc("GET /help", func(w http.ResponseWriter, r *http.Request) { render(w, r, ui.Help()) })
 	load := func(w http.ResponseWriter, r *http.Request) (application.Model, bool) {
 		m, err := a.backend.Load(r.Context())
 		if err != nil {
@@ -103,7 +104,7 @@ func (a *App) Handler() http.Handler {
 	mux.HandleFunc("GET /rules", func(w http.ResponseWriter, r *http.Request) {
 		m, ok := load(w, r)
 		if ok {
-			render(w, r, ui.Rules(m.Policy))
+			render(w, r, ui.RulesPage(m.Policy))
 		}
 	})
 	mux.HandleFunc("GET /source", func(w http.ResponseWriter, r *http.Request) {

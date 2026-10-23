@@ -3,13 +3,16 @@
 @source "../../internal/ui/assets/app.js";
 
 
-[x-cloak] { display: none !important; }
 .explorer { height: 100vh; height: 100dvh; overflow: hidden; display: flex; flex-direction: column; }
-.app-header { flex: none; gap: 1rem; padding: .75rem 1rem; }
-.app-header > div { min-width: 0; }
+.app-header { flex: none; min-height: 4rem; display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 1rem; padding: .75rem 1rem; }
+.app-header > div { min-width: 0; display: flex; align-items: center; white-space: nowrap; }
+.app-header strong { flex: none; }
+.app-subtitle { overflow: hidden; text-overflow: ellipsis; }
+.page-context { min-width: 0; max-width: 100%; justify-self: end; text-align: right; }
 #summary { text-align: right; }
 .app-main { flex: 1; min-height: 0; width: 100%; padding: .75rem; display: flex; flex-direction: column; gap: .75rem; }
-.app-nav, .evidence-help, .comparison, .app-status { flex: none; }
+.app-nav, .comparison, .app-status { flex: none; }
+.app-navigation { justify-content: center; }
 .workspace { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) clamp(20rem, 27vw, 28rem); gap: .75rem; }
 .graph-panel { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
 .graph-toolbar, .graph-hint { flex: none; }
@@ -27,13 +30,16 @@
 #changes { grid-column: 1 / -1; max-height: 18vh; overflow: auto; overflow-wrap: anywhere; }
 .app-status:empty { display: none; }
 @media (max-width: 767px) {
-  .app-header { padding: .5rem .75rem; }
+  .app-header { padding: .5rem .75rem; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: 2.75rem auto; gap: .5rem; }
+  .app-header > div { grid-column: 1; grid-row: 1; }
+  .page-context { grid-column: 2; grid-row: 1; }
+  .app-navigation { grid-column: 1 / -1; grid-row: 2; }
   .app-subtitle { display: none; }
   #summary { font-size: .7rem; }
   .app-main { padding: .5rem; gap: .5rem; }
-  .app-nav button { padding: .375rem .75rem; font-size: .8rem; }
+  .app-nav a { padding: .375rem .75rem; font-size: .8rem; }
   .workspace { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1.5fr) minmax(0, 1fr); gap: .5rem; }
-  .details-panel { padding: .75rem; }
+  .details-content { padding: .75rem; }
   .graph-toolbar { padding: .5rem; gap: .5rem; }
   .graph-toolbar label { font-size: .65rem; }
   .graph-hint { display: none; }
@@ -42,3 +48,26 @@
   .comparison-form button { padding: .375rem .75rem; font-size: .8rem; }
   #changes { max-height: 12vh; }
 }
+
+.help-main { flex: 1; min-height: 0; overflow: auto; }
+.help-content { max-width: 64rem; margin: 0 auto; padding: 1rem clamp(1rem, 4vw, 3rem) 3rem; line-height: 1.7; overflow-wrap: anywhere; }
+.help-content h1 { font-size: 2rem; font-weight: 600; }
+.help-content h2 { font-size: 1.4rem; font-weight: 600; margin: 2rem 0 .75rem; }
+.help-content h3 { font-size: 1.1rem; font-weight: 600; margin: 1rem 0 .5rem; }
+.help-content p, .help-content ul { margin: .75rem 0; color: #cbd5e1; }
+.help-content ul { padding-left: 1.5rem; list-style: disc; }
+.help-content li { margin: .5rem 0; }
+.help-content a { color: #6ee7b7; text-decoration: underline; text-underline-offset: .2rem; }
+.help-content section { scroll-margin-top: 1rem; }
+.help-table { overflow-x: auto; }
+.help-content table { width: 100%; border-collapse: collapse; }
+.help-content th, .help-content td { text-align: left; vertical-align: top; border-bottom: 1px solid #334155; padding: .75rem; }
+.help-content th[scope=row] { width: 25%; }
+
+.details-pane { position: relative; overflow: hidden; }
+.details-content { height: 100%; overflow: auto; }
+.details-loading { display: none; position: absolute; inset: 0; z-index: 20; align-items: center; justify-content: center; gap: .75rem; padding: 1rem; background: rgb(15 23 42 / .92); color: #e2e8f0; }
+.details-loading.htmx-request { display: flex; }
+.details-spinner { width: 1.25rem; height: 1.25rem; flex: none; border: 2px solid #475569; border-top-color: #34d399; border-radius: 50%; animation: details-spin .8s linear infinite; }
+@keyframes details-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .details-spinner { animation: none; } }

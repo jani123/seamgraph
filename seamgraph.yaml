@@ -137,7 +137,7 @@ modules:
     paths: [internal/ui]
     seams:
       components:
-        symbols: [Assets, Page, ModuleDetails, Relationship, Rules, Proposal, Message, Source, Changes]
+        symbols: [Assets, Page, Help, ModuleDetails, Relationship, Rules, RulesPage, Proposal, Message, Source, Changes]
   release-tools:
     language: go
     paths: [scripts/packagezip]

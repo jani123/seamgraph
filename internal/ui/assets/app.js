@@ -1,14 +1,35 @@
 /* All assets and data remain local. */
-document.addEventListener("alpine:init", () => {
-  Alpine.data("shell", () => ({
-    help: false,
-    toggle() {
-      this.help = !this.help;
-    },
-  }));
-});
 document.addEventListener("DOMContentLoaded", async () => {
   const status = document.querySelector("#status");
+  const details=document.querySelector("#details");
+  let detailsRequest;
+  const abortedDetails=new WeakSet();
+  document.addEventListener("htmx:beforeRequest",event=>{
+    if(event.detail.target!==details)return;
+    detailsRequest=event.detail.xhr;
+    details.setAttribute("aria-busy","true");
+    details.inert=true;
+  });
+  document.addEventListener("htmx:afterRequest",event=>{
+    if(event.detail.target!==details||event.detail.xhr!==detailsRequest)return;
+    detailsRequest=null;
+    details.setAttribute("aria-busy","false");
+    details.inert=false;
+    if((event.detail.failed || event.detail.xhr.status===0) && !abortedDetails.has(event.detail.xhr)){
+      const message=document.createElement("p");message.setAttribute("role","alert");
+      message.textContent=event.detail.xhr.responseText || "Could not load details. Select the module or connection again to retry.";
+      details.replaceChildren(message);
+    }
+  });
+  const cancelDetails=()=>{
+    if(detailsRequest){abortedDetails.add(detailsRequest);htmx.trigger(details,"htmx:abort");}
+  };
+  const loadDetails=url=>{
+    cancelDetails();
+    status.textContent="";
+    // A dedicated request source lets a new selection replace the old one.
+    htmx.ajax("GET",url,{source:details,target:details}).catch(()=>{});
+  };
   document.addEventListener("htmx:responseError", (event) => {
     status.textContent = event.detail.xhr.responseText || "Request failed.";
   });
@@ -255,19 +276,19 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
         filter();
       }
-      if (event.target.closest('[data-view="architecture"]')) {focusedModule = null; filter();}
+      if (event.target.closest('[data-view="architecture"]')) {event.preventDefault(); focusedModule = null; filter();}
     });
     cy.on("tap", "node", (event) => {
       focusedModule = event.target.id();
       filter();
       if (activeComparison) {showComparisonDetails(event.target);return;}
-      htmx.ajax("GET", "/module?id=" + encodeURIComponent(event.target.data("moduleId") || focusedModule), {target: "#details"});
+      loadDetails("/module?id=" + encodeURIComponent(event.target.data("moduleId") || focusedModule));
     });
     cy.on("tap", "edge", (event) => {
       if (activeComparison) {showComparisonDetails(event.target);return;}
       const target = cy.getElementById(event.target.data("target"));
-      htmx.ajax("GET", "/edge?from=" + encodeURIComponent(event.target.data("source")) +
-        "&to=" + encodeURIComponent(target.data("moduleId") || target.id()), {target: "#details"});
+      loadDetails("/edge?from=" + encodeURIComponent(event.target.data("source")) +
+        "&to=" + encodeURIComponent(target.data("moduleId") || target.id()));
     });
     const filter = () => {
       const query = document.querySelector("#search").value.toLowerCase(),
@@ -314,6 +335,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       .querySelector("#violations-only")
       .addEventListener("change", filter);
     function showComparisonDetails(element) {
+      cancelDetails();
       const panel=document.querySelector("#details");panel.replaceChildren();
       const line=(text,tag="p")=>{const node=document.createElement(tag);node.textContent=text;node.className="my-2 break-all";panel.append(node);};
       line(element.isNode()?element.data("label").split("\n")[0]:"Connection changes","h2");
@@ -352,6 +374,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       if (!element || element.dataset.applied) return;
       element.dataset.applied="true";
       const result=JSON.parse(element.dataset.comparison),projection=SeamGraphLayout.comparison(result);
+      cancelDetails();
       activeComparison={result,projection};s=result.after;check=result.afterCheck;
       document.querySelector("#summary").textContent=`${s.modules.length} current modules · ${result.modules.length} changed modules · ${check.violations.length} violations`;
       owners=projection.owners;pairs=projection.pairs;focusedModule=null;
