@@ -9,8 +9,11 @@ application code. Only the explicit `test` command executes supported test runne
 
 Uses `golang.org/x/tools/go/packages`, `go/types` and AST positions. The active Go
 build context is honored: GOOS, GOARCH, GOFLAGS (including `-tags`) and go.work.
-Go dependencies must already be installed. Runtime module/toolchain downloads are
-disabled and module files are loaded in readonly mode (or vendor mode when
+Go dependencies and the required toolchain must already be installed or cached.
+The Go command honors `GOTOOLCHAIN` and the project’s `go.mod`/`go.work` selection;
+SeamGraph does not force the bundled local compiler. `GOPROXY=off` prevents module
+and toolchain downloads. Checksum verification keeps its configured setting so Go
+can use verified cached toolchains. Module files are loaded in readonly mode (or vendor mode when
 a vendor manifest exists). Build failures, cycles, missing dependencies and invalid internal-package
 imports fail analysis rather than yielding a clean graph. Production test sources
 are excluded from architecture; tests are collected separately.

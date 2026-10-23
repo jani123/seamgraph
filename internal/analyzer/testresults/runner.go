@@ -16,7 +16,8 @@ func Command(ctx context.Context, root, artifactDir, runner string) (*exec.Cmd, 
 	switch runner {
 	case "go":
 		cmd = exec.CommandContext(ctx, "go", "test", "-count=1", "-json", "./...")
-		cmd.Env = append(os.Environ(), "GOPROXY=off", "GOSUMDB=off", "GOTOOLCHAIN=local")
+		// Honor the project toolchain, including a newer cached Go distribution.
+		cmd.Env = append(os.Environ(), "GOPROXY=off")
 		format = "go-test-json"
 	case "pytest":
 		artifact = filepath.Join(artifactDir, "pytest.xml")

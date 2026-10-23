@@ -1,6 +1,10 @@
 package testresults
 
-import "testing"
+import (
+	"context"
+	"strings"
+	"testing"
+)
 
 func TestActualFailuresAndUnsupportedArtifacts(t *testing.T) {
 	run := Run{Runner: "pytest", Revision: "abc", Fingerprint: "inputs", RunID: "run", ObservedAt: "2026-10-16T00:00:00Z"}
@@ -19,5 +23,23 @@ func TestActualFailuresAndUnsupportedArtifacts(t *testing.T) {
 		if _, err := Import(tc.format, []byte(tc.data), run); err == nil {
 			t.Fatal("unsupported/malformed/ambiguous artifact accepted", tc)
 		}
+	}
+}
+
+func TestGoRunnerPreservesToolchainSelection(t *testing.T) {
+	t.Setenv("GOTOOLCHAIN", "go1.26.10+auto")
+	t.Setenv("GOSUMDB", "sum.golang.org")
+	t.Setenv("GOPROXY", "https://proxy.golang.org")
+	cmd, _, _, err := Command(context.Background(), t.TempDir(), t.TempDir(), "go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	env := map[string]string{}
+	for _, entry := range cmd.Environ() {
+		key, value, _ := strings.Cut(entry, "=")
+		env[key] = value
+	}
+	if env["GOTOOLCHAIN"] != "go1.26.10+auto" || env["GOSUMDB"] != "sum.golang.org" || env["GOPROXY"] != "off" {
+		t.Fatalf("runner environment: GOTOOLCHAIN=%q GOSUMDB=%q GOPROXY=%q", env["GOTOOLCHAIN"], env["GOSUMDB"], env["GOPROXY"])
 	}
 }

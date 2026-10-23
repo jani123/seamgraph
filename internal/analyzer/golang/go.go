@@ -38,7 +38,9 @@ func (Adapter) Analyze(ctx context.Context, project analyzer.Project, c config.C
 	if _, err := os.Stat(filepath.Join(b.Root, "vendor", "modules.txt")); err == nil {
 		buildFlags = []string{"-mod=vendor"}
 	}
-	pkgs, err := packages.Load(&packages.Config{Context: ctx, Dir: b.Root, BuildFlags: buildFlags, Env: append(os.Environ(), "GOPROXY=off", "GOSUMDB=off", "GOTOOLCHAIN=local"), Mode: packages.NeedName | packages.NeedFiles | packages.NeedCompiledGoFiles | packages.NeedImports | packages.NeedDeps | packages.NeedSyntax | packages.NeedTypes | packages.NeedTypesInfo | packages.NeedModule}, patterns...)
+	// Preserve Go toolchain selection and checksum verification for cached toolchains.
+	// The disabled module proxy prevents fetching missing modules or toolchains.
+	pkgs, err := packages.Load(&packages.Config{Context: ctx, Dir: b.Root, BuildFlags: buildFlags, Env: append(os.Environ(), "GOPROXY=off"), Mode: packages.NeedName | packages.NeedFiles | packages.NeedCompiledGoFiles | packages.NeedImports | packages.NeedDeps | packages.NeedSyntax | packages.NeedTypes | packages.NeedTypesInfo | packages.NeedModule}, patterns...)
 	if err != nil {
 		return b.Partial, err
 	}
