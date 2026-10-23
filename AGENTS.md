@@ -34,3 +34,16 @@ checks. Static analysis and race tests still cover the Go test packages.
 
 Use the patched toolchain required by `go.mod`. `govulncheck` uses the live official
 Go vulnerability database; never replace it with an empty or stale database to pass.
+
+# Commit messages
+
+Always use Conventional Commits: `type(scope): description`, with an optional
+scope (for example, `fix: preserve Go toolchain selection` or
+`ci(cache): reuse pinned tool binaries`). Use a concise, imperative description
+that explains the change.
+
+Use `feat` for new functionality and `fix` for bug fixes. Other types include
+`docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`, and `revert`.
+Mark breaking changes with `!` before the colon or a `BREAKING CHANGE:` footer,
+and explain the impact. Add a commit body when the motivation, behavior, or
+validation needs more explanation than the subject provides.
