@@ -130,7 +130,7 @@ See [the contract evidence guide](docs/contracts.md).
 
 ## Development
 
-Use Go 1.25, Node 22 and Python 3.12, or the pinned Devbox setup:
+Use Go 1.26.10, Node 22 and Python 3.12, or the pinned Devbox setup:
 
 ```sh
 devbox install

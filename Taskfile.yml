@@ -33,19 +33,24 @@ tasks:
       - go build -o .build/seamgraph ./cmd/seamgraph
 
   dev:setup:
-    desc: Prepare development dependencies and pinned Air
+    desc: Prepare development dependencies, pinned Air and Go quality tools
     cmds:
       - task: deps
       - task: dev:tools
+      - task: quality:tools
 
   dev:tools:
-    desc: Install pinned Air for the Go 1.25 development toolchain
+    desc: Install pinned Air with the project Go toolchain
+    vars:
+      GO_TOOLCHAIN:
+        sh: go env GOVERSION
     cmds:
       - mkdir -p .build/bin
-      - GOBIN="{{.ROOT_DIR}}/.build/bin" GOTOOLCHAIN=local go install github.com/air-verse/air@v1.65.3
+      - GOBIN="{{.ROOT_DIR}}/.build/bin" GOTOOLCHAIN="{{.GO_TOOLCHAIN}}" go install github.com/air-verse/air@v1.65.3
     status:
       - test -x .build/bin/air
       - .build/bin/air -v | grep -q 'v1.65.3'
+      - go version .build/bin/air | grep -Fq '{{.GO_TOOLCHAIN}}'
 
   dev:
     desc: Run the development server with Air and an automatically chosen port
@@ -73,6 +78,22 @@ tasks:
         msg: Go application source is missing; see SEAMGRAPH_PLAN.md.
     cmds:
       - go test ./... {{.CLI_ARGS}}
+
+  test:race:
+    desc: Run Go tests with the race detector
+    cmds:
+      - go test -race ./...
+
+  quality:tools:
+    desc: Install all eight pinned Go quality tools in .build/quality/bin
+    cmds:
+      - python3 scripts/quality.py install
+
+  quality:
+    desc: Enforce deadcode, staticcheck, dupl, complexity, lint, security and live vulnerability checks
+    cmds:
+      - task: quality:tools
+      - python3 scripts/quality.py check
 
   vet:
     desc: Vet Go packages
@@ -139,12 +160,13 @@ tasks:
       - python3 -m unittest discover -s scripts/tests -v
 
   check:
-    desc: Build, format-check, vet and test Go, helpers and browser
+    desc: Required completion gate including all Go quality tools, race tests, helpers and browser
     cmds:
       - task: build
       - task: fmt:check
       - task: vet
-      - task: test
+      - task: test:race
+      - task: quality
       - task: architecture:check
       - task: installer:test
       - task: helpers:test

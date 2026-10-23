@@ -29,6 +29,7 @@ jobs:
           python3 -m venv .build/test-python
           .build/test-python/bin/python -m pip install --disable-pip-version-check -r tools/py-analyzer/requirements-test.txt
           go install github.com/a-h/templ/cmd/templ@v0.3.1020
+          python3 scripts/quality.py install
           cd tools/ui && npx playwright install-deps chromium
       - name: Check formatting and generated artifacts
         run: |
@@ -38,6 +39,15 @@ jobs:
           cmp tools/py-analyzer/analyzer.py internal/analyzer/python/helper.py
           npm run --prefix tools/ui build
           git diff --exit-code -- internal
+      - name: Required Go quality checks (live vulnerability database)
+        run: python3 scripts/quality.py check
+      - name: Upload Go quality reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: go-quality-reports
+          path: .build/quality/reports/
+          if-no-files-found: ignore
       - name: Build, vet and test offline
         env:
           GOPROXY: 'off'

@@ -1,0 +1,11 @@
+{
+  "thresholds": {
+    "gocyclo": 20,
+    "gocognit": 30,
+    "dupl": 150
+  },
+  "allowances": {
+    "gocyclo": {},
+    "gocognit": {}
+  }
+}

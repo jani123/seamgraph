@@ -13,6 +13,10 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
+      - name: Required Go quality checks before release
+        run: |
+          python3 scripts/quality.py install
+          python3 scripts/quality.py check
       - name: Test release source
         run: |
           go test ./...

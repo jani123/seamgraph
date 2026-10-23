@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 # Generated compiler helpers and UI assets are committed and embedded by Go.
-ARG GO_IMAGE=golang:1.25-bookworm
+ARG GO_IMAGE=golang:1.26.10-bookworm
 ARG NODE_IMAGE=node:22-bookworm-slim
 FROM ${GO_IMAGE} AS build
 WORKDIR /src

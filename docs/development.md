@@ -27,7 +27,7 @@ Existing containers can run `task dev:setup` once to install development tools.
 
 New devcontainers run `task dev:setup` during post-create. Air v1.65.3 is installed
 in `.build/bin`, separately from application dependencies. This version supports
-the project's Go 1.25 toolchain. No global Air installation is needed.
+the project's Go 1.26.10 toolchain. No global Air installation is needed.
 
 By default the dev server explores SeamGraph itself. For another project:
 
@@ -98,3 +98,51 @@ locally here.
 References: [Air configuration](https://github.com/air-verse/air/blob/v1.65.3/air_example.toml),
 [Docker port publishing](https://docs.docker.com/engine/network/port-publishing/),
 and the [Dev Container port attributes schema](https://github.com/devcontainers/spec/blob/main/schemas/devContainer.base.schema.json).
+
+## Required completion checks
+
+Run `task check` before considering a change finished, including changes to the UI.
+The repository's [completion rule](../AGENTS.md) requires the full suite: build,
+formatting, vet, Go race tests, architecture, installer/development scripts, language
+helpers, runner integration, browser interactions, and the Go quality gate.
+Run `task generate` first when changing templates, helpers or frontend assets.
+
+```sh
+task quality:tools # Install pinned tools; also part of dev:setup.
+task quality       # Run all eight Go quality tools.
+task check         # Required full completion gate.
+```
+
+[versions.json](../tools/quality/versions.json) pins deadcode, staticcheck, dupl,
+gocyclo, gocognit, golangci-lint, gosec and govulncheck. Tools are installed into
+`.build/quality/bin` separately from application dependencies. Go installations use
+module checksum verification; golangci-lint uses its official release binary with
+the release SHA-256 checksums. No global tool installation is needed. The installer
+supports Linux/macOS on amd64/arm64. The current Devbox lock supplies Go 1.26.9 as a
+bootstrap; Go automatically downloads and selects Go 1.26.10 as required by `go.mod`.
+Keep automatic toolchain selection enabled when using that bootstrap.
+
+The gate checks every module package, not incidental Go files in `.build` or nested
+fixture modules. Staticcheck and golangci-lint include test packages; deadcode uses
+test entry points too. Duplication and complexity checks cover manually written
+production Go. Generated Templ Go and test setup are excluded from these structural
+metrics. Dupl's threshold is 150 tokens, cyclomatic complexity is 20 and cognitive
+complexity is 30. [complexity.json](../tools/quality/complexity.json) sets these limits
+with no legacy function allowances. Every manually written production function
+must meet both complexity thresholds. No baseline permits dead code, lint,
+duplication, security or vulnerability findings. Golangci-lint runs errcheck, govet,
+ineffassign and unused; the other requested analyzers run independently.
+
+Reports and an aggregate result are written to `.build/quality/reports`. Deadcode
+and dupl findings fail the gate even when the tool itself exits zero. Scanner
+errors and missing tools also fail; the runner attempts all eight checks and
+returns failure if any check fails. CI runs the same gate on pull requests and
+before releases and retains acceptance-job reports.
+
+Govulncheck queries the live [Go vulnerability database](https://go.dev/doc/security/vuln/)
+through its [official GCS bucket](https://storage.googleapis.com/go-vulndb/index/db.json),
+which is reachable through the existing devcontainer egress allowlist. `GOVULNDB`
+can select another maintained database endpoint. This check requires network
+access on every run; an unavailable database is a failure. It runs separately from
+CI's offline build/test step. Go 1.26.10 replaces the vulnerable 1.25 build toolchain;
+see [GO-2026-6809](https://pkg.go.dev/vuln/GO-2026-6809) for the latest required fix.

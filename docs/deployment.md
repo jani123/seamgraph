@@ -13,7 +13,7 @@ the [release installer](installation.md).
 | Component | Included in the image | Role |
 | --- | --- | --- |
 | SeamGraph binary and browser assets | Yes | CLI, policy/diff, local explorer |
-| Go 1.25 toolchain | Yes | `go/packages` invokes `go list` and compiler tooling |
+| Go 1.26.10 toolchain | Yes | `go/packages` invokes `go list` and compiler tooling |
 | Node 22 and embedded TypeScript compiler | Yes | Compiler-based TypeScript analysis; no global `tsc` installation |
 | Python 3.11 (Debian Bookworm) | Yes | Standard-library AST analysis; no pip package needed for scanning |
 | Git, OpenSSH client, CA certificates | Yes | HTTPS/SSH fetches and Git revisions |
@@ -65,7 +65,7 @@ docker build --pull -t seamgraph:local .
 docker run --rm seamgraph:local doctor
 ```
 
-The Dockerfile uses versioned Go 1.25 and Node 22 Debian image lines; build with
+The Dockerfile uses versioned Go 1.26.10 and Node 22 Debian image lines; build with
 `--pull` to obtain updates. `GO_IMAGE` and `NODE_IMAGE` build arguments can pin
 approved image digests for a release. OS packages are resolved at build time, so
 a rebuild is not claimed to be byte-for-byte identical. Publish and deploy the

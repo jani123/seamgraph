@@ -33,7 +33,7 @@ startup check. WSL uses the Linux installer.
 | --- | --- | --- |
 | `python` | Python 3.10+ | Standard-library AST helper |
 | `typescript` | Node 18+ | TypeScript 5.9.3 compiler and standard declarations |
-| `go` | Go 1.25+ | Go adapter; external Go toolchain remains necessary |
+| `go` | Go 1.26.10+ | Go adapter; external Go toolchain remains necessary |
 | `git` | Git | Repository workspace management |
 | `ssh` | OpenSSH client | Uses your existing agent and known hosts |
 

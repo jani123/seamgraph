@@ -15,7 +15,7 @@ go install ./cmd/seamgraph
 ```
 
 Put Go's binary directory on PATH, or run `.build/seamgraph` after `task build`.
-Git is required for remote repositories. Keep Go 1.25+ available for Go analysis,
+Git is required for remote repositories. Keep Go 1.26.10+ available for Go analysis,
 Node 18+ for TypeScript, and Python 3.10+ for Python. The compiler helper, Python
 helper and browser assets are embedded; no frontend build is needed at runtime.
 
