@@ -8,7 +8,8 @@ policy, comparison, verification and UI have no language-specific behavior.
 
 ## Install a prebuilt release
 
-After publishing the first release containing the installer:
+Successful checks on `main` automatically publish calendar-versioned releases
+and update the Devbox pin. After the first automatic release finishes:
 
 ```sh
 curl -fsSL https://github.com/jani123/seamgraph/releases/latest/download/install.sh | sh -s -- --languages python,typescript
@@ -66,14 +67,16 @@ and test runners remain part of your project's setup.
 See [Devbox installation](docs/installation.md#install-into-any-project-with-devbox)
 for more details.
 
-Maintainers activate or update the Devbox package after publishing a release:
+Releases use `vYYYY.M.N`, for example `v2026.10.1`: the first release in
+October 2026 (UTC). Each successful source update on `main` is eligible for a
+release after the full checks and native package tests pass. The workflow
+publishes GitHub assets, verifies their downloads, and commits the Devbox pin
+automatically. Pin-only commits do not produce another release.
 
-```sh
-python3 scripts/update-devbox-release.py v0.1.0 # use the actual published version
-```
-
-The updater verifies all three archives before changing `nix/release.json`.
-Review, commit, and publish that metadata update so Devbox users can install it.
+To start or retry the pipeline manually, run the **checks** workflow on `main`
+from GitHub Actions. No manually created tag or personal access token is needed.
+See [release automation](docs/installation.md#publishing-a-release) for recovery
+and repository permissions.
 
 ## Build from source
 

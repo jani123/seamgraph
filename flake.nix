@@ -7,7 +7,7 @@
     let
       metadata = builtins.fromJSON (builtins.readFile ./nix/release.json);
       release = if metadata == null then
-        throw "No SeamGraph release is pinned yet. Publish a release, then run python3 scripts/update-devbox-release.py vX.Y.Z and commit nix/release.json."
+        throw "No SeamGraph release is pinned yet. Wait for the checks workflow on main to finish release publication and its Devbox pin update."
       else metadata;
       systems = [ "x86_64-linux" "aarch64-linux" "aarch64-darwin" ];
     in {

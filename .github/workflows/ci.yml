@@ -1,5 +1,9 @@
 name: checks
-on: [push, pull_request]
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch:
 permissions:
   contents: read
 jobs:
@@ -151,3 +155,15 @@ jobs:
           assert len(model['snapshot']['seams']) == 3
           PY
           test "$(curl --silent -o /dev/null -w '%{http_code}' -H 'Host: untrusted.example' "$url/")" = 403
+
+  devbox:
+    needs: [acceptance, container]
+    if: github.event_name == 'pull_request' || github.ref != 'refs/heads/main'
+    uses: ./.github/workflows/devbox.yml
+
+  release:
+    needs: [acceptance, container]
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: write
+    uses: ./.github/workflows/release.yml

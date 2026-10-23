@@ -1,17 +1,35 @@
 name: release
 on:
-  push:
-    tags: ['v*']
+  workflow_call:
+concurrency:
+  group: seamgraph-calendar-release
+  cancel-in-progress: false
 permissions:
   contents: read
 jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      release: ${{ steps.version.outputs.release }}
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Calculate UTC calendar version or resume this source's release
+        id: version
+        run: python3 scripts/calendar-release.py plan --output "$GITHUB_OUTPUT"
   devbox:
-    needs: build
+    needs: [prepare, build]
     uses: ./.github/workflows/devbox.yml
     with:
       artifact: release
-      version: ${{ github.ref_name }}
+      version: ${{ needs.prepare.outputs.version }}
   build:
+    needs: prepare
+    if: needs.prepare.outputs.release == 'true'
+    env:
+      RELEASE_TAG: ${{ needs.prepare.outputs.version }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -33,9 +51,9 @@ jobs:
       - name: Test installer failure and checksum handling
         run: python3 -m unittest discover -s scripts/tests -v
       - name: Package all supported operating systems and architectures
-        run: scripts/package-release.sh "$GITHUB_REF_NAME" "$GITHUB_REPOSITORY" dist
+        run: scripts/package-release.sh "$RELEASE_TAG" "$GITHUB_REPOSITORY" dist
       - name: Generate verified Devbox release metadata
-        run: python3 scripts/update-devbox-release.py "$GITHUB_REF_NAME" --repository "$GITHUB_REPOSITORY" --assets-dir dist --output dist/devbox-release.json
+        run: python3 scripts/update-devbox-release.py "$RELEASE_TAG" --repository "$GITHUB_REPOSITORY" --assets-dir dist --output dist/devbox-release.json
       - uses: actions/upload-artifact@v4
         with:
           name: release
@@ -67,11 +85,14 @@ jobs:
           }
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
   publish:
-    needs: [build, smoke, devbox]
+    needs: [prepare, build, smoke, devbox]
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/download-artifact@v4
         with:
           name: release
@@ -80,14 +101,23 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-          RELEASE_TAG: ${{ github.ref_name }}
+          RELEASE_TAG: ${{ needs.prepare.outputs.version }}
         run: |
-          if gh release view "$RELEASE_TAG" > /dev/null 2>&1; then
-            echo "Release already exists; refusing to replace published artifacts" >&2
-            exit 1
-          fi
-          if [[ "$RELEASE_TAG" == *-* ]]; then
-            gh release create "$RELEASE_TAG" dist/* --verify-tag --generate-notes --prerelease
+          if git show-ref --verify --quiet "refs/tags/$RELEASE_TAG"; then
+            test "$(git rev-parse "$RELEASE_TAG^{commit}")" = "$GITHUB_SHA"
           else
-            gh release create "$RELEASE_TAG" dist/* --verify-tag --generate-notes
+            git tag "$RELEASE_TAG" "$GITHUB_SHA"
+            git push origin "refs/tags/$RELEASE_TAG"
           fi
+          if gh release view "$RELEASE_TAG" > /dev/null 2>&1; then
+            # A retry must reuse immutable published assets, never overwrite them.
+            test "$(gh release view "$RELEASE_TAG" --json isDraft --jq .isDraft)" = false
+          else
+            gh release create "$RELEASE_TAG" dist/* --verify-tag --generate-notes --latest
+          fi
+      - name: Verify published downloads and update the default-branch Devbox pin
+        env:
+          RELEASE_TAG: ${{ needs.prepare.outputs.version }}
+        run: |
+          python3 scripts/update-devbox-release.py "$RELEASE_TAG" --repository "$GITHUB_REPOSITORY" --output "$RUNNER_TEMP/devbox-release.json"
+          python3 scripts/calendar-release.py pin "$RUNNER_TEMP/devbox-release.json"

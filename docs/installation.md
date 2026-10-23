@@ -83,7 +83,7 @@ runtime discovery, a real scan, and policy checking. To test candidate archives
 before publication, generate their metadata and run:
 
 ```sh
-python3 scripts/update-devbox-release.py v0.1.0 --assets-dir dist --output dist/devbox-release.json
+python3 scripts/update-devbox-release.py v2026.10.1 --assets-dir dist --output dist/devbox-release.json
 sh scripts/test-devbox-release.sh dist
 ```
 
@@ -92,32 +92,32 @@ a temporary copy of the same flake; it does not change the committed release pin
 The Devbox workflow runs it on all three supported platforms, including a native
 Apple Silicon macOS runner. Release publication waits for these checks.
 
-## Update the Devbox package after a release
+## Automatic Devbox package updates
 
-The first release has not been published or pinned by this implementation.
-`nix/release.json` is deliberately `null` until real release assets are available;
-there are no placeholder hashes or silent source-build fallbacks.
+After the checked source is released, the workflow downloads `SHA256SUMS` and
+all three Linux/macOS archives from that exact published version. Only after
+verification does it commit `nix/release.json` to `main`. The commit uses the
+GitHub Actions token, so it does not trigger another workflow. Consumers can run
+`devbox update` to adopt it.
 
-The release workflow publishes the archives, `SHA256SUMS`, and a verified
-`devbox-release.json`. After publication, run:
+Until the first automatic release finishes, `nix/release.json` is `null` and the
+flake reports that no release is pinned. Passing the earlier CI jobs alone does
+not make public installation available: the release and pin-update jobs must
+also succeed. No placeholder hashes or source-build fallbacks are used.
+
+For manual recovery or forks, the updater remains available:
 
 ```sh
-python3 scripts/update-devbox-release.py v0.1.0
+python3 scripts/update-devbox-release.py v2026.10.1
 sh scripts/test-devbox.sh
 ```
 
-Replace the example with the actual published version. The updater downloads the
-checksum manifest and all three Linux/macOS archives from that exact release,
-verifies every archive, and only then atomically replaces `nix/release.json`.
+Use an actual published version; for a fork, pass `--repository owner/repo`.
 A failed download, missing checksum, or mismatch leaves the existing pin intact.
-For a fork, pass `--repository owner/repo`.
-
-Ensure the flake files are tracked before testing a new checkout. Review and
-commit the metadata update to the default branch, then publish that packaging
-commit. Consumers can run `devbox update` to adopt it. Do not move or overwrite
-the application release tag to include this later update. The hashes provide
+Review, commit, and push a manual metadata update. Do not move or overwrite the
+application release tag to include this later update. The hashes provide
 integrity against the reviewed pin; the updater trusts the selected GitHub
-release and its checksum manifest, rather than independent code signing.
+release and its manifest, rather than independent code signing.
 
 ## Select the dependencies you actually need
 
@@ -178,12 +178,12 @@ project's required version. Features are independent of SeamGraph's installer.
 
 Merge these fields with an existing devcontainer configuration rather than
 replacing its setup. Commit `.devcontainer/install-seamgraph.sh` with a pinned
-release, for example after publishing v0.1.0:
+release, for example after publishing v2026.10.1:
 
 ```sh
 #!/bin/sh
 set -eu
-curl -fsSL https://github.com/jani123/seamgraph/releases/download/v0.1.0/install.sh -o /tmp/install-seamgraph.sh
+curl -fsSL https://github.com/jani123/seamgraph/releases/download/v2026.10.1/install.sh -o /tmp/install-seamgraph.sh
 sh /tmp/install-seamgraph.sh --languages python,typescript
 ```
 
@@ -196,7 +196,7 @@ part of the project's own setup.
 ## Versions, upgrades and uninstall
 
 ```sh
-sh /tmp/install-seamgraph.sh --version v0.1.0 --bin-dir "$HOME/.local/bin"
+sh /tmp/install-seamgraph.sh --version v2026.10.1 --bin-dir "$HOME/.local/bin"
 seamgraph version
 ```
 
@@ -209,26 +209,48 @@ managed repositories and caches are retained.
 
 ## Publishing a release
 
-Commit the CLI source, installer, packaging helper and workflow before tagging.
-The corrected `.gitignore` now ignores only the root `/seamgraph` executable,
-allowing `cmd/seamgraph/` to be included in Git. It was previously hidden by an
-unanchored ignore rule and must be included in the commit.
+Push source changes to `main`. The **checks** workflow runs the acceptance suite
+and container checks first, then calls the reusable release workflow. Pull
+requests and other branches run the Devbox candidate tests after those checks
+and never publish releases. The **checks** workflow also supports manual dispatch
+on `main` for bootstrapping or retrying the pipeline.
 
-Push a version tag on the desired committed source, for example `v0.1.0`. The
-release workflow runs Go and installer tests, cross-compiles five binaries,
-packages tar.gz/ZIP assets, creates SHA256SUMS and stamps install.sh. Native
-Linux/macOS/Windows startup smoke tests run before publication. Tags containing
-a hyphen publish a prerelease. Published releases are not overwritten on reruns.
-GitHub Releases are [based on Git tags](https://docs.github.com/en/repositories/releasing-projects-on-github/about-releases).
+Versions use `vYYYY.M.N` in UTC, with no leading zeroes: `v2026.10.1`,
+`v2026.10.2`, then `v2026.11.1` when November begins. The sequence is selected
+from existing calendar tags. Legacy semantic tags are ignored by this counter.
+Release workflows are serialized to prevent two runs allocating the same tag.
+Out-of-order runs for already superseded source do not publish an older revision.
 
-Local packaging:
+The release workflow runs the required Go quality checks and source tests,
+cross-compiles five binaries, creates archives/checksums/installer metadata,
+and tests native startup on Linux, Apple Silicon macOS, and Windows. The Devbox
+installation and scan tests run on both Linux architectures and Apple Silicon
+macOS using those exact candidate archives. Only then does the workflow create
+the tag and GitHub release, verify the public downloads, and publish the pin.
+Tags are created inside the called workflow; the pipeline does not depend on
+a bot-created tag triggering a new workflow or require a personal access token.
+
+The publishing job needs `contents: write` and permission to push tags and a
+pin commit to `main`. Repository rules must allow those bot writes. If branch
+protection blocks the pin commit, the job fails visibly; the published release
+remains available and the existing Devbox pin remains unchanged.
+
+Rerunning the original workflow reuses the same version when that source is
+already tagged. Published assets are never replaced. Pin publication retries
+concurrent branch updates, preserves newer source commits, and refuses to move
+the pin to an older calendar version. Pin-only commits do not allocate a release.
+If public downloads or the pin push fail after publication, resolve the failure
+and rerun the original workflow to finish the pin update.
+
+For local packaging without publishing:
 
 ```sh
-scripts/package-release.sh v0.1.0 jani123/seamgraph .build/release
+scripts/package-release.sh v2026.10.1 jani123/seamgraph .build/release
+python3 scripts/update-devbox-release.py v2026.10.1 --assets-dir .build/release --output .build/release/devbox-release.json
+sh scripts/test-devbox-release.sh .build/release
 ```
 
-The local verification built all supported targets and exercised the actual installer
-with controlled downloads, including tampered checksums, existing installations,
-missing runtimes and version-pinned releases. Non-Linux binaries cannot be
-executed in this workspace; native startup is delegated to release CI. The
-workflow and assets have not been published by the coding session.
+Non-Linux binaries cannot be executed in this workspace; native startup and
+Devbox execution are validated by the platform matrix in CI. Creating this
+workflow locally does not publish a release: push the commit and wait for the
+entire pipeline, including the final pin update, to finish.
