@@ -1,0 +1,29 @@
+name: Install pinned Go quality tools
+description: Restore versioned tool binaries and install any missing or outdated tools.
+inputs:
+  go-version:
+    description: Exact Go version selected by actions/setup-go.
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Restore Go quality tool binaries
+      id: cache
+      uses: actions/cache/restore@v4
+      with:
+        path: |
+          .build/quality/bin
+          .build/quality/installed.json
+        key: quality-tools-v1-${{ runner.os }}-${{ runner.arch }}-go${{ inputs.go-version }}-${{ hashFiles('tools/quality/versions.json', 'scripts/quality.py') }}
+    - name: Install missing or outdated Go quality tools
+      shell: bash
+      run: python3 scripts/quality.py install
+    # Save before tests run, so a later test failure doesn't discard the tools.
+    - name: Save Go quality tool binaries
+      if: steps.cache.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v4
+      with:
+        path: |
+          .build/quality/bin
+          .build/quality/installed.json
+        key: ${{ steps.cache.outputs.cache-primary-key }}

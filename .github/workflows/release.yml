@@ -16,13 +16,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
+        id: go
         with:
           go-version-file: go.mod
           cache: true
+      - name: Install pinned Go quality tools
+        uses: ./.github/actions/install-quality-tools
+        with:
+          go-version: ${{ steps.go.outputs.go-version }}
       - name: Required Go quality checks before release
-        run: |
-          python3 scripts/quality.py install
-          python3 scripts/quality.py check
+        run: python3 scripts/quality.py check
       - name: Test release source
         run: |
           go test ./...

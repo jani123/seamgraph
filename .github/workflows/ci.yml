@@ -8,6 +8,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
+        id: go
         with:
           go-version-file: go.mod
           cache: true
@@ -21,16 +22,47 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Install pinned development dependencies
+          cache: pip
+          cache-dependency-path: tools/py-analyzer/requirements-test.txt
+      - name: Download Go modules
+        run: go mod download
+      - name: Install TypeScript analyzer dependencies
+        run: npm ci --prefix tools/ts-analyzer --no-audit --no-fund
+      - name: Install browser and frontend dependencies
+        run: npm ci --prefix tools/ui --no-audit --no-fund
+      - name: Install Python test dependencies
         run: |
-          go mod download
-          npm ci --prefix tools/ts-analyzer --no-audit --no-fund
-          npm ci --prefix tools/ui --no-audit --no-fund
           python3 -m venv .build/test-python
           .build/test-python/bin/python -m pip install --disable-pip-version-check -r tools/py-analyzer/requirements-test.txt
-          go install github.com/a-h/templ/cmd/templ@v0.3.1020
-          python3 scripts/quality.py install
-          cd tools/ui && npx playwright install-deps chromium
+      - name: Restore Templ generator
+        id: templ-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: .build/tools/bin/templ
+          key: templ-v1-${{ runner.os }}-${{ runner.arch }}-go${{ steps.go.outputs.go-version }}-${{ hashFiles('go.mod', 'go.sum') }}
+      - name: Install pinned Templ generator
+        env:
+          GOBIN: ${{ github.workspace }}/.build/tools/bin
+        run: |
+          mkdir -p "$GOBIN"
+          if [ ! -x "$GOBIN/templ" ]; then
+            templ_version=$(go list -m -f '{{.Version}}' github.com/a-h/templ)
+            go install "github.com/a-h/templ/cmd/templ@$templ_version"
+          fi
+          echo "$GOBIN" >> "$GITHUB_PATH"
+      - name: Save Templ generator
+        if: steps.templ-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: .build/tools/bin/templ
+          key: ${{ steps.templ-cache.outputs.cache-primary-key }}
+      - name: Install pinned Go quality tools
+        uses: ./.github/actions/install-quality-tools
+        with:
+          go-version: ${{ steps.go.outputs.go-version }}
+      - name: Install Chromium system libraries
+        working-directory: tools/ui
+        run: npx --no-install playwright install-deps chromium
       - name: Check formatting and generated artifacts
         run: |
           test -z "$(gofmt -l cmd internal)"
