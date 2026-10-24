@@ -52,6 +52,7 @@ type Ports struct {
 	Open           func(context.Context, string, string, string) (Workspace, error)
 	PrepareProject func(string, []byte) (bool, error)
 	Initialize     func(string) error
+	SetupAgent     func(string) ([]string, error)
 	PrepareRule    func(string, string, string, string) (RuleEdit, error)
 	Source         func(string, string, []ir.Evidence) (string, error)
 }
@@ -95,7 +96,8 @@ func (s *Service) ConfiguredLanguages(root string) ([]string, error) {
 	sort.Strings(languages)
 	return slices.Compact(languages), nil
 }
-func (s *Service) Initialize(root string) error { return s.ports.Initialize(root) }
+func (s *Service) Initialize(root string) error             { return s.ports.Initialize(root) }
+func (s *Service) SetupAgent(root string) ([]string, error) { return s.ports.SetupAgent(root) }
 func (s *Service) Identity(ctx context.Context, root string) (string, string, error) {
 	return s.ports.Identity(ctx, root)
 }

@@ -34,7 +34,7 @@ func New(root string) (*application.Service, error) {
 			w, err := gitworkspace.Open(ctx, url, ref, cache)
 			return application.Workspace(w), err
 		},
-		PrepareProject: projectfiles.PrepareProject, Initialize: projectfiles.Initialize,
+		PrepareProject: projectfiles.PrepareProject, Initialize: projectfiles.Initialize, SetupAgent: projectfiles.SetupAgent,
 		PrepareRule: func(root, effect, from, to string) (application.RuleEdit, error) {
 			return projectfiles.PrepareRule(root, effect, from, to)
 		},

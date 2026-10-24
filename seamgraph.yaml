@@ -21,7 +21,7 @@ modules:
       comparison:
         symbols: [internal/application.Service.Compare]
       project:
-        symbols: [internal/application.Service.At, internal/application.Service.Root, internal/application.Service.Validate, internal/application.Service.ConfiguredLanguages, ValidateConfiguration, ConfigFilename, internal/application.Service.Identity, internal/application.Service.Initialize, internal/application.Service.Open]
+        symbols: [internal/application.Service.At, internal/application.Service.Root, internal/application.Service.Validate, internal/application.Service.ConfiguredLanguages, ValidateConfiguration, ConfigFilename, internal/application.Service.Identity, internal/application.Service.Initialize, internal/application.Service.SetupAgent, internal/application.Service.Open]
       evidence:
         symbols: [internal/application.Service.RunTests, internal/application.Service.ImportTests]
       rules:
@@ -69,7 +69,7 @@ modules:
     paths: [internal/projectfiles]
     seams:
       access:
-        symbols: [Load, LoadContracts, ReadStore, AppendEvidence, EvidenceDir, Initialize, PrepareProject, PrepareRule, Edit, Source, ConfigKey, Inventory]
+        symbols: [Load, LoadContracts, ReadStore, AppendEvidence, EvidenceDir, Initialize, SetupAgent, PrepareProject, PrepareRule, Edit, Source, ConfigKey, Inventory]
   git-workspaces:
     language: go
     paths: [internal/gitworkspace]

@@ -51,6 +51,17 @@ devbox run seamgraph check --root .
 devbox run seamgraph serve --root .
 ```
 
+To teach coding agents when and how to use SeamGraph, run once in the project:
+
+```sh
+devbox run seamgraph agent setup
+```
+
+This installs a managed `AGENTS.md` section and
+`.agents/skills/seamgraph/SKILL.md`. Commit both files. Rerun after upgrading
+SeamGraph to update the guidance without duplicating rules. See
+[agent setup](docs/installation.md#coding-agent-setup) for update behavior.
+
 Open **http://127.0.0.1:8765**. Commit `devbox.json`, `devbox.lock` and
 `seamgraph.yaml` so teammates get the same package revision and configuration.
 For intentional upgrades, run `devbox update`. To keep a specific package

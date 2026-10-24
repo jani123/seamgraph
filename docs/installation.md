@@ -207,6 +207,48 @@ manifest delivered by the same GitHub release; this is not a separate code-signi
 or provenance-attestation system. Remove `~/.local/bin/seamgraph` to uninstall;
 managed repositories and caches are retained.
 
+## Coding agent setup
+
+Installing the executable makes it available to agents; project instructions
+explain when to use it. From the consuming project, run:
+
+```sh
+devbox run seamgraph agent setup
+```
+
+For a native installation, use `seamgraph agent setup`. Use `--root PATH` to
+select another project. Setup works before `seamgraph.yaml` exists and does not
+create or modify architecture configuration.
+
+Setup installs two files:
+
+- `AGENTS.md`: a short section describing SeamGraph, task triggers, useful
+  commands, and architecture verification expectations. Existing project
+  instructions outside the `<!-- seamgraph:begin -->` and
+  `<!-- seamgraph:end -->` markers are preserved byte for byte.
+- `.agents/skills/seamgraph/SKILL.md`: a reusable skill covering exploration,
+  stable IDs, source evidence, violations, revision comparison, diagnostics,
+  and contract verification. The AGENTS.md section links to this file so agents
+  can read it even without automatic skill discovery. Automatic discovery
+  depends on the agent's supported skill locations.
+
+Commit both files with the project. The generated commands use
+`devbox run seamgraph` when `devbox.json` or `devbox.jsonc` exists in the selected
+root, otherwise `seamgraph`.
+
+Rerun setup after updating the binary. It replaces the managed section and
+managed skill with the guidance bundled in that binary; unchanged files are
+not rewritten. Keep project-specific additions outside the AGENTS.md markers,
+since edits inside the section or managed skill are replaced on update.
+
+Setup validates both destinations before writing. Malformed, reversed, or
+duplicate AGENTS.md markers and existing skills without SeamGraph's ownership
+marker produce an error without changing either file. Resolve the markers or
+move the custom skill before retrying. Symlink destinations and paths escaping
+the selected project are rejected. Each changed file is replaced atomically;
+an I/O failure can leave one file updated, and rerunning setup completes the
+remaining update.
+
 ## Publishing a release
 
 Push source changes to `main`. The **checks** workflow runs the acceptance suite

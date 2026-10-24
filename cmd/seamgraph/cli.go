@@ -23,6 +23,7 @@ func newRootCommand(out, errOut io.Writer, tracked *outputWriter, code *int) *co
 	}
 	root.SetOut(out)
 	root.SetErr(errOut)
+	root.AddCommand(newAgentCommand())
 	root.SetVersionTemplate("seamgraph {{.Version}}\n")
 	for _, spec := range commandSpecs() {
 		root.AddCommand(newProjectCommand(spec, tracked, code))
