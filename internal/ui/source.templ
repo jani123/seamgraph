@@ -1,0 +1,31 @@
+package ui
+
+import (
+	"fmt"
+	"seamgraph/internal/application"
+)
+
+templ SourceViewer(content application.ReviewContent, file, marker string, focus int) {
+	<div class="source-viewer">
+		if content.Unavailable!="" {
+			<p class="source-unavailable">{ content.Unavailable }</p>
+		}
+		<div class="source-scroll" data-source-focus={ fmt.Sprint(focus) }>
+			<div class="source-document">
+				<pre class="source-gutter" aria-hidden="true">{ sourceNumbers(content.Text) }</pre>
+				<pre
+					class="source-code"
+					if marker=="code" {
+						data-code-source
+					}
+					if marker=="before" {
+						data-review-before
+					}
+					if marker=="after" {
+						data-review-after
+					}
+				><code data-source-code data-source-file={ file }>{ sourcePlain(content.Text) }</code></pre>
+			</div>
+		</div>
+	</div>
+}

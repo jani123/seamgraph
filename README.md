@@ -125,6 +125,10 @@ Open **Code** (`/explore`) to browse directories, files and declarations without
 creating `seamgraph.yaml` or requiring Git. Expand types for members, search and
 filter objects, inspect signatures, declaration locations and available docs,
 then follow static caller/consumer evidence or inferred type relationships.
+The read-only source pane fills the workspace, highlights the selected tree item,
+and uses locally bundled Highlight.js in a background worker. Line numbers stay
+out of copied code. Files over 250,000 characters, unknown languages and unavailable
+workers retain a plain-text view.
 Declared modules and seams appear as context when available. Optional revision
 and comparison-base fields use resolved Git identities; removed objects retain
 base-revision source and relationships. The working-directory view is live.

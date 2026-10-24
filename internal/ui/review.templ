@@ -24,7 +24,22 @@ templ ReviewPage(token string, r application.ReviewWorkspace, query, kind string
 				}
 			</nav>
 			<p>Exports include both snapshots, reference evidence, history and review anchors. Full source is included only for the selected file. Saved findings also include their original bounded source excerpts.</p>
-			@CodeWorkspace(r.Code, codeFilter)
+			@CodeWorkspace(r.Code, codeFilter) {
+				if r.Selected!="" {
+					<section aria-label="File comparison">
+						<h2>{ r.Selected }</h2>
+						<div class="review-sources">
+							<section>
+								<h3>Before</h3>@SourceViewer(r.Before, r.Selected, "before", 0)
+							</section>
+							<section>
+								<h3>After</h3>@SourceViewer(r.After, r.Selected, "after", 0)
+							</section>
+						</div>
+						@ReviewNote(token, r)
+					</section>
+				}
+			}
 			if r.Object != nil {
 				<section data-review-object>
 					<h3>Observed architecture references</h3>
@@ -33,13 +48,6 @@ templ ReviewPage(token string, r application.ReviewWorkspace, query, kind string
 					}
 					<h3>Possible transitive module impact</h3>
 					<p>{ strings.Join(r.PossibleImpact,", ") }</p>
-				</section>
-			}
-			if r.Selected!="" {
-				<section aria-label="File comparison">
-					<h2>{ r.Selected }</h2>
-					<div class="review-sources"><section><h3>Before</h3><p>{ r.Before.Unavailable }</p><pre data-review-before>{ r.Before.Text }</pre></section><section><h3>After</h3><p>{ r.After.Unavailable }</p><pre data-review-after>{ r.After.Text }</pre></section></div>
-					@ReviewNote(token, r)
 				</section>
 			}
 			<section>

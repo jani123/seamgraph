@@ -105,3 +105,31 @@
 
 .code-entry-icon { display: inline-block; width: 1rem; height: 1rem; margin-right: .35rem; vertical-align: -.15rem; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; color: #94a3b8; }
 [data-code-entry="directory"] .code-entry-icon { color: #fbbf24; }
+
+.code-main { display: flex; flex-direction: column; gap: .5rem; overflow: hidden; }
+.code-main > h1, .code-main > form, .code-main > p, .code-main > details { flex: none; }
+.code-main > p, .code-main .review-controls { margin: 0; }
+.code-main .review-workspace { flex: 1; min-height: 0; overflow: hidden; }
+.code-main .review-tree { overflow: auto; }
+.review-selection { display: flex; flex-direction: column; min-height: 0; }
+.code-main .review-selection { padding: 0; overflow: hidden; }
+.code-source-header { flex: none; padding: .5rem .75rem; border-bottom: 1px solid #334155; font-family: monospace; font-size: .85rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.code-object-details { flex: none; padding: .5rem .75rem; border-bottom: 1px solid #334155; max-height: 40%; overflow: auto; }
+.code-main .review-tree [data-code-selected], .review-tree a[aria-current="true"] { background: #164e63; border-radius: .25rem; outline: 1px solid #22d3ee; }
+.review-tree a[aria-current="true"] { color: #ecfeff; font-weight: 600; }
+.source-viewer { flex: 1; display: flex; flex-direction: column; min-height: 0; min-width: 0; }
+.source-scroll { flex: 1; overflow: auto; min-height: 0; min-width: 0; background: #0d1117; }
+.source-document { display: flex; width: max-content; min-width: 100%; min-height: 100%; align-items: stretch; }
+.review-main .source-document pre { max-height: none; overflow: visible; margin: 0; padding: .5rem; background: #0d1117; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: .85rem; line-height: 1.5rem; }
+.review-main .source-document .source-gutter { position: sticky; left: 0; z-index: 1; flex: none; text-align: right; color: #64748b; border-right: 1px solid #334155; user-select: none; padding-right: .75rem; }
+.source-code { flex: 1; }
+.review-main .source-code code { display: block; padding: 0; overflow: visible; background: transparent; font: inherit; }
+.review-sources .source-viewer { height: 60vh; }
+@media (max-width: 767px) {
+ .code-main { overflow: auto; }
+ .code-main .review-workspace { display: flex; flex-direction: column; flex: 1 0 auto; overflow: visible; }
+ .code-main .review-tree { max-height: 30vh; flex: none; }
+ .code-main .review-selection { height: 65vh; flex: none; }
+}
+.review-selection > [aria-label="File comparison"] { min-width: 0; }
+.review-selection > [aria-label="File comparison"] > h2 { display: none; }

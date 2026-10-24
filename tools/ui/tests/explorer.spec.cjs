@@ -938,6 +938,8 @@ test('fulfillment review connects directories, hotspots, impact, durable finding
     expect(text).not.toContain('/assets/');
   }
   await page.goto(url+reviewPath({object:'symbol:orders:orders.Service.Place'}));
+  await expect(page.locator('[data-review-before] code')).toHaveAttribute('data-highlighted','true');
+  await expect(page.locator('[data-review-after] code')).toHaveAttribute('data-highlighted','true');
   await expect(page.locator('[data-review-object]')).toContainText('module:demo');
   await expect(page.locator('[data-review-object]')).toContainText('module:http');
   await expect(page.locator('[data-review-object]')).toContainText('Possible transitive module impact');
@@ -955,20 +957,41 @@ test('code explorer browses an unconfigured directory and follows local evidence
   fs.rmSync(root,{recursive:true,force:true});
   fs.mkdirSync(path.join(root,'src'),{recursive:true});
   fs.writeFileSync(path.join(root,'src/notes.txt'),'Project notes');
-  fs.writeFileSync(path.join(root,'src/code.ts'), '/** Read documentation. */\nexport function read():number{return 1}\nexport function caller(){return read()}\nexport interface Reader {get():number}\nexport class Store {private hidden=1; get(){return read()}}\n');
+  fs.writeFileSync(path.join(root,'src/code.py'),'def python_value(): return 1\n');
+  fs.writeFileSync(path.join(root,'src/code.ts'), '/** Read documentation. */\nexport function read():number{return 1}\nexport function caller(){return read()}\nexport interface Reader {get():number}\nexport class Store {private hidden=1; get(){return read()}}\nexport const markup="</code><script>window.sourceInjected=true</script>";\n');
   await page.setViewportSize({width:1440,height:1000});
   await page.goto(url+'/explore');
   await expect(page.getByRole('heading',{name:'Code explorer',exact:true})).toBeVisible();
   await expect(page.getByRole('link',{name:'read',exact:true})).not.toBeVisible();
   await expect(page.getByLabel('Code tree').locator('[data-code-entry="directory"] svg')).toHaveCount(1);
   await page.getByLabel('Code tree').getByText('src',{exact:true}).click();
-  await expect(page.getByLabel('Code tree').locator('[data-code-entry="file"] svg')).toHaveCount(2);
+  await expect(page.getByLabel('Code tree').locator('[data-code-entry="file"] svg')).toHaveCount(3);
   await page.getByRole('link',{name:'notes.txt',exact:true}).click();
   await expect(page.getByLabel('Code tree').getByText('No indexed symbols.',{exact:true})).toBeVisible();
   await expect(page.locator('[data-code-source]')).toContainText('Project notes');
+  await page.getByRole('link',{name:'code.py',exact:true}).click();
+  await expect(page.locator('[data-code-source] code')).toHaveAttribute('data-highlighted','true');
+  await expect(page.locator('[data-code-source] .hljs-keyword')).toContainText(['def','return']);
   await page.getByRole('link',{name:'code.ts',exact:true}).click();
   await expect(page.locator('[data-code-source]')).toContainText('function read');
+  await expect(page.locator('[data-code-source] code')).toHaveAttribute('data-highlighted','true');
+  await expect(page.locator('[data-code-source] .hljs-keyword').first()).toBeVisible();
+  await expect(page.getByLabel('Code tree').locator('a[aria-current="true"]')).toHaveText('code.ts');
+  expect(await page.locator('[data-code-source]').evaluate(element=>/^\s*1  /.test(element.textContent))).toBe(false);
+  const layout=await page.evaluate(()=>{
+    const pane=document.querySelector('.review-selection').getBoundingClientRect();
+    const source=document.querySelector('.source-scroll').getBoundingClientRect();
+    return {remaining:innerHeight-pane.top, height:pane.height, sourceHeight:source.height, bottom:pane.bottom};
+  });
+  expect(layout.height).toBeGreaterThan(layout.remaining-30);
+  expect(layout.sourceHeight).toBeGreaterThan(layout.height-70);
+  expect(layout.bottom).toBeLessThanOrEqual(1000);
+  await expect(page.locator('[data-code-source] script')).toHaveCount(0);
+  expect(await page.evaluate(()=>window.sourceInjected)).toBeUndefined();
+  await page.screenshot({path:path.join(repo,'.build/code-source-desktop.png'),fullPage:true});
+  await expect(page.getByText('Select a file or object',{exact:true})).toHaveCount(0);
   await page.getByRole('link',{name:'read',exact:true}).click();
+  await page.getByText('Symbol details',{exact:true}).click();
   await expect(page.locator('[data-code-documentation]')).toHaveText('Read documentation.');
   await expect(page.locator('[data-code-location]')).toContainText('src/code.ts:2:');
   await page.getByRole('link',{name:'Callers',exact:true}).click();
@@ -983,6 +1006,7 @@ test('code explorer browses an unconfigured directory and follows local evidence
   await page.getByRole('link',{name:'hidden',exact:true}).click();
   await expect(page.getByLabel('Object details')).toContainText('private');
   await page.getByRole('link',{name:'Store',exact:true}).click();
+  if(!await page.locator('.code-object-details').evaluate(element=>element.open))await page.getByText('Symbol details',{exact:true}).click();
   await page.getByRole('link',{name:'Type relationships',exact:true}).click();
   await expect(page.locator('[data-code-relation]')).toContainText(['implements']);
   await page.locator('[data-code-relation]').getByRole('link').nth(1).click();
@@ -993,6 +1017,13 @@ test('code explorer browses an unconfigured directory and follows local evidence
   await expect(page.locator('[data-code-source]')).toContainText('invalid python');
   expect(fs.existsSync(path.join(root,'seamgraph.yaml'))).toBe(false);
   expect(fs.existsSync(path.join(root,'.git'))).toBe(false);
+  const fallback=await context.newPage();
+  try {
+    await fallback.addInitScript(()=>{window.Worker=undefined;});
+    await fallback.goto(url+'/explore?file=src/code.ts');
+    await expect(fallback.locator('[data-code-source]')).toContainText('function read');
+    await expect(fallback.locator('[data-code-source] .hljs-keyword')).toHaveCount(0);
+  } finally {await fallback.close();}
   await page.setViewportSize({width:390,height:844});
   await expect.poll(()=>page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
 });
