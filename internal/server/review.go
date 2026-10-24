@@ -23,6 +23,9 @@ func (a *App) review(w http.ResponseWriter, r *http.Request) {
 		query.Set("revision", query.Get("head"))
 		query.Del("head")
 		query.Set("tools", "1")
+		if query.Get("tab") == "" {
+			query.Set("tab", "hotspots")
+		}
 		if query.Get("symbolKind") != "" {
 			query.Set("kind", query.Get("symbolKind"))
 			query.Del("symbolKind")
@@ -83,6 +86,11 @@ func (a *App) recordReview(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	query := url.Values{"tools": {"1"}, "base": {entry.BaseRef}, "revision": {entry.HeadRef}, "file": {entry.File}}
+	tab := "review"
+	if entry.Comment {
+		tab = "comments"
+	}
+	query.Set("tab", tab)
 	http.Redirect(w, r, "/explore?"+query.Encode(), http.StatusSeeOther)
 }
 

@@ -869,20 +869,31 @@ test('fulfillment review connects directories, hotspots, impact, durable finding
   await page.goto(url+reviewPath());
   await expect(page.getByRole('heading',{name:'Code explorer',exact:true})).toBeVisible();
   const sourceTab=page.getByRole('tab',{name:'Source',exact:true});
-  const reviewTab=page.getByRole('tab',{name:'Review activity and findings',exact:true});
+  const reviewTab=page.getByRole('tab',{name:'Hotspots',exact:true});
+  const historyTab=page.getByRole('tab',{name:'History',exact:true});
+  const fileReviewTab=page.getByRole('tab',{name:'File review',exact:true});
   await expect(reviewTab).toHaveAttribute('aria-selected','true');
   await expect(page.getByLabel('Code tree')).not.toBeVisible();
   await expect(page.getByLabel('Search objects')).not.toBeVisible();
   await expect(page.locator('details.workspace-review')).toHaveCount(0);
   await sourceTab.click();
   await expect(page.getByLabel('Code tree')).toBeVisible();
-  await expect(page.getByRole('tabpanel',{name:'Review activity and findings',exact:true})).not.toBeVisible();
-  await sourceTab.press('End');
-  await expect(reviewTab).toBeFocused();
-  await expect(reviewTab).toHaveAttribute('aria-selected','true');
-  await expect(page.getByLabel('Code tree')).not.toBeVisible();
+  await expect(page.getByRole('tabpanel',{name:'Hotspots',exact:true})).not.toBeVisible();
+  await sourceTab.press('ArrowRight');
+  await expect(page.getByRole('tab',{name:'Comments',exact:true})).toBeFocused();
+  await expect(page.getByRole('tabpanel',{name:'Comments',exact:true})).toBeVisible();
+  await page.getByRole('tab',{name:'Comments',exact:true}).press('End');
+  await expect(page.getByRole('tab',{name:'Exports',exact:true})).toBeFocused();
   await page.reload();
-  await expect(reviewTab).toHaveAttribute('aria-selected','true');
+  await expect(page.getByRole('tab',{name:'Exports',exact:true})).toHaveAttribute('aria-selected','true');
+  const panels=['Source','Comments','File review','Hotspots','History','Impact','Exports'];
+  await expect(page.getByRole('tab')).toHaveText(panels);
+  for(const name of panels){
+    await page.getByRole('tab',{name,exact:true}).click();
+    await expect(page.getByRole('tabpanel',{name,exact:true})).toBeVisible();
+    await expect(page.getByRole('tabpanel')).toHaveCount(1);
+  }
+  await reviewTab.click();
   const hotspot=page.locator(`[data-hotspot-path="${checkout}"]`);
   await expect(hotspot.locator('td')).toHaveText([checkout,'3','3','3','6','+0 / −0']);
   await expect(page.locator('[data-hotspot-path="unassigned/logo.bin"]')).toContainText('Unknown (binary)');
@@ -900,7 +911,7 @@ test('fulfillment review connects directories, hotspots, impact, durable finding
   await expect(page.locator('[data-code-revision]')).toContainText('Head:');
   await expect(page.getByLabel('File comparison')).toBeVisible();
   await page.screenshot({path:path.join(repo,'.build/code-review-tabs-desktop.png')});
-  await reviewTab.click();
+  await historyTab.click();
   await expect(page.locator('[data-unified-diff]')).toContainText('Place order');
   await expect(page.locator('[data-unified-diff] .source-scroll')).toHaveCount(1);
   await expect(page.locator('[data-review-commit]')).toHaveCount(3);
@@ -919,6 +930,7 @@ test('fulfillment review connects directories, hotspots, impact, durable finding
     if(!hotspot.binary){expect(hotspot.churn).toBe(expected.churn);}
   }
   const originalHead=await page.locator('[data-review-head]').textContent();
+  await fileReviewTab.click();
   await page.getByLabel('Review note',{exact:true}).fill('Check retry behavior <script>alert(1)</script>');
   await page.getByLabel('Viewed',{exact:true}).check();
   await page.getByRole('button',{name:'Save file review',exact:true}).click();
@@ -945,7 +957,7 @@ test('fulfillment review connects directories, hotspots, impact, durable finding
     try{if((await fetch(url)).ok)break;}catch{}
     await new Promise(resolve=>setTimeout(resolve,50));
   }
-  await page.goto(url+reviewPath({file:checkout}));
+  await page.goto(url+reviewPath({file:checkout,tab:'review'}));
   const mark=page.locator('[data-review-mark]');
   await expect(mark).toContainText('needs reconsideration');
   await expect(mark).toContainText(originalHead);
@@ -966,7 +978,8 @@ test('fulfillment review connects directories, hotspots, impact, durable finding
     expect(text).not.toContain('<script>');
     expect(text).not.toContain('/assets/');
   }
-  await page.goto(url+reviewPath({object:'symbol:orders:orders.Service.Place'}));
+  await page.goto(url+reviewPath({object:'symbol:orders:orders.Service.Place',tab:'impact'}));
+  await expect(page.getByRole('tabpanel',{name:'Impact',exact:true})).toBeVisible();
   await expect(page.locator('[data-diff-source="before"]')).toHaveAttribute('data-highlighted','true');
   await expect(page.locator('[data-diff-source="after"]')).toHaveAttribute('data-highlighted','true');
   await expect(page.locator('[data-review-object]')).toContainText('module:demo');
@@ -983,9 +996,20 @@ test('fulfillment review connects directories, hotspots, impact, durable finding
   await expect.poll(()=>page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
   await page.screenshot({path:path.join(repo,'.build/fulfillment-review-mobile.png'),fullPage:true});
   await reviewTab.click();
-  await expect(page.getByRole('tabpanel',{name:'Review activity and findings',exact:true})).toBeVisible();
+  await expect(page.getByRole('tabpanel',{name:'Hotspots',exact:true})).toBeVisible();
   await expect(page.getByLabel('Code tree')).not.toBeVisible();
   await expect.poll(()=>page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+  for(const name of ['Comments','File review','Hotspots','History','Impact','Exports']){
+    await page.getByRole('tab',{name,exact:true}).click();
+    await expect(page.getByRole('tabpanel',{name,exact:true})).toBeVisible();
+    await expect(page.getByRole('tabpanel')).toHaveCount(1);
+    await expect.poll(()=>page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+  }
+  await historyTab.click();
+  await page.reload();
+  await expect(historyTab).toHaveAttribute('aria-selected','true');
+  await expect(page.getByRole('tabpanel',{name:'History',exact:true})).toBeVisible();
+  await expect.poll(()=>historyTab.evaluate(tab=>{const box=tab.getBoundingClientRect(),bar=tab.parentElement.getBoundingClientRect();return {left:box.left,right:box.right,barLeft:bar.left,barRight:bar.right,inside:box.left>=bar.left && box.right<=bar.right};})).toEqual(expect.objectContaining({inside:true}));
   await page.screenshot({path:path.join(repo,'.build/code-review-tabs-mobile.png')});
 });
 
@@ -1141,7 +1165,7 @@ test('view navigation and native forms show loading feedback until the destinati
       await page.unroute(url+'/changes?**',intercept);
     }
   }
-  await page.goto(url+'/review');
+  await page.goto(url+'/review?tab=exports');
   const download=page.waitForEvent('download');
   await page.getByRole('link',{name:'Export json',exact:true}).click();
   await download;
@@ -1314,7 +1338,7 @@ test('comments anchor to diff lines and collect across files in a Markdown downl
   await expect(composer.locator('[data-comment-preview]')).toHaveText('new first');
   await composer.getByLabel('Comment',{exact:true}).fill('Check **rollback** <script>alert(1)</script>');
   await composer.getByRole('button',{name:'Save comment',exact:true}).click();
-  await expect(page.getByRole('tab',{name:'Review activity and findings',exact:true})).toHaveAttribute('aria-selected','true');
+  await expect(page.getByRole('tab',{name:'Comments',exact:true})).toHaveAttribute('aria-selected','true');
   await expect(page.locator('[data-change-comment]')).toHaveCount(1);
   await expect(page.locator('[data-change-comment]')).toContainText('Head line 1');
   await page.getByRole('tab',{name:'Source',exact:true}).click();

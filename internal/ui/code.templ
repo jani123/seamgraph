@@ -7,6 +7,7 @@ import (
 )
 
 templ CodePage(token string, browser application.CodeBrowser, filter CodeFilter, review *application.ReviewWorkspace) {
+ {{ active := codeWorkspaceTab(filter, browser.Base!="", review!=nil) }}
 	@pageLayoutWithDiagnostics("Code", token, false, codeDiagnostics(browser, filter)) {
 		<main class="review-main code-main">
 			@ComparisonControls(false, comparisonBase(browser), comparisonHead(browser), comparisonLink(browser, filter), browser.Base!="") {
@@ -16,13 +17,15 @@ templ CodePage(token string, browser application.CodeBrowser, filter CodeFilter,
 				<input type="hidden" name="q" value={ filter.Query }/>
 				<input type="hidden" name="kind" value={ filter.Kind }/>
 				<input type="hidden" name="visibility" value={ filter.Visibility }/>
-				<input type="hidden" name="tools" value={ codeToolsValue(filter.Tools && browser.Base!="") }/>
+				<input type="hidden" name="tools" value={ codeToolsValue(active!="source") }/>
+ <input type="hidden" name="tab" value={ active }/>
 			}
 			<h1>Code explorer</h1>
 			if browser.Base!="" {
 				<div class="code-tabs" role="tablist" aria-label="Code workspace">
-					<button type="button" id="code-source-tab" role="tab" aria-controls="code-source-panel" aria-selected={ fmt.Sprint(!filter.Tools) } tabindex={ codeTabIndex(!filter.Tools) }>Source</button>
-					<button type="button" id="code-review-tab" role="tab" aria-controls="code-review-panel" aria-selected={ fmt.Sprint(filter.Tools) } tabindex={ codeTabIndex(filter.Tools) }>Review activity and findings</button>
+					for _,tab:=range codeTabs(review!=nil) {
+						<button type="button" id={ "code-"+tab.ID+"-tab" } data-code-tab={ tab.ID } role="tab" aria-controls={ "code-"+tab.ID+"-panel" } aria-selected={ fmt.Sprint(active==tab.ID) } tabindex={ codeTabIndex(active==tab.ID) }>{ tab.Title }</button>
+					}
 				</div>
 			}
 
@@ -36,7 +39,7 @@ templ CodePage(token string, browser application.CodeBrowser, filter CodeFilter,
 
 			<section id="code-source-panel" class="code-source-panel" role="tabpanel" aria-label="Source" if browser.Base!="" {
 				aria-labelledby="code-source-tab"
-			} hidden?={ browser.Base!="" && filter.Tools } tabindex="0">
+			} hidden?={ active!="source" } tabindex="0">
 			<form method="get" action="/explore" class="review-controls">
 				if browser.Base!="" {
 					<input type="hidden" name="base" value={ browser.ReviewBaseRef }/>
@@ -47,28 +50,37 @@ templ CodePage(token string, browser application.CodeBrowser, filter CodeFilter,
 				}
 				<input type="hidden" name="file" value={ browser.Selected }/>
 				<input type="hidden" name="object" value={ browser.Object }/>
-				<input type="hidden" name="tools" value={ codeToolsValue(filter.Tools && browser.Base!="") }/>
+				<input type="hidden" name="tools" value={ codeToolsValue(active!="source") }/>
+ <input type="hidden" name="tab" value={ active }/>
 				@CodeFilters(browser, filter)
 				<button>Explore</button>
 			</form>
 				@CodeWorkspace(browser, filter)
 			</section>
 			if browser.Base!="" {
-				<section id="code-review-panel" class="code-review-panel" role="tabpanel" aria-labelledby="code-review-tab" hidden?={ !filter.Tools } tabindex="0">
-					@ChangeComments(browser)
-					if review!=nil {
-					<nav aria-label="Review exports" class="review-controls">
-						for _,format:=range []string{"json","markdown","html"} {
-							<a href={ templ.SafeURL(reviewLink(*review, browser.Selected, "", format, filter.CommitType)) }>{ "Export "+format }</a>
-						}
-					</nav>
-					if browser.Selected!="" {
-						@ReviewNote(token, *review)
+				@CodeTabPanel("comments", active) { @ChangeComments(browser) }
+				if review!=nil {
+					@CodeTabPanel("review", active) {
+						if browser.Selected!="" {
+ @ReviewNote(token, *review)
+ }
+						@ReviewFindings(*review, filter.CommitType)
 					}
-					@ReviewActivity(*review, filter.Query, filter.CommitType)
+					@CodeTabPanel("hotspots", active) { @ReviewHotspots(*review, filter.Query, filter.CommitType) }
+					@CodeTabPanel("history", active) { @ReviewHistory(*review, filter.CommitType) }
+					@CodeTabPanel("impact", active) { @ReviewImpact(*review, filter.CommitType) }
+					@CodeTabPanel("exports", active) {
+						<h2>Review exports</h2>
+						<nav aria-label="Review exports" class="review-controls">
+							for _,format:=range []string{"json","markdown","html"} {
+								<a href={ templ.SafeURL(reviewLink(*review, browser.Selected, "", format, filter.CommitType)) }>{ "Export "+format }</a>
+							}
+						</nav>
+						<p>Snapshots include architecture, source evidence, history and saved findings. Download the collected comments from the Comments tab.</p>
 					}
-				</section>
+				}
 			}
+
 		</main>
 		if browser.Base!="" && browser.Selected!="" {
 			@CommentComposer(token, browser)
@@ -249,4 +261,11 @@ templ CodeEntryLabel(directory bool, name string) {
 		}
 	</svg>
 	{ name }
+}
+
+
+templ CodeTabPanel(id, active string) {
+ <section id={ "code-"+id+"-panel" } class="code-review-panel" role="tabpanel" aria-labelledby={ "code-"+id+"-tab" } hidden?={ active!=id } tabindex="0">
+  { children... }
+ </section>
 }

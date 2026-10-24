@@ -49,7 +49,7 @@ func (a *App) code(w http.ResponseWriter, r *http.Request) {
 		_ = json.NewEncoder(w).Encode(browser)
 		return
 	}
-	filter := ui.CodeFilter{Query: q.Get("q"), Kind: q.Get("kind"), Visibility: q.Get("visibility"), Status: q.Get("status"), View: q.Get("view"), CommitType: q.Get("type"), ChangesOnly: q.Get("changes") == "1", Tools: q.Get("tools") == "1", ReviewIssue: reviewIssue}
+	filter := ui.CodeFilter{Tab: q.Get("tab"), Query: q.Get("q"), Kind: q.Get("kind"), Visibility: q.Get("visibility"), Status: q.Get("status"), View: q.Get("view"), CommitType: q.Get("type"), ChangesOnly: q.Get("changes") == "1", Tools: q.Get("tools") == "1", ReviewIssue: reviewIssue}
 	render(w, r, ui.CodePage(a.token, browser, filter, review))
 }
 

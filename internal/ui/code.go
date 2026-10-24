@@ -10,8 +10,8 @@ import (
 )
 
 type CodeFilter struct {
-	Query, Kind, Visibility, Status, View, CommitType, ReviewIssue string
-	ChangesOnly, Tools                                             bool
+	Query, Kind, Visibility, Status, View, CommitType, ReviewIssue, Tab string
+	ChangesOnly, Tools                                                  bool
 }
 type codeSymbolNode struct {
 	Object   application.CodeObject
@@ -35,6 +35,9 @@ func codeLink(browser application.CodeBrowser, filter CodeFilter, file, object s
 	}
 	if filter.Tools {
 		values.Set("tools", "1")
+	}
+	if filter.Tab != "" {
+		values.Set("tab", filter.Tab)
 	}
 	return "/explore?" + values.Encode()
 }
@@ -245,4 +248,31 @@ func codeTabIndex(selected bool) string {
 		return "0"
 	}
 	return "-1"
+}
+
+type workspaceTab struct{ ID, Title string }
+
+func codeTabs(review bool) []workspaceTab {
+	tabs := []workspaceTab{{"source", "Source"}, {"comments", "Comments"}}
+	if review {
+		tabs = append(tabs, []workspaceTab{{"review", "File review"}, {"hotspots", "Hotspots"}, {"history", "History"}, {"impact", "Impact"}, {"exports", "Exports"}}...)
+	}
+	return tabs
+}
+func codeWorkspaceTab(filter CodeFilter, compared, review bool) string {
+	if !compared {
+		return "source"
+	}
+	for _, tab := range codeTabs(review) {
+		if filter.Tab == tab.ID {
+			return tab.ID
+		}
+	}
+	if filter.Tab == "" && filter.Tools {
+		if review {
+			return "hotspots"
+		}
+		return "comments"
+	}
+	return "source"
 }

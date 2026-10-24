@@ -6,29 +6,14 @@ import (
 	"strings"
 )
 
-templ ReviewActivity(r application.ReviewWorkspace, query, kind string) {
-	if r.Object != nil {
-		<section data-review-object>
-			<h3>Observed architecture references</h3>
-			for _,rel := range r.References {
-				<p>{ rel.Kind } · { rel.FromID } → { rel.ToID }</p>
-			}
-			<h3>Possible transitive module impact</h3>
-			<p>{ strings.Join(r.PossibleImpact,", ") }</p>
-		</section>
-	}
+templ ReviewHotspots(r application.ReviewWorkspace, query, kind string) {
 	<section>
 		<h2>Branch hotspots</h2>
 		<p>{ r.Activity.Policy }. Frequency counts commits; churn counts additions plus deletions, including reverted work. Paths are not followed across renames. Binary line statistics are unknown. Unassigned, generated and vendor paths remain included. Table sorts by frequency, then path.</p>
 		if r.Activity.Unavailable != "" {
 			<p role="status">{ r.Activity.Unavailable }</p>
 		}
-		<nav aria-label="Commit type filters" class="review-controls">
-			<a href={ templ.SafeURL(reviewLink(r, r.Selected, "", "", "")) }>All commit types</a>
-			for _,t := range reviewTypes(r) {
-				<a href={ templ.SafeURL(reviewLink(r, r.Selected, "", "", t)) }>{ fmt.Sprintf("%s (%d commits)",t,reviewTypeCount(r,t)) }</a>
-			}
-		</nav>
+		@ReviewCommitFilters(r, kind)
 		<p>Commit type filtering selects hotspot paths touched by those commits; each row retains its full-range totals.</p>
 		<div class="review-table">
 			<table>
@@ -37,7 +22,7 @@ templ ReviewActivity(r application.ReviewWorkspace, query, kind string) {
 					for _,h := range r.Hotspots {
 						if hotspotVisible(r,h,kind,query) {
 							<tr data-hotspot-path={ h.Path }>
-								<td><a href={ templ.SafeURL(reviewLink(r, h.Path, "", "", kind)) }>{ h.Path }</a></td>
+								<td><a data-code-tab-link="source" href={ templ.SafeURL(reviewLink(r, h.Path, "", "", kind)) }>{ h.Path }</a></td>
 								<td>{ fmt.Sprint(h.Touches) }</td>
 								if h.Binary {
 									<td colspan="3">Unknown (binary)</td>
@@ -60,6 +45,10 @@ templ ReviewActivity(r application.ReviewWorkspace, query, kind string) {
 			</table>
 		</div>
 	</section>
+}
+
+templ ReviewHistory(r application.ReviewWorkspace, kind string) {
+ @ReviewCommitFilters(r, kind)
 	<section aria-label="Touching commits">
 		<h2>Commits</h2>
 		<p>Original messages are preserved. Merge commits are excluded; unmatched subjects stay unmatched. Breaking markers and footers are shown explicitly.</p>
@@ -75,7 +64,7 @@ templ ReviewActivity(r application.ReviewWorkspace, query, kind string) {
 				<ul>
 					for path,stats := range c.Files {
 						<li>
-							<a href={ templ.SafeURL(reviewLink(r, path, "", "", kind)) }>{ path }</a>
+							<a data-code-tab-link="source" href={ templ.SafeURL(reviewLink(r, path, "", "", kind)) }>{ path }</a>
 							if stats.Binary {
 								Unknown (binary)
 							} else {
@@ -98,6 +87,9 @@ templ ReviewActivity(r application.ReviewWorkspace, query, kind string) {
 			}
 		}
 	</section>
+}
+
+templ ReviewFindings(r application.ReviewWorkspace, kind string) {
 	<section aria-label="Review findings">
 		<h2>Review findings and viewed files</h2>
 		for _,mark := range r.Marks {
@@ -107,7 +99,7 @@ templ ReviewActivity(r application.ReviewWorkspace, query, kind string) {
 					if mark.Status == "anchor unavailable" {
 						{ mark.Entry.File }
 					} else {
-						<a href={ templ.SafeURL(reviewLink(r, mark.Entry.File, "", "", kind)) }>{ mark.Entry.File }</a>
+						<a data-code-tab-link="source" href={ templ.SafeURL(reviewLink(r, mark.Entry.File, "", "", kind)) }>{ mark.Entry.File }</a>
 					}
 				</h3>
 				<p>{ mark.Status } · viewed: { fmt.Sprint(mark.Entry.Viewed) } · resolved: { fmt.Sprint(mark.Entry.Resolved) }</p>
@@ -116,10 +108,23 @@ templ ReviewActivity(r application.ReviewWorkspace, query, kind string) {
  }
 		}
 	</section>
+}
+
+templ ReviewImpact(r application.ReviewWorkspace, kind string) {
+	if r.Object != nil {
+		<section data-review-object>
+			<h3>Observed architecture references</h3>
+			for _,rel := range r.References {
+				<p>{ rel.Kind } · { rel.FromID } → { rel.ToID }</p>
+			}
+			<h3>Possible transitive module impact</h3>
+			<p>{ strings.Join(r.PossibleImpact,", ") }</p>
+		</section>
+	}
 	<section>
 		<h2>Architecture impact and contract changes</h2>
 		for _,id := range reviewSubjects(r) {
-			<p><a href={ templ.SafeURL(reviewLink(r, r.Selected, id, "", kind)) }>{ id }</a></p>
+			<p><a data-code-tab-link="source" href={ templ.SafeURL(reviewLink(r, r.Selected, id, "", kind)) }>{ id }</a></p>
 		}
 		<details><summary>Complete architecture comparison and source evidence</summary><pre>{ comparisonJSON(r.Comparison) }</pre></details>
 	</section>
@@ -148,4 +153,14 @@ templ ReviewSnapshot(r application.ReviewWorkspace) {
 			<pre>{ application.ReviewJSON(r) }</pre>
 		</body>
 	</html>
+}
+
+
+templ ReviewCommitFilters(r application.ReviewWorkspace, kind string) {
+		<nav aria-label="Commit type filters" class="review-controls">
+			<a href={ templ.SafeURL(reviewLink(r, r.Selected, "", "", "")) }>All commit types</a>
+			for _,t := range reviewTypes(r) {
+				<a href={ templ.SafeURL(reviewLink(r, r.Selected, "", "", t)) }>{ fmt.Sprintf("%s (%d commits)",t,reviewTypeCount(r,t)) }</a>
+			}
+		</nav>
 }

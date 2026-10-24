@@ -136,8 +136,8 @@
  .code-main .review-selection { height: 65vh; flex: none; }
 }
 
-.code-tabs { flex: none; display: flex; gap: .5rem; border-bottom: 1px solid #334155; padding-bottom: .5rem; }
-.code-tabs [role=tab] { border: 1px solid transparent; }
+.code-tabs { flex: none; display: flex; gap: .5rem; overflow-x: auto; border-bottom: 1px solid #334155; padding-bottom: .5rem; }
+.code-tabs [role=tab] { flex: none; white-space: nowrap; border: 1px solid transparent; }
 .code-tabs [aria-selected=true] { color: #6ee7b7; border-color: #34d399; background: #123430; }
 .code-source-panel { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: .5rem; }
 .code-source-panel > form { flex: none; }
