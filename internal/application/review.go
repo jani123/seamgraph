@@ -21,6 +21,10 @@ type ReviewFile struct {
 	AfterDigest  string `json:"afterDigest,omitempty"`
 }
 type ReviewEntry struct {
+	Comment    bool   `json:"comment,omitempty"`
+	CommentID  string `json:"commentId,omitempty"`
+	Side       string `json:"side,omitempty"`
+	Line       int    `json:"line,omitempty"`
 	BaseRef    string `json:"baseRef"`
 	HeadRef    string `json:"headRef"`
 	Base       string `json:"base"`
@@ -283,14 +287,14 @@ func reviewMarks(r ReviewWorkspace, entries []ReviewEntry) []ReviewMark {
 	latest := map[string]ReviewEntry{}
 	for _, e := range entries {
 		if e.BaseRef == r.BaseRef && e.HeadRef == r.HeadRef {
-			latest[e.File] = e
+			latest[e.File+"\x00"+e.CommentID] = e
 		}
 	}
 	result := []ReviewMark{}
-	for file, e := range latest {
+	for _, e := range latest {
 		status := "anchor unavailable"
 		for _, f := range r.Files {
-			if f.Path == file {
+			if f.Path == e.File {
 				status = "current"
 				if e.Digest != reviewDigest(f) {
 					status = "needs reconsideration"
@@ -300,11 +304,16 @@ func reviewMarks(r ReviewWorkspace, entries []ReviewEntry) []ReviewMark {
 		}
 		result = append(result, ReviewMark{Entry: e, Status: status})
 	}
-	slices.SortFunc(result, func(a, b ReviewMark) int { return strings.Compare(a.Entry.File, b.Entry.File) })
+	slices.SortFunc(result, func(a, b ReviewMark) int {
+		return strings.Compare(a.Entry.File+"\x00"+a.Entry.RecordedAt+"\x00"+a.Entry.CommentID, b.Entry.File+"\x00"+b.Entry.RecordedAt+"\x00"+b.Entry.CommentID)
+	})
 	return result
 }
 
 func (s *Service) RecordReview(ctx context.Context, entry ReviewEntry) error {
+	if entry.Comment {
+		return s.recordComment(ctx, entry)
+	}
 	if !ir.ValidPath(entry.File) {
 		return fmt.Errorf("invalid file review anchor")
 	}

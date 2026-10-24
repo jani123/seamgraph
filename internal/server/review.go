@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strconv"
 
 	"seamgraph/internal/application"
 	"seamgraph/internal/ui"
@@ -67,10 +68,37 @@ func (a *App) recordReview(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	entry := application.ReviewEntry{BaseRef: r.Form.Get("baseRef"), HeadRef: r.Form.Get("headRef"), Base: r.Form.Get("base"), Head: r.Form.Get("head"), File: r.Form.Get("file"), Note: r.Form.Get("note"), Viewed: r.Form.Get("viewed") == "on", Resolved: r.Form.Get("resolved") == "on"}
+	entry.Comment = r.Form.Get("comment") == "1"
+	entry.Side = r.Form.Get("side")
+	if value := r.Form.Get("line"); value != "" {
+		line, err := strconv.Atoi(value)
+		if err != nil {
+			http.Error(w, "invalid comment line", http.StatusBadRequest)
+			return
+		}
+		entry.Line = line
+	}
 	if err := a.backend.RecordReview(r.Context(), entry); err != nil {
 		http.Error(w, err.Error(), http.StatusConflict)
 		return
 	}
 	query := url.Values{"tools": {"1"}, "base": {entry.BaseRef}, "revision": {entry.HeadRef}, "file": {entry.File}}
 	http.Redirect(w, r, "/explore?"+query.Encode(), http.StatusSeeOther)
+}
+
+func (a *App) commentExport(w http.ResponseWriter, r *http.Request) {
+	head, base := comparisonRefs(r)
+	if base == "" {
+		http.Error(w, "select a comparison before exporting comments", http.StatusBadRequest)
+		return
+	}
+	code, err := a.backend.Code(r.Context(), head, base, "", "")
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	w.Header().Set("Content-Type", "text/markdown; charset=utf-8")
+	w.Header().Set("Content-Disposition", `attachment; filename="review-comments.md"`)
+	// #nosec G705 -- This nosniff text/markdown attachment is not served as HTML. Comments are HTML-escaped; source snippets use fences longer than any embedded backtick run.
+	_, _ = w.Write([]byte(application.CommentsMarkdown(code, base, head)))
 }

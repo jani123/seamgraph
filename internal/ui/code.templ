@@ -16,10 +16,10 @@ templ CodePage(token string, browser application.CodeBrowser, filter CodeFilter,
 				<input type="hidden" name="q" value={ filter.Query }/>
 				<input type="hidden" name="kind" value={ filter.Kind }/>
 				<input type="hidden" name="visibility" value={ filter.Visibility }/>
-				<input type="hidden" name="tools" value={ codeToolsValue(filter.Tools && review!=nil) }/>
+				<input type="hidden" name="tools" value={ codeToolsValue(filter.Tools && browser.Base!="") }/>
 			}
 			<h1>Code explorer</h1>
-			if review!=nil {
+			if browser.Base!="" {
 				<div class="code-tabs" role="tablist" aria-label="Code workspace">
 					<button type="button" id="code-source-tab" role="tab" aria-controls="code-source-panel" aria-selected={ fmt.Sprint(!filter.Tools) } tabindex={ codeTabIndex(!filter.Tools) }>Source</button>
 					<button type="button" id="code-review-tab" role="tab" aria-controls="code-review-panel" aria-selected={ fmt.Sprint(filter.Tools) } tabindex={ codeTabIndex(filter.Tools) }>Review activity and findings</button>
@@ -34,9 +34,9 @@ templ CodePage(token string, browser application.CodeBrowser, filter CodeFilter,
 				}
 			</p>
 
-			<section id="code-source-panel" class="code-source-panel" role="tabpanel" aria-label="Source" if review!=nil {
+			<section id="code-source-panel" class="code-source-panel" role="tabpanel" aria-label="Source" if browser.Base!="" {
 				aria-labelledby="code-source-tab"
-			} hidden?={ review!=nil && filter.Tools } tabindex="0">
+			} hidden?={ browser.Base!="" && filter.Tools } tabindex="0">
 			<form method="get" action="/explore" class="review-controls">
 				if browser.Base!="" {
 					<input type="hidden" name="base" value={ browser.ReviewBaseRef }/>
@@ -47,14 +47,16 @@ templ CodePage(token string, browser application.CodeBrowser, filter CodeFilter,
 				}
 				<input type="hidden" name="file" value={ browser.Selected }/>
 				<input type="hidden" name="object" value={ browser.Object }/>
-				<input type="hidden" name="tools" value={ codeToolsValue(filter.Tools && review!=nil) }/>
+				<input type="hidden" name="tools" value={ codeToolsValue(filter.Tools && browser.Base!="") }/>
 				@CodeFilters(browser, filter)
 				<button>Explore</button>
 			</form>
 				@CodeWorkspace(browser, filter)
 			</section>
-			if review!=nil {
+			if browser.Base!="" {
 				<section id="code-review-panel" class="code-review-panel" role="tabpanel" aria-labelledby="code-review-tab" hidden?={ !filter.Tools } tabindex="0">
+					@ChangeComments(browser)
+					if review!=nil {
 					<nav aria-label="Review exports" class="review-controls">
 						for _,format:=range []string{"json","markdown","html"} {
 							<a href={ templ.SafeURL(reviewLink(*review, browser.Selected, "", format, filter.CommitType)) }>{ "Export "+format }</a>
@@ -64,9 +66,13 @@ templ CodePage(token string, browser application.CodeBrowser, filter CodeFilter,
 						@ReviewNote(token, *review)
 					}
 					@ReviewActivity(*review, filter.Query, filter.CommitType)
+					}
 				</section>
 			}
 		</main>
+		if browser.Base!="" && browser.Selected!="" {
+			@CommentComposer(token, browser)
+		}
 	}
 }
 
@@ -108,7 +114,11 @@ templ CodeWorkspace(browser application.CodeBrowser, filter CodeFilter) {
 		</aside>
 		<section class="review-selection" aria-label="Object details">
 			if browser.Selected!="" {
-				<div class="code-source-header"><span title={ browser.Selected }>{ browser.Selected }</span></div>
+				<div class="code-source-header"><span title={ browser.Selected }>{ browser.Selected }</span>
+ if browser.Base!="" {
+ <button type="button" data-comment-open>Add comment</button>
+ }
+</div>
 			}
 			if selectedCode(browser)!=nil {
 				<details class="code-object-details" open?={ filter.View!="" }>

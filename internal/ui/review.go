@@ -42,7 +42,7 @@ func reviewLink(r application.ReviewWorkspace, file, object, export, kind string
 }
 func reviewMark(r application.ReviewWorkspace, file string) application.ReviewMark {
 	for _, mark := range r.Marks {
-		if mark.Entry.File == file {
+		if mark.Entry.File == file && !mark.Entry.Comment {
 			return mark
 		}
 	}

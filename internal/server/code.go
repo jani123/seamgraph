@@ -9,6 +9,10 @@ import (
 
 func (a *App) code(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
+	if q.Get("export") == "comments" {
+		a.commentExport(w, r)
+		return
+	}
 	if q.Get("export") != "" {
 		q.Set("head", q.Get("revision"))
 		r.URL.RawQuery = q.Encode()
@@ -33,6 +37,7 @@ func (a *App) code(w http.ResponseWriter, r *http.Request) {
 			review.PathFilter = q.Get("q")
 			review.TypeFilter = q.Get("type")
 			browser = workspace.Code
+			browser.Marks = workspace.Marks
 		} else {
 			reviewIssue = reviewErr.Error()
 		}

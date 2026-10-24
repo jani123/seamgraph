@@ -1,6 +1,9 @@
 package ui
 
-import "seamgraph/internal/application"
+import (
+ "seamgraph/internal/application"
+ "fmt"
+)
 
 templ UnifiedDiff(browser application.CodeBrowser, changes bool) {
 	{{ view := sourceDiff(browser.Before, browser.After, changes) }}
@@ -15,8 +18,12 @@ templ UnifiedDiff(browser application.CodeBrowser, changes bool) {
 			<div class="diff-document">
 				for _,row:=range view.Rows {
 					<div class={ "diff-row diff-" + row.Kind } data-diff-kind={ row.Kind }>
-						<span class="diff-line-number" aria-label="Base line">{ diffNumber(row.Old) }</span>
-						<span class="diff-line-number" aria-label="Head line">{ diffNumber(row.New) }</span>
+						if row.Old>0 {
+							<button type="button" class="diff-line-number" data-comment-side="before" data-comment-line={ fmt.Sprint(row.Old) } aria-label={ fmt.Sprintf("Comment on base line %d",row.Old) } title="Comment on this base line">{ diffNumber(row.Old) }</button>
+						} else { <span class="diff-line-number"></span> }
+						if row.New>0 {
+							<button type="button" class="diff-line-number" data-comment-side="after" data-comment-line={ fmt.Sprint(row.New) } aria-label={ fmt.Sprintf("Comment on head line %d",row.New) } title="Comment on this head line">{ diffNumber(row.New) }</button>
+						} else { <span class="diff-line-number"></span> }
 						<span class="diff-mark" aria-hidden="true">{ row.Mark }</span>
 						<code data-diff-code data-diff-side={ diffSide(row) } data-diff-line={ diffSourceLine(row) }>{ row.Text }</code>
 					</div>

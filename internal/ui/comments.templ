@@ -1,0 +1,43 @@
+package ui
+
+import (
+ "fmt"
+ "seamgraph/internal/application"
+)
+
+templ ChangeComments(browser application.CodeBrowser) {
+ {{ comments := changeComments(browser) }}
+	<section aria-label="Change comments" class="change-comments">
+		<div class="comments-heading"><h2>Comments</h2><a href={ templ.SafeURL(commentExportLink(browser)) }>Download comments (.md)</a></div>
+		if len(comments)==0 {
+			<p>No comments yet. Add a comment from the source view or select a line number in the diff.</p>
+		}
+		for _,mark:=range comments {
+				<article id={ "comment-"+mark.Entry.CommentID } data-change-comment>
+					<h3>{ mark.Entry.File }
+						if mark.Entry.Line>0 {
+ <span>{ fmt.Sprintf(" · %s line %d",commentSideLabel(mark.Entry.Side),mark.Entry.Line) }</span>
+ }
+					</h3>
+					<p>{ mark.Status } · { mark.Entry.RecordedAt }</p>
+					<pre class="comment-text">{ mark.Entry.Note }</pre>
+					<details><summary>Original source context</summary><p>{ mark.Entry.Base } → { mark.Entry.Head }</p><pre>{ mark.Entry.Context }</pre></details>
+				</article>
+		}
+	</section>
+}
+
+templ CommentComposer(token string, browser application.CodeBrowser) {
+	<dialog id="comment-composer" class="diagnostics-console comment-composer" aria-labelledby="comment-title">
+		<header><h2 id="comment-title">Add comment</h2><button type="button" data-comment-close aria-label="Close comment">Close</button></header>
+		<form method="post" action="/review" class="comment-form">
+			<input type="hidden" name="token" value={ token }/><input type="hidden" name="comment" value="1"/>
+			<input type="hidden" name="baseRef" value={ browser.ReviewBaseRef }/><input type="hidden" name="headRef" value={ browser.ReviewHeadRef }/>
+			<input type="hidden" name="base" value={ browser.Base }/><input type="hidden" name="head" value={ browser.Revision }/>
+			<input type="hidden" name="file" value={ browser.Selected }/><input type="hidden" name="side"/><input type="hidden" name="line"/>
+			<p data-comment-anchor>{ browser.Selected }</p><pre data-comment-preview hidden></pre>
+			<label for="comment-text">Comment</label><textarea id="comment-text" name="note" required maxlength="8000" rows="5" autofocus></textarea>
+			<button>Save comment</button>
+		</form>
+	</dialog>
+}

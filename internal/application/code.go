@@ -18,6 +18,7 @@ type CodeObject struct {
 	Seams  []string  `json:"seams"`
 }
 type CodeBrowser struct {
+	Marks                []ReviewMark    `json:"marks,omitempty"`
 	ReviewBaseRef        string          `json:"reviewBaseRef,omitempty"`
 	ReviewHeadRef        string          `json:"reviewHeadRef,omitempty"`
 	ContentRevision      string          `json:"contentRevision"`
@@ -98,7 +99,11 @@ func (s *Service) Code(ctx context.Context, revision, base, file, object string)
 			}
 		}
 	}
-	return s.codeContent(ctx, root, files, base, result)
+	result, err = s.codeContent(ctx, root, files, base, result)
+	if err != nil {
+		return result, err
+	}
+	return s.codeComments(result, base, revision)
 }
 func (s *Service) codeContent(ctx context.Context, root string, files map[string]string, base string, result CodeBrowser) (CodeBrowser, error) {
 	removed := false

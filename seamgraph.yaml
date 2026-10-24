@@ -27,7 +27,7 @@ modules:
       rules:
         symbols: [internal/application.Service.Propose, internal/application.Service.Cancel, internal/application.Service.Confirm]
       views:
-        symbols: [Model, Result, Proposal, Workspace, Inspection, SourceError, ErrUnknownProposal, ModuleChange, FileChange, ReviewFile, ReviewEntry, ReviewMark, ReviewContent, Hotspot, ReviewWorkspace, ReviewJSON, CodeObject, CodeBrowser]
+        symbols: [Model, Result, Proposal, Workspace, Inspection, SourceError, ErrUnknownProposal, ModuleChange, FileChange, ReviewFile, ReviewEntry, ReviewMark, ReviewContent, Hotspot, ReviewWorkspace, ReviewJSON, CommentsMarkdown, CodeObject, CodeBrowser]
       ports:
         symbols: [Ports, RuleEdit, internal/application.Extract, EvidenceRun]
       construction:

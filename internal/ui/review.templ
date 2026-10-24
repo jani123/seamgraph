@@ -101,6 +101,7 @@ templ ReviewActivity(r application.ReviewWorkspace, query, kind string) {
 	<section aria-label="Review findings">
 		<h2>Review findings and viewed files</h2>
 		for _,mark := range r.Marks {
+ if !mark.Entry.Comment {
 			<article data-review-mark={ mark.Entry.File }>
 				<h3>
 					if mark.Status == "anchor unavailable" {
@@ -112,6 +113,7 @@ templ ReviewActivity(r application.ReviewWorkspace, query, kind string) {
 				<p>{ mark.Status } · viewed: { fmt.Sprint(mark.Entry.Viewed) } · resolved: { fmt.Sprint(mark.Entry.Resolved) }</p>
 				<pre>{ mark.Entry.Note }</pre><details><summary>Original anchor</summary><p>{ mark.Entry.Base } to { mark.Entry.Head } · { mark.Entry.RecordedAt }</p><pre>{ mark.Entry.Context }</pre></details>
 			</article>
+ }
 		}
 	</section>
 	<section>

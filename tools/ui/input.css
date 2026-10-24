@@ -181,3 +181,16 @@
 .diagnostics-body pre { font: .8125rem/1.6 ui-monospace, monospace; white-space: pre-wrap; overflow-wrap: anywhere; margin: .5rem 0; }
 .diagnostics-console footer { padding: .75rem 1rem; border-top: 1px solid #334155; color: #94a3b8; font-size: .75rem; }
 .diagnostics-console footer p { margin-top: .5rem; }
+
+.code-source-header { display: flex; align-items: center; justify-content: space-between; gap: .75rem; }
+.code-source-header > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.code-source-header button { flex: none; font-size: .75rem; }
+.code-main button.diff-line-number { padding: 0 .5rem; background: transparent; border-radius: 0; font: inherit; color: #94a3b8; }
+.code-main button.diff-line-number:hover, .code-main button.diff-line-number:focus-visible { color: #6ee7b7; background: #164e63; text-decoration: underline; }
+.comments-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .75rem; }
+.review-main .comment-text { white-space: pre-wrap; overflow-wrap: anywhere; }
+.comment-composer .comment-form { padding: 1rem; display: flex; flex-direction: column; gap: .75rem; min-height: 0; overflow: auto; }
+.comment-form textarea { background: #020617; color: #e2e8f0; border: 1px solid #475569; border-radius: .375rem; padding: .75rem; width: 100%; resize: vertical; }
+.comment-form pre { white-space: pre-wrap; overflow-wrap: anywhere; font: .8125rem/1.5 ui-monospace, monospace; }
+.comment-form button { align-self: flex-start; }
+.comment-composer[open] { display: flex; flex-direction: column; }

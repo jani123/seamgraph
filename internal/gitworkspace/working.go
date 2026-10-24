@@ -31,6 +31,12 @@ func workingTree(ctx context.Context, root string) (string, string, func(), erro
 	}
 	paths := map[string]bool{}
 	for _, p := range bytes.Split(listing, []byte{0}) {
+		// Review state is application metadata: saving a comment must not move
+		// the source snapshot against which that comment was recorded.
+		switch string(p) {
+		case ".seamgraph/reviews.jsonl", ".seamgraph/reviews.lock":
+			continue
+		}
 		if len(p) > 0 {
 			paths[string(p)] = true
 		}
