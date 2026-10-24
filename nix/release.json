@@ -1,18 +1,18 @@
 {
   "repository": "jani123/seamgraph",
-  "version": "v2026.10.2",
+  "version": "v2026.10.3",
   "assets": {
     "x86_64-linux": {
       "name": "seamgraph_linux_amd64.tar.gz",
-      "sha256": "49730cb9cce54bacdd94cd7e8ea060998622bb834b66eceec8028bb5bc95117b"
+      "sha256": "bbd6f63af1828837c9480e1d710e9d4799fbfbc363317b203e7bce3edb49026e"
     },
     "aarch64-linux": {
       "name": "seamgraph_linux_arm64.tar.gz",
-      "sha256": "65c9725a1a897e3fa26c875e7b19ec059aca94cc77b82e9e5fb04006ec3c845e"
+      "sha256": "61ae50ec3f10933e2a6bcf922c527176e65fa141372a87112ef98026d157efe5"
     },
     "aarch64-darwin": {
       "name": "seamgraph_darwin_arm64.tar.gz",
-      "sha256": "8adf557c1af1f6cbcdedb30369932a1848b9bc5d1a475fc906854caf03b9902f"
+      "sha256": "9177a59f966a1243441f9e79c8edad055300c1430ea7f00be6992bb9f78df5fe"
     }
   }
 }
