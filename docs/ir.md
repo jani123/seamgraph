@@ -64,3 +64,22 @@ shared consumers without language-specific branching.
 Only `imports`, `uses` and `calls` are consumer relations. `implements` is a
 structural type fact and `exposes` is a declaration fact. Neither creates an
 observed consumer dependency by itself. Core helpers centralize this distinction.
+
+
+Code exploration adds optional v1 declaration metadata on symbols: `definition`
+contains a name, canonical parent ID, source location, available documentation and
+a declaration/body digest. Parent links must resolve within the same owner and
+cannot form cycles. These additive fields remain optional for existing v1
+producers and fixtures; strict older readers must be upgraded to consume snapshots
+that contain them. Architecture projections and architectural symbol comparison
+exclude declaration metadata, so body/docs/position changes do not become contract
+signature changes.
+
+Reference evidence may include a validated symbol `sourceId` and `kind`
+(`reference` or `call`). The enclosing declaration and statically recognized call
+syntax support focused exploration, including uses within the same module.
+They do not establish runtime reachability. Module-based architecture endpoints
+remain intact; the code browser projects source identities from that evidence.
+Unconfigured indexing uses a synthetic `unassigned` owner, then overlays any
+declared ownership using the same canonical symbol paths. Missing ownership is
+shown explicitly and never creates implicit seams.

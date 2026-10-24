@@ -82,20 +82,6 @@ func reviewTypeCount(r application.ReviewWorkspace, kind string) int {
 	}
 	return n
 }
-func reviewSymbols(r application.ReviewWorkspace) []ir.Symbol {
-	symbols := map[string]ir.Symbol{}
-	for _, graph := range []ir.Snapshot{r.Comparison.Before, r.Comparison.After} {
-		for _, s := range graph.Symbols {
-			symbols[s.ID] = s
-		}
-	}
-	result := []ir.Symbol{}
-	for _, symbol := range symbols {
-		result = append(result, symbol)
-	}
-	slices.SortFunc(result, func(a, b ir.Symbol) int { return strings.Compare(a.ID, b.ID) })
-	return result
-}
 func reviewSubjects(r application.ReviewWorkspace) []string {
 	ids := []string{}
 	for _, c := range r.Comparison.Diff.Changes {

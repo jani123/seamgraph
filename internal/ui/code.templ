@@ -1,0 +1,163 @@
+package ui
+
+import (
+	"fmt"
+	"seamgraph/internal/application"
+	"strings"
+)
+
+templ CodePage(browser application.CodeBrowser, filter CodeFilter) {
+	@pageLayout("Code", "", false) {
+		<main class="review-main">
+			<h1>Code explorer</h1>
+			<form method="get" action="/explore" class="review-controls">
+				<label>Revision (empty for working directory)<input name="revision" value={ codeRevision(browser) }/></label>
+				<label>Compare base (optional)<input name="base" value={ codeRef(browser.Base) }/></label>
+				@CodeFilters(browser, filter)
+				<button>Explore</button>
+			</form>
+			<p data-code-revision>
+				Source: { browser.Revision }
+				if browser.Base!="" {
+					<span>· Compared with { browser.Base }</span>
+				}
+			</p>
+			<p>No architecture configuration is required or created. Module and seam labels show declared context only. Build/dependency caches and symlinks are excluded. Test sources and build constraints follow each adapter's supported analysis scope.</p>
+			for _,issue:=range browser.Issues {
+				<p role="alert">{ issue }</p>
+			}
+			<details>
+				<summary>Analysis diagnostics and limits</summary>
+				<p>Callers are statically attributed call sites, not whole-program runtime invocation. Type relationships describe structural conformance, not interface dispatch. Missing references and dynamic behavior remain uncertain. Go generic call expressions may appear as references; Python instance attributes and dynamic calls are not fully resolved. Definitions are adapter facts; files stay browseable when analysis fails.</p>
+				for _,d:=range browser.Diagnostics {
+					<p>{ d.Severity } · { d.Code } · { d.Message }</p>
+				}
+			</details>
+			@CodeWorkspace(browser, filter)
+		</main>
+	}
+}
+
+templ CodeFilters(browser application.CodeBrowser, filter CodeFilter) {
+	<label>Search objects<input name="q" value={ filter.Query }/></label>
+	<label>
+		Symbol kind
+		<select name={ codeKindField(browser) } aria-label="Symbol kind">
+			<option value="">All kinds</option>
+			for _,kind:=range codeKinds(browser) {
+				<option value={ kind } selected?={ kind==filter.Kind }>{ kind }</option>
+			}
+		</select>
+	</label>
+	<label>
+		Visibility
+		<select name="visibility" aria-label="Visibility">
+			<option value="">All visibility</option>
+			for _,v:=range []string{"public","private"} {
+				<option value={ v } selected?={ v==filter.Visibility }>{ v }</option>
+			}
+		</select>
+	</label>
+	<label>
+		Changed status
+		<select name="status" aria-label="Changed status">
+			<option value="">All statuses</option>
+			for _,v:=range []string{"added","modified","removed","unchanged"} {
+				<option value={ v } selected?={ v==filter.Status }>{ v }</option>
+			}
+		</select>
+	</label>
+}
+
+templ CodeWorkspace(browser application.CodeBrowser, filter CodeFilter) {
+	<div class="review-workspace">
+		<aside class="review-tree" aria-label="Code tree">
+			@CodeFiles(browser, filter, codeTree(browser, filter), codeTree(browser, filter).Files)
+		</aside>
+		<section class="review-selection" aria-label="Object details">
+			if object:=selectedCode(browser);object!=nil {
+				<h2>{ object.Symbol.ID }</h2>
+				<p>{ object.Symbol.Kind } · { object.Symbol.Visibility } · { object.Status }</p>
+				<pre data-code-signature>{ object.Symbol.DisplaySignature }</pre>
+				if definition:=object.Symbol.Definition;definition!=nil {
+					<p data-code-location>{ fmt.Sprintf("%s:%d:%d",definition.Location.File,definition.Location.StartLine,definition.Location.StartColumn) } · { definition.Location.Confidence }</p>
+					if definition.Documentation!="" {
+						<pre data-code-documentation>{ definition.Documentation }</pre>
+					}
+				}
+				<p>
+					Module:
+					if object.Symbol.ModuleID=="module:unassigned" {
+						Unassigned (no declared owner)
+					} else {
+						{ object.Symbol.ModuleID }
+					}
+				</p>
+				<p>Declared seams: { strings.Join(object.Seams,", ") }</p>
+				@CodeRelationships(browser, filter)
+			} else {
+				<h2>Select a file or object</h2>
+				<p>Expand a file for top-level declarations, then expand types for methods and members.</p>
+			}
+			if browser.Selected!="" && browser.ReviewHeadRef=="" {
+				<h3>{ browser.Selected }</h3>
+				<p>Source revision: { browser.ContentRevision }</p>
+				<p>{ browser.Content.Unavailable }</p>
+				<pre data-code-source>{ browser.Content.Text }</pre>
+			}
+		</section>
+	</div>
+}
+
+templ CodeFiles(browser application.CodeBrowser, filter CodeFilter, tree codeTreeView, nodes []*reviewNode) {
+	<ul>
+		for _,node:=range nodes {
+			<li>
+				if len(node.Children)>0 {
+					<details open?={ (filter.Query!="" || filter.Kind!="" || filter.Visibility!="" || filter.Status!="") || strings.HasPrefix(browser.Selected,node.Path+"/") }>
+						<summary>{ node.Name }</summary>@CodeFiles(browser, filter, tree, node.Children)
+					</details>
+				} else {
+					<details open?={ browser.Selected==node.Path || filter.Query!="" }>
+						<summary><a href={ templ.SafeURL(codeLink(browser, filter, node.Path, "")) }>{ node.Name }</a> · { node.Status }</summary>@CodeSymbols(browser, filter, tree.Symbols[node.Path])
+					</details>
+				}
+			</li>
+		}
+	</ul>
+}
+
+templ CodeSymbols(browser application.CodeBrowser, filter CodeFilter, nodes []*codeSymbolNode) {
+	<ul>
+		for _,node:=range nodes {
+			<li data-code-symbol={ node.Object.Symbol.ID }>
+				if len(node.Children)>0 {
+					<details open?={ filter.Query!="" || codeAncestor(nodes,browser.Object,node.Object.Symbol.ID) }>
+						<summary><a href={ templ.SafeURL(codeLink(browser, filter, "", node.Object.Symbol.ID)) }>{ codeName(node.Object) }</a> · { node.Object.Symbol.Kind } · { node.Object.Status }</summary>@CodeSymbols(browser, filter, node.Children)
+					</details>
+				} else {
+					<a href={ templ.SafeURL(codeLink(browser, filter, "", node.Object.Symbol.ID)) }>{ codeName(node.Object) }</a><span>· { node.Object.Symbol.Kind } · { node.Object.Status }</span>
+				}
+			</li>
+		}
+	</ul>
+}
+
+templ CodeRelationships(browser application.CodeBrowser, filter CodeFilter) {
+	<h3>Focused relationships</h3>
+	<p>Consumers and callers show observed static reference sites. Type relationships show inferred structural conformance and do not prove runtime dispatch.</p>
+	<nav aria-label="Relationship views" class="review-controls">
+		for _,v:=range []struct{value,label string}{{"consumers","Consumers"},{"callers","Callers"},{"outgoing","References from"},{"types","Type relationships"}} {
+			<a href={ templ.SafeURL(codeLink(browser, CodeFilter{Query: filter.Query, Kind: filter.Kind, Visibility: filter.Visibility, Status: filter.Status, View: v.value}, "", browser.Object)) }>{ v.label }</a>
+		}
+	</nav>
+	<p>View: { filter.View } · Evidence revision: { browser.RelationshipRevision }. Each arrow below is backed by the displayed source evidence.</p>
+	for _,relation:=range codeReferences(browser,filter.View) {
+		<article data-code-relation>
+			<p><a href={ templ.SafeURL(codeLink(browser, filter, "", relation.FromID)) }>{ relation.FromID }</a> → <a href={ templ.SafeURL(codeLink(browser, filter, "", relation.ToID)) }>{ relation.ToID }</a> · { relation.Kind }</p>
+			for _,e:=range relation.Evidence {
+				<p><a href={ templ.SafeURL(codeLink(browser, filter, e.File, "")) }>{ fmt.Sprintf("%s:%d:%d · %s/%s · %s",e.File,e.StartLine,e.StartColumn,e.Confidence,e.Resolution,e.Kind) }</a></p>
+			}
+		</article>
+	}
+}

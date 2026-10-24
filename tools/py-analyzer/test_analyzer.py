@@ -42,6 +42,18 @@ class AnalyzerTests(unittest.TestCase):
             self.assertEqual(len(snapshot['symbols']), 1)
             self.assertTrue(snapshot['seams'][0]['contractMembers'][0].endswith('read'))
 
+    def test_explorer_definitions_and_local_calls(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root/'code.py').write_text('def read():\n    """Reads a value."""\n    return 1\ndef caller(): return read()\nclass Store:\n    _hidden: int = 1\n    def get(self): return read()\n')
+            config = {'Modules': {'unassigned': {'Language': 'python', 'Paths': ['.'], 'ImportRoots': ['.']}}}
+            snapshot = module.analyze({'version': 1, 'root': str(root), 'config': config})
+            symbols = {s['definition']['name']: s for s in snapshot['symbols']}
+            self.assertEqual(symbols['read']['definition']['documentation'], 'Reads a value.')
+            self.assertEqual(symbols['_hidden']['definition']['parentId'], symbols['Store']['id'])
+            self.assertEqual(symbols['_hidden']['visibility'], 'private')
+            self.assertTrue(any(r['toId'] == symbols['read']['id'] and any(e.get('sourceId') == symbols['caller']['id'] and e.get('kind') == 'call' for e in r['evidence']) for r in snapshot['relations']))
+
     def test_bad_protocol(self):
         with self.assertRaises(ValueError):
             module.analyze({'version': 99})

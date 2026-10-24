@@ -1,5 +1,6 @@
 """SeamGraph protocol v1: static AST and project import resolution only."""
 import ast
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -28,7 +29,19 @@ def analyze(request):
         result['diagnostics'].append(dict(code=code, severity=severity, entityIds=[],
                     evidence=[evidence(file, node, resolution)] if node else [], message=message))
     def relation(kind, source, target, file, node, bypass=False):
-        edge = dict(id='edge:'+kind+':'+quote_plus(source)+'->'+quote_plus(target), fromId=source, toId=target, kind=kind, evidence=[evidence(file, node)])
+        location = evidence(file, node)
+        location['kind'] = 'reference'
+        info = files[Path(file).resolve()]
+        parent = info['parents'].get(node)
+        if isinstance(parent, ast.Call) and parent.func is node:
+            location['kind'] = 'call'
+        current = node
+        while current is not None:
+            if current in info['declarations']:
+                location['sourceId'] = info['declarations'][current]
+                break
+            current = info['parents'].get(current)
+        edge = dict(id='edge:'+kind+':'+quote_plus(source)+'->'+quote_plus(target), fromId=source, toId=target, kind=kind, evidence=[location])
         if bypass:
             edge['bypassesSeam'] = True
         result['relations'].append(edge)
@@ -57,7 +70,9 @@ def analyze(request):
                 if any(p in {'.venv', '__pycache__', '.git', 'node_modules', '.build', '.seamgraph', '.devbox', '.codex-local'} for p in file.relative_to(root).parts) or file.name.startswith('test_') or file.name.endswith('_test.py'):
                     continue
                 relative(file)
-                files[file.resolve()] = dict(file=file.resolve(), tree=ast.parse(file.read_text(encoding='utf-8'), filename=relative(file)), own='module:'+name, symbols={}, imports={}, exports={}, all=None)
+                files[file.resolve()] = dict(file=file.resolve(), tree=ast.parse(file.read_text(encoding='utf-8'), filename=relative(file)), own='module:'+name, symbols={}, imports={}, exports={}, all=None, declarations={})
+    for info in files.values():
+        info['parents'] = {child: parent for parent in ast.walk(info['tree']) for child in ast.iter_child_nodes(parent)}
     modules = {}
     for file, info in files.items():
         candidates = []
@@ -82,11 +97,22 @@ def analyze(request):
         canonical = relative(info['file'])+'#'+name
         sid = 'symbol:'+info['own'][7:]+':'+quote(canonical, safe='+:@&=$')
         visibility = 'private' if name.split('.')[-1].startswith('_') else 'public'
-        symbol = dict(id=sid, moduleId=info['own'], kind=kind, displaySignature=signature, visibility=visibility)
+        parent_name = name.rsplit('.', 1)[0] if '.' in name else ''
+        parent_id = info['symbols'].get(parent_name, '')
+        documentation = ast.get_docstring(node, clean=True) if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)) else ''
+        symbol = dict(id=sid, moduleId=info['own'], kind=kind, displaySignature=signature, visibility=visibility,
+                      definition=dict(digest=hashlib.sha256(ast.dump(node, include_attributes=False).encode()).hexdigest(), name=name.rsplit('.', 1)[-1], parentId=parent_id, location=evidence(info['file'], node) if hasattr(node, 'lineno') else {}, documentation=documentation or ''))
+        if not hasattr(node, 'lineno'):
+            symbol.pop('definition')
+        info['declarations'][node] = sid
         decorators = [ast.unparse(d) for d in getattr(node, 'decorator_list', [])]
         grouped = any(d == 'property' or d == 'overload' or d.endswith(('.setter', '.getter', '.deleter', '.overload')) for d in decorators)
         if sid in symbol_map and (grouped or sid in signature_groups):
-            symbol['displaySignature'] = symbol_map[sid]['displaySignature'] + '\n' + signature
+            previous = symbol_map[sid]
+            symbol['displaySignature'] = previous['displaySignature'] + '\n' + signature
+            symbol['definition']['digest'] = hashlib.sha256((previous['definition']['digest'] + symbol['definition']['digest']).encode()).hexdigest()
+            symbol['definition']['location'] = previous['definition']['location']
+            symbol['definition']['documentation'] = previous['definition']['documentation'] or symbol['definition']['documentation']
         if grouped:
             signature_groups.add(sid)
         symbol_map[sid] = symbol
@@ -107,6 +133,9 @@ def analyze(request):
                     if isinstance(member, (ast.FunctionDef, ast.AsyncFunctionDef)):
                         name = node.name+'.'+member.name
                         add_symbol(info, name, member, 'method', ''.join('@'+ast.unparse(d)+' ' for d in member.decorator_list)+name+'('+ast.unparse(member.args)+')'+(' -> '+ast.unparse(member.returns) if member.returns else ''))
+                    elif isinstance(member, ast.AnnAssign) and isinstance(member.target, ast.Name):
+                        name = node.name+'.'+member.target.id
+                        add_symbol(info, name, member, 'field', name+': '+ast.unparse(member.annotation))
             elif isinstance(node, (ast.Assign, ast.AnnAssign)):
                 targets = node.targets if isinstance(node, ast.Assign) else [node.target]
                 for target in targets:
@@ -305,7 +334,7 @@ def analyze(request):
             aliases.pop(name, None)
         def resolve_expr(node):
             if isinstance(node, ast.Name):
-                return None if node.id in scopes.get(id(node), set()) else aliases.get(node.id)
+                return None if node.id in scopes.get(id(node), set()) else (aliases.get(node.id) or (('symbol', info['symbols'][node.id]) if node.id in info['symbols'] else None))
             if isinstance(node, ast.Attribute):
                 base = resolve_expr(node.value)
                 if base and base[0] == 'module':
@@ -327,10 +356,14 @@ def analyze(request):
                 if isinstance(node.ctx, (ast.Store, ast.Del)) and resolve_expr(node.value):
                     diag('PY_MONKEY_PATCH', 'Imported attribute mutation cannot be proven safe', info['file'], node, 'dynamic')
                 value = resolve_expr(node)
-                if value and value[0] == 'symbol' and symbol_map[value[1]]['moduleId'] != info['own']:
+                if value and value[0] == 'symbol':
                     relation('uses', info['own'], value[1], info['file'], node)
                 elif resolve_expr(node.value) and not value:
                     diag('PY_ATTRIBUTE_UNRESOLVED', 'Imported attribute cannot be statically resolved: '+ast.unparse(node), info['file'], node)
+            elif isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load):
+                value = resolve_expr(node)
+                if value and value[0] == 'symbol':
+                    relation('uses', info['own'], value[1], info['file'], node)
             elif isinstance(node, ast.Call):
                 callee = ast.unparse(node.func)
                 dynamic_alias = False

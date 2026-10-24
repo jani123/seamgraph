@@ -36,30 +36,33 @@ type RuleEdit interface {
 // Ports are capabilities supplied once at construction. Queries never call the
 // mutation ports. Extract must return cleanup even when materialization fails.
 type Ports struct {
-	Activity       func(context.Context, string, string, string, string) (ir.Activity, error)
-	ReadReview     func(string) ([]ReviewEntry, error)
-	AppendReview   func(string, ReviewEntry) error
-	ConfigKey      func(string) (string, error)
-	Inventory      func(string) (map[string]string, error)
-	Scan           func(context.Context, string) (ir.Snapshot, config.Config, error)
-	LoadConfig     func(string) (*config.Document, error)
-	LoadContracts  func(string) (verification.Manifest, error)
-	ReadStore      func(string) (verification.Store, error)
-	AppendEvidence func(string, []verification.Evidence) (verification.Store, error)
-	EvidenceDir    func(string) (string, error)
-	ReadFile       func(string) ([]byte, error)
-	Execute        func(context.Context, string, string, string) ([]byte, string, error, error)
-	Import         func(string, []byte, EvidenceRun) ([]verification.Evidence, error)
-	Identity       func(context.Context, string) (string, string, error)
-	Extract        Extract
-	Open           func(context.Context, string, string, string) (Workspace, error)
-	PrepareProject func(string, []byte) (bool, error)
-	Initialize     func(string) error
-	SetupAgent     func(string) ([]string, error)
-	PrepareRule    func(string, string, string, string) (RuleEdit, error)
-	Source         func(string, string, []ir.Evidence) (string, error)
+	Index           func(context.Context, string, map[string]string) (ir.CodeIndex, error)
+	BrowseInventory func(string) (map[string]string, error)
+	Activity        func(context.Context, string, string, string, string) (ir.Activity, error)
+	ReadReview      func(string) ([]ReviewEntry, error)
+	AppendReview    func(string, ReviewEntry) error
+	ConfigKey       func(string) (string, error)
+	Inventory       func(string) (map[string]string, error)
+	Scan            func(context.Context, string) (ir.Snapshot, config.Config, error)
+	LoadConfig      func(string) (*config.Document, error)
+	LoadContracts   func(string) (verification.Manifest, error)
+	ReadStore       func(string) (verification.Store, error)
+	AppendEvidence  func(string, []verification.Evidence) (verification.Store, error)
+	EvidenceDir     func(string) (string, error)
+	ReadFile        func(string) ([]byte, error)
+	Execute         func(context.Context, string, string, string) ([]byte, string, error, error)
+	Import          func(string, []byte, EvidenceRun) ([]verification.Evidence, error)
+	Identity        func(context.Context, string) (string, string, error)
+	Extract         Extract
+	Open            func(context.Context, string, string, string) (Workspace, error)
+	PrepareProject  func(string, []byte) (bool, error)
+	Initialize      func(string) error
+	SetupAgent      func(string) ([]string, error)
+	PrepareRule     func(string, string, string, string) (RuleEdit, error)
+	Source          func(string, string, []ir.Evidence) (string, error)
 }
 type Service struct {
+	code  codeCache
 	root  string
 	ports Ports
 	cache Cache

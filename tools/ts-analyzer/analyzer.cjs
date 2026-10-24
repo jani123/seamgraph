@@ -2,6 +2,7 @@
 const ts = require("typescript");
 const fs = require("node:fs");
 const path = require("node:path");
+const crypto = require("node:crypto");
 function analyze(req) {
   if (req.version !== 1 || Number(process.versions.node.split(".")[0]) < 18)
     throw Error("Protocol v1 and Node.js 18+ required");
@@ -256,6 +257,63 @@ function analyze(req) {
       .filter(Boolean)
       .join(" ");
   }
+  function declarationKind(decl) {
+    if (ts.isInterfaceDeclaration(decl)) return "interface";
+    if (ts.isClassDeclaration(decl)) return "class";
+    if (ts.isFunctionDeclaration(decl)) return "function";
+    if (ts.isMethodDeclaration(decl) || ts.isMethodSignature(decl))
+      return "method";
+    if (ts.isGetAccessorDeclaration(decl) || ts.isSetAccessorDeclaration(decl))
+      return "property";
+    if (ts.isPropertyDeclaration(decl) || ts.isPropertySignature(decl))
+      return "field";
+    if (ts.isTypeAliasDeclaration(decl)) return "type";
+    if (ts.isEnumDeclaration(decl)) return "enum";
+    if (ts.isEnumMember(decl)) return "constant";
+    if (ts.isVariableDeclaration(decl))
+      return decl.parent.flags & ts.NodeFlags.Const ? "constant" : "variable";
+    return "declaration";
+  }
+  function declarationParent(decl) {
+    for (
+      let parent = decl.parent;
+      parent && !ts.isSourceFile(parent);
+      parent = parent.parent
+    ) {
+      if (parent.name) {
+        const symbol = checker.getSymbolAtLocation(parent.name);
+        if (symbol) return add(symbol);
+      }
+    }
+    return "";
+  }
+  function referenceEvidence(node) {
+    const result = evidence(node);
+    result.kind = "reference";
+    let expression = node;
+    if (ts.isPropertyAccessExpression(node.parent) && node.parent.name === node)
+      expression = node.parent;
+    if (
+      (ts.isCallExpression(expression.parent) ||
+        ts.isNewExpression(expression.parent)) &&
+      expression.parent.expression === expression
+    )
+      result.kind = "call";
+    for (
+      let parent = node.parent;
+      parent && !ts.isSourceFile(parent);
+      parent = parent.parent
+    ) {
+      if (parent.name) {
+        const id = add(checker.getSymbolAtLocation(parent.name));
+        if (id) {
+          result.sourceId = id;
+          break;
+        }
+      }
+    }
+    return result;
+  }
   function add(s) {
     s = deref(s);
     if (!s) return "";
@@ -298,6 +356,13 @@ function analyze(req) {
     if (mod) exports = checker.getExportsOfModule(mod).map(deref);
     const isPublic =
       exports.includes(s) ||
+      ((ts.isClassLike(decl.parent) ||
+        ts.isInterfaceDeclaration(decl.parent)) &&
+        !(
+          ts.getCombinedModifierFlags(decl) &
+          (ts.ModifierFlags.Private | ts.ModifierFlags.Protected)
+        ) &&
+        !name.startsWith("#")) ||
       decl.modifiers?.some((m) => m.kind === ts.SyntaxKind.ExportKeyword);
     const type = checker.getTypeOfSymbolAtLocation(s, decl);
     const signature = checker.typeToString(
@@ -308,13 +373,19 @@ function analyze(req) {
     snap.symbols.push({
       id,
       moduleId: own,
-      kind: ts.isInterfaceDeclaration(decl)
-        ? "interface"
-        : ts.isClassDeclaration(decl)
-          ? "class"
-          : ts.isFunctionDeclaration(decl)
-            ? "function"
-            : "declaration",
+      kind: declarationKind(decl),
+      definition: {
+        name,
+        digest: crypto
+          .createHash("sha256")
+          .update((s.declarations || [decl]).map((d) => d.getText()).join("\n"))
+          .digest("hex"),
+        parentId: declarationParent(decl),
+        location: evidence(decl.name || decl),
+        documentation: ts.displayPartsToString(
+          s.getDocumentationComment(checker),
+        ),
+      },
       displaySignature:
         (contractModifiers(decl) ? contractModifiers(decl) + " " : "") +
         name +
@@ -346,7 +417,13 @@ function analyze(req) {
           ts.isClassDeclaration(node) ||
           ts.isInterfaceDeclaration(node) ||
           ts.isTypeAliasDeclaration(node) ||
-          ts.isEnumDeclaration(node))
+          ts.isEnumDeclaration(node) ||
+          ts.isMethodDeclaration(node) ||
+          ts.isMethodSignature(node) ||
+          ts.isPropertyDeclaration(node) ||
+          ts.isPropertySignature(node) ||
+          ts.isGetAccessorDeclaration(node) ||
+          ts.isSetAccessorDeclaration(node))
       )
         add(checker.getSymbolAtLocation(node.name));
       ts.forEachChild(node, visit);
@@ -483,7 +560,7 @@ function analyze(req) {
       fromId: from,
       toId: to,
       kind,
-      evidence: [evidence(node)],
+      evidence: [referenceEvidence(node)],
       ...(bypass ? { bypassesSeam: true } : {}),
     });
   }
@@ -564,7 +641,7 @@ function analyze(req) {
           id = add(s);
         if (id) {
           const sym = snap.symbols.find((x) => x.id === id);
-          if (sym.moduleId !== from)
+          if (sym.moduleId && symbolNodes.get(id)?.name !== node)
             relation("uses", from, id, node, bypassSymbols.get(s) || false);
         }
       }

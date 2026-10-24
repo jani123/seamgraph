@@ -140,3 +140,41 @@ test("consumed accessors keep a single declaration identity", () => {
     fs.rmSync(temp, { recursive: true, force: true });
   }
 });
+
+test("explorer retains unused private members, docs, parents and local callers", () => {
+  const fs = require("node:fs"),
+    os = require("node:os");
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), "seamgraph-code-"));
+  try {
+    fs.writeFileSync(
+      path.join(temp, "code.ts"),
+      "/** Reads a value. */\nexport function read(): string {return 'ok'}\nexport function caller(){return read()}\nexport class Store {private hidden = 1; /** Member docs. */\nget(): string { return read() }}\n",
+    );
+    const s = analyze({
+      version: 1,
+      root: temp,
+      config: {
+        Modules: {
+          unassigned: { Language: "typescript", Paths: ["."], Seams: {} },
+        },
+      },
+    });
+    const read = s.symbols.find((s) => s.definition.name === "read");
+    const caller = s.symbols.find((s) => s.definition.name === "caller");
+    const hidden = s.symbols.find((s) => s.definition.name === "hidden");
+    const store = s.symbols.find((s) => s.definition.name === "Store");
+    assert.equal(read.definition.documentation, "Reads a value.");
+    assert.equal(read.definition.location.startLine, 2);
+    assert.equal(hidden.visibility, "private");
+    assert.equal(hidden.definition.parentId, store.id);
+    assert.ok(
+      s.relations.some(
+        (r) =>
+          r.toId === read.id &&
+          r.evidence.some((e) => e.sourceId === caller.id && e.kind === "call"),
+      ),
+    );
+  } finally {
+    fs.rmSync(temp, { recursive: true, force: true });
+  }
+});

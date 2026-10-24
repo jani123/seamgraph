@@ -181,7 +181,7 @@ func pageNavigation(active string) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		for _, item := range []struct{ title, href string }{{"Architecture", "/"}, {"Review", "/review"}, {"Rules", "/rules"}, {"Help", "/help"}} {
+		for _, item := range []struct{ title, href string }{{"Architecture", "/"}, {"Code", "/explore"}, {"Review", "/review"}, {"Rules", "/rules"}, {"Help", "/help"}} {
 			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, "<a href=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err

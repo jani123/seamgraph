@@ -121,6 +121,20 @@ violations and fixes, cancellation, incompatible consumers, evidence freshness,
 Git history edge cases and a bounded larger graph. `task examples:test` verifies
 the supported workflows independently of the browser.
 
+Open **Code** (`/explore`) to browse directories, files and declarations without
+creating `seamgraph.yaml` or requiring Git. Expand types for members, search and
+filter objects, inspect signatures, declaration locations and available docs,
+then follow static caller/consumer evidence or inferred type relationships.
+Declared modules and seams appear as context when available. Optional revision
+and comparison-base fields use resolved Git identities; removed objects retain
+base-revision source and relationships. The working-directory view is live.
+
+Analysis follows each language adapter's production-source and build scope.
+Files remain readable when analysis fails, with errors and uncertainty displayed.
+Caches/dependency directories and symlinks are excluded, inventories are limited
+to 20,000 files and source previews to 2 MiB. Restart the server after changing
+external dependencies or analysis environment settings.
+
 Open **Review** to browse the comparison's directories, inspect adapter objects,
 drill from hotspots into commits and patches, save file notes and viewed state,
 and export the complete evidence as JSON, Markdown or standalone HTML. Findings

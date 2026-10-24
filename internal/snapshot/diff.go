@@ -87,6 +87,7 @@ func architecture(s ir.Snapshot) (map[string]entity, error) {
 	}
 	for _, x := range c.Symbols {
 		if relevant[x.ID] {
+			x.Definition = nil
 			add("symbol", x.ID, x)
 		}
 	}

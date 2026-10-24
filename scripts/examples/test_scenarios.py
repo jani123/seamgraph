@@ -74,7 +74,7 @@ class Scenarios(unittest.TestCase):
                              for source, target in imports))
         self.assertEqual({d['code'] for d in snapshot['diagnostics']}, {'TS_DYNAMIC_REFERENCE'})
         details = self.invoke('inspect', 'seam:orders.lifecycle', '--json')
-        self.assertEqual({r['fromId'] for r in details['relations'] if r['kind'] == 'uses'}, {'module:demo', 'module:http'})
+        self.assertEqual({r['fromId'] for r in details['relations'] if r['kind'] == 'uses'}, {'module:demo', 'module:http', 'module:orders'})
         self.assertTrue(all(r['evidence'] for r in details['relations']))
         export = self.root / '.seamgraph/snapshot.json'
         self.invoke('snapshot', '--output', str(export))

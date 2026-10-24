@@ -40,7 +40,7 @@ func (a *App) review(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Disposition", `attachment; filename="seamgraph-review.html"`)
 		render(w, r, ui.ReviewSnapshot(result))
 	default:
-		render(w, r, ui.ReviewPage(a.token, result, query.Get("q"), query.Get("type")))
+		render(w, r, ui.ReviewPage(a.token, result, query.Get("q"), query.Get("type"), ui.CodeFilter{Query: query.Get("q"), Kind: query.Get("symbolKind"), Visibility: query.Get("visibility"), Status: query.Get("status"), View: query.Get("view")}))
 	}
 }
 

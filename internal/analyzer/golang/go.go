@@ -61,6 +61,7 @@ func (Adapter) Analyze(ctx context.Context, project analyzer.Project, c config.C
 	g := goAnalysis{b: b, objects: map[types.Object]string{}, symbolPackages: map[string]string{}, names: map[string]map[string][]string{}, named: map[string]*types.Named{}}
 	g.collectDeclarations(pkgs)
 	g.collectFields(pkgs)
+	g.collectDefinitions(pkgs)
 	if err := g.resolveSeams(c); err != nil {
 		return b.Partial, err
 	}
@@ -102,9 +103,10 @@ func (g *goAnalysis) collectDeclarations(pkgs []*packages.Package) {
 func (g *goAnalysis) collectFields(pkgs []*packages.Package) {
 	// Struct fields are real cross-module references too, not just declarations.
 	for _, p := range pkgs {
+		declared := declaredStructs(p)
 		for ident, obj := range p.TypesInfo.Defs {
 			tn, ok := obj.(*types.TypeName)
-			if !ok || g.objects[tn] == "" {
+			if !ok || !declared[tn] || g.objects[tn] == "" {
 				continue
 			}
 			n, ok := types.Unalias(tn.Type()).(*types.Named)
@@ -311,6 +313,7 @@ func (g *goAnalysis) collectFileReferences(p *packages.Package, file *ast.File, 
 	for _, imp := range file.Imports {
 		g.collectImport(p, imp, owner, c, seamPackages)
 	}
+	contexts := g.referenceContexts(p, file)
 	ast.Inspect(file, func(node ast.Node) bool {
 		g.dynamicReference(p, node)
 		ident, ok := node.(*ast.Ident)
@@ -319,8 +322,8 @@ func (g *goAnalysis) collectFileReferences(p *packages.Package, file *ast.File, 
 		}
 		obj := p.TypesInfo.Uses[ident]
 		id := g.objects[obj]
-		if id != "" && g.b.Symbols[id].ModuleID != owner {
-			g.b.Relation("uses", owner, id, g.evidence(p, ident.Pos(), ident.End()), false)
+		if id != "" {
+			g.b.Relation("uses", owner, id, contexts[ident], false)
 		}
 		return true
 	})

@@ -6,14 +6,14 @@ import (
 	"strings"
 )
 
-templ ReviewPage(token string, r application.ReviewWorkspace, query, kind string) {
+templ ReviewPage(token string, r application.ReviewWorkspace, query, kind string, codeFilter CodeFilter) {
 	@pageLayout("Review", token, false) {
 		<main class="review-main">
 			<h1>Local branch review</h1>
 			<form method="get" action="/review" class="review-controls">
 				<label>Target/base revision <input name="base" value={ r.BaseRef } required/></label>
 				<label>Review/head revision <input name="head" value={ r.HeadRef } required/></label>
-				<label>Search paths <input name="q" value={ query }/></label>
+				@CodeFilters(r.Code, codeFilter)
 				<button>Open review</button>
 			</form>
 			<p>Two-tree comparison: <code data-review-base>{ r.Comparison.Base }</code> to <code data-review-head>{ r.Comparison.Head }</code>. This is not a simulated merge. Enter a merge-base hash explicitly for a merge-base review. Use WORKTREE to inspect combined staged, unstaged and untracked nonignored files.</p>
@@ -24,62 +24,24 @@ templ ReviewPage(token string, r application.ReviewWorkspace, query, kind string
 				}
 			</nav>
 			<p>Exports include both snapshots, reference evidence, history and review anchors. Full source is included only for the selected file. Saved findings also include their original bounded source excerpts.</p>
-			<div class="review-workspace">
-				<aside class="review-tree" aria-label="Directory explorer">
-					<h2>Directories and files</h2>
-					@ReviewTree(r, reviewTree(r.Files, query))
-				</aside>
-				<section class="review-selection" aria-label="Review details">
-					if r.Selected != "" {
-						<h2>{ r.Selected }</h2>
-						for _,f := range r.Files {
-							if f.Path == r.Selected {
-								<p>
-									{ f.Status } ·
-									if f.Module == "" {
-										Unassigned
-									} else {
-										{ f.Module }
-									}
-								</p>
-							}
-						}
-						<div class="review-sources">
-							<section><h3>Before</h3><p>{ r.Before.Unavailable }</p><pre data-review-before>{ r.Before.Text }</pre></section>
-							<section><h3>After</h3><p>{ r.After.Unavailable }</p><pre data-review-after>{ r.After.Text }</pre></section>
-						</div>
-						@ReviewNote(token, r)
-					} else {
-						<p>Select a file to inspect both revisions, its touching commits, final patch and review state.</p>
+			@CodeWorkspace(r.Code, codeFilter)
+			if r.Object != nil {
+				<section data-review-object>
+					<h3>Observed architecture references</h3>
+					for _,rel := range r.References {
+						<p>{ rel.Kind } · { rel.FromID } → { rel.ToID }</p>
 					}
-					<details>
-						<summary>Objects and signatures (adapter facts)</summary>
-						<p>Object IDs refer to declared symbols. Source links below show observed reference locations, not inferred definition locations.</p>
-						<ul>
-							for _,symbol := range reviewSymbols(r) {
-								<li>
-									<a href={ templ.SafeURL(reviewLink(r, r.Selected, symbol.ID, "", kind)) }>{ symbol.ID }</a> · { symbol.Kind } · { symbol.Visibility }
-								</li>
-							}
-						</ul>
-					</details>
-					if r.Object != nil {
-						<section data-review-object>
-							<h2>{ r.Object.ID }</h2>
-							<pre>{ r.Object.DisplaySignature }</pre>
-							<h3>Observed references</h3>
-							for _,rel := range r.References {
-								<p>{ rel.Kind } · { rel.FromID } → { rel.ToID }</p>
-								for _,e := range rel.Evidence {
-									<a href={ templ.SafeURL(reviewLink(r, e.File, r.Object.ID, "", kind)) }>{ fmt.Sprintf("%s:%d:%d · %s/%s",e.File,e.StartLine,e.StartColumn,e.Confidence,e.Resolution) }</a>
-								}
-							}
-							<h3>Possible transitive module impact</h3>
-							<p>{ strings.Join(r.PossibleImpact,", ") }</p>
-						</section>
-					}
+					<h3>Possible transitive module impact</h3>
+					<p>{ strings.Join(r.PossibleImpact,", ") }</p>
 				</section>
-			</div>
+			}
+			if r.Selected!="" {
+				<section aria-label="File comparison">
+					<h2>{ r.Selected }</h2>
+					<div class="review-sources"><section><h3>Before</h3><p>{ r.Before.Unavailable }</p><pre data-review-before>{ r.Before.Text }</pre></section><section><h3>After</h3><p>{ r.After.Unavailable }</p><pre data-review-after>{ r.After.Text }</pre></section></div>
+					@ReviewNote(token, r)
+				</section>
+			}
 			<section>
 				<h2>Branch hotspots</h2>
 				<p>{ r.Activity.Policy }. Frequency counts commits; churn counts additions plus deletions, including reverted work. Paths are not followed across renames. Binary line statistics are unknown. Unassigned, generated and vendor paths remain included. Table sorts by frequency, then path.</p>
@@ -186,23 +148,6 @@ templ ReviewPage(token string, r application.ReviewWorkspace, query, kind string
 			</section>
 		</main>
 	}
-}
-
-templ ReviewTree(r application.ReviewWorkspace, nodes []*reviewNode) {
-	<ul>
-		for _,node := range nodes {
-			<li>
-				if len(node.Children)>0 {
-					<details open?={ r.PathFilter != "" || strings.HasPrefix(r.Selected,node.Path+"/") }>
-						<summary>{ node.Name }</summary>
-						@ReviewTree(r, node.Children)
-					</details>
-				} else {
-					<a href={ templ.SafeURL(reviewLink(r, node.Path, "", "", "")) }>{ node.Name }</a><span>{ node.Status }</span>
-				}
-			</li>
-		}
-	</ul>
 }
 
 templ ReviewNote(token string, r application.ReviewWorkspace) {

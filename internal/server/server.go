@@ -22,6 +22,7 @@ import (
 )
 
 type Explorer interface {
+	Code(context.Context, string, string, string, string) (application.CodeBrowser, error)
 	Review(context.Context, string, string, string, string) (application.ReviewWorkspace, error)
 	RecordReview(context.Context, application.ReviewEntry) error
 	Load(context.Context) (application.Model, error)
@@ -54,6 +55,7 @@ func (a *App) Handler() http.Handler {
 	assets, _ := fs.Sub(ui.Assets, "assets")
 	mux.Handle("GET /assets/", http.StripPrefix("/assets/", http.FileServer(http.FS(assets))))
 	mux.HandleFunc("GET /{$}", func(w http.ResponseWriter, r *http.Request) { render(w, r, ui.Page(a.token)) })
+	mux.HandleFunc("GET /explore", a.code)
 	mux.HandleFunc("GET /review", a.review)
 	mux.HandleFunc("POST /review", a.recordReview)
 	mux.HandleFunc("GET /help", func(w http.ResponseWriter, r *http.Request) { render(w, r, ui.Help()) })

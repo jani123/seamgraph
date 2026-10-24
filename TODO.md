@@ -96,21 +96,21 @@ Explore what is inside a directory without first declaring modules or seams.
 Use a tree as the primary view, with object details and optional focused graphs
 for investigating relationships.
 
-- [ ] Browse directories, files and top-level symbols in a compact expandable
+- [x] Browse directories, files and top-level symbols in a compact expandable
   tree. Expand methods and members on demand rather than exposing every detail
   immediately.
-- [ ] Search objects and filter by symbol kind, visibility and changed status,
+- [x] Search objects and filter by symbol kind, visibility and changed status,
   preserving enough directory context to locate results.
-- [ ] Show the selected object's signature, source location, available
+- [x] Show the selected object's signature, source location, available
   documentation and relevant reference evidence in a details panel.
-- [ ] Offer focused relationship views for callers, consumers and type
+- [x] Offer focused relationship views for callers, consumers and type
   relationships where supported by the language adapter. Expose analysis limits
   and distinguish observed references from inferred relationships.
-- [ ] Show declared module and seam membership as additional context, while
+- [x] Show declared module and seam membership as additional context, while
   keeping directory exploration usable without architecture configuration.
-- [ ] Reuse shared symbol identities and adapter facts where available; extend
+- [x] Reuse shared symbol identities and adapter facts where available; extend
   analysis explicitly where the existing architecture-oriented data omits objects.
-- [ ] Provide reusable tree navigation, object selection, source viewing and
+- [x] Provide reusable tree navigation, object selection, source viewing and
   revision-aware object identities for the later branch review workflow.
 
 Acceptance: a user can select a directory, understand its contents, inspect an

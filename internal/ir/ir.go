@@ -28,14 +28,26 @@ type Seam struct {
 	ModuleID        string   `json:"moduleId"`
 	ContractMembers []string `json:"contractMembers"`
 }
+
+// Definition records a declaration, separately from reference evidence.
+type Definition struct {
+	Digest        string   `json:"digest,omitempty"`
+	Name          string   `json:"name"`
+	ParentID      string   `json:"parentId,omitempty"`
+	Location      Evidence `json:"location"`
+	Documentation string   `json:"documentation,omitempty"`
+}
 type Symbol struct {
-	ID               string `json:"id"`
-	ModuleID         string `json:"moduleId"`
-	Kind             string `json:"kind"`
-	DisplaySignature string `json:"displaySignature"`
-	Visibility       string `json:"visibility"`
+	Definition       *Definition `json:"definition,omitempty"`
+	ID               string      `json:"id"`
+	ModuleID         string      `json:"moduleId"`
+	Kind             string      `json:"kind"`
+	DisplaySignature string      `json:"displaySignature"`
+	Visibility       string      `json:"visibility"`
 }
 type Evidence struct {
+	SourceID    string `json:"sourceId,omitempty"`
+	Kind        string `json:"kind,omitempty"`
 	File        string `json:"file" yaml:"file"`
 	StartLine   int    `json:"startLine" yaml:"startLine"`
 	StartColumn int    `json:"startColumn" yaml:"startColumn"`
@@ -103,6 +115,9 @@ func validateEvidence(e Evidence) error {
 	if !ValidPath(e.File) || e.StartLine < 1 || e.StartColumn < 1 || e.EndLine < e.StartLine || e.EndColumn < 1 || (e.EndLine == e.StartLine && e.EndColumn < e.StartColumn) {
 		return fmt.Errorf("invalid evidence location: %+v", e)
 	}
+	if e.Kind != "" && e.Kind != "reference" && e.Kind != "call" {
+		return fmt.Errorf("invalid reference kind %q", e.Kind)
+	}
 	if e.Confidence != "exact" && e.Confidence != "best-effort" {
 		return fmt.Errorf("invalid confidence %q", e.Confidence)
 	}
@@ -122,6 +137,7 @@ func (s Snapshot) Validate() error {
 		func() error { return validateRootOwnership(s) },
 		func() error { return validateSeams(s, ids, modules, seams) },
 		func() error { return validateSymbols(s, ids, modules, symbols) },
+		func() error { return validateDefinitions(s, symbols) },
 		func() error { return validateContractMembers(s, seams, symbols) },
 		func() error { return validateRelations(s, ids) },
 		func() error { return validateDiagnostics(s, ids) },
@@ -228,6 +244,11 @@ func validateSymbols(s Snapshot, ids validationIDs, modules map[string]Module, s
 		if err := ids.add(x.ID, "symbol"); err != nil {
 			return err
 		}
+		if x.Definition != nil {
+			if err := validateEvidence(x.Definition.Location); err != nil {
+				return fmt.Errorf("invalid declaration %s: %w", x.ID, err)
+			}
+		}
 		symbols[x.ID] = x
 	}
 	return nil
@@ -333,6 +354,12 @@ func (s Snapshot) Canonical() (Snapshot, error) {
 		return Snapshot{}, err
 	}
 	out := Snapshot{SchemaVersion: s.SchemaVersion, Modules: []Module{}, Seams: []Seam{}, Symbols: append([]Symbol{}, s.Symbols...), Relations: []Relation{}, Diagnostics: []Diagnostic{}}
+	for i := range out.Symbols {
+		if d := out.Symbols[i].Definition; d != nil {
+			definition := *d
+			out.Symbols[i].Definition = &definition
+		}
+	}
 	for _, m := range s.Modules {
 		m.SourceRoots = sortedStrings(m.SourceRoots)
 		m.Seams = sortedStrings(m.Seams)
@@ -379,6 +406,9 @@ func (s Snapshot) ArchitectureJSON() ([]byte, error) {
 		return nil, err
 	}
 	c.Diagnostics = []Diagnostic{}
+	for i := range c.Symbols {
+		c.Symbols[i].Definition = nil
+	}
 	for i := range c.Relations {
 		c.Relations[i].Evidence = []Evidence{}
 		c.Relations[i].BypassEvidence = nil

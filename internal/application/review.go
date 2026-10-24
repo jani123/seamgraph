@@ -51,6 +51,7 @@ type Hotspot struct {
 	Net     ir.LineStats `json:"net"`
 }
 type ReviewWorkspace struct {
+	Code           CodeBrowser   `json:"code"`
 	PathFilter     string        `json:"pathFilter"`
 	TypeFilter     string        `json:"typeFilter"`
 	BaseRef        string        `json:"baseRef"`
@@ -75,10 +76,28 @@ func (s *Service) Review(ctx context.Context, base, head, file, object string) (
 		return r, err
 	}
 	r.Comparison = comparison
+	headCode := comparison.Head
+	if strings.HasPrefix(headCode, "WORKTREE:") {
+		headCode = "WORKTREE"
+	}
+	baseCode := comparison.Base
+	if strings.HasPrefix(baseCode, "WORKTREE:") {
+		baseCode = "WORKTREE"
+	}
+	r.Code, err = s.Code(ctx, headCode, baseCode, file, object)
+	if err != nil {
+		return r, err
+	}
+	if r.Code.Revision != comparison.Head || r.Code.Base != comparison.Base {
+		return r, fmt.Errorf("working changes moved during code review; refresh")
+	}
+	r.Code.ReviewBaseRef = base
+	r.Code.ReviewHeadRef = head
+	r.Selected = r.Code.Selected
 	if err := s.reviewFiles(ctx, &r); err != nil {
 		return r, err
 	}
-	r.Activity, err = s.ports.Activity(ctx, s.root, comparison.Base, comparison.Head, file)
+	r.Activity, err = s.ports.Activity(ctx, s.root, comparison.Base, comparison.Head, r.Selected)
 	if err != nil {
 		return r, err
 	}

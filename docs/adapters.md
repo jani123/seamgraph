@@ -87,3 +87,24 @@ Python-to-Go grant expresses integration intent; it does not invent a static
 runtime/FFI/RPC relation. Those relationships need an adapter that can supply
 verifiable evidence for the particular integration mechanism. General RPC/FFI or
 service-protocol discovery is not implemented.
+
+
+## Code explorer facts
+
+The same adapters supply declaration locations, available documentation, parent
+types/members and body digests for Code and Review. Go retains package declarations,
+methods, literal struct fields and static identifier/selector call attribution.
+Derived struct types reuse their original field declarations. TypeScript includes
+unused class/interface members and private members as well as consumed declarations;
+overloads/accessors retain one identity. Python includes top-level declarations,
+class methods and annotated class fields, plus enclosing-declaration evidence for
+resolved local names. Python instance attributes and dynamic method dispatch are
+not resolved completely. Generic Go call expressions may remain ordinary references.
+Available type relationships are structural facts, not dispatch edges.
+
+Configuration-free indexing analyzes supported production sources under one
+synthetic owner per adapter and reports failures separately from file access.
+A configured shared TypeScript project and Python import roots remain in effect.
+The file tree can include tests and unsupported languages without claiming their
+declarations were analyzed. Build/dependency caches and symlinks are excluded from
+the browsing inventory; adapter-specific build and test-source rules still apply.
