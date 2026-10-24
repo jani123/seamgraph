@@ -108,3 +108,35 @@ test("one type shared by multiple seams has one unchanged signature", () => {
   assert.equal(signature(one), signature(two));
   assert.equal(two.seams.length, 2);
 });
+
+test("consumed accessors keep a single declaration identity", () => {
+  const fs = require("node:fs"),
+    os = require("node:os");
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), "seamgraph-accessors-"));
+  try {
+    fs.cpSync(root, temp, { recursive: true });
+    fs.writeFileSync(
+      path.join(temp, "world/index.ts"),
+      "export interface Line { sku: string }; export class Cart { get items(): readonly Line[] { return [] } }\n",
+    );
+    fs.writeFileSync(
+      path.join(temp, "npc/main.ts"),
+      "import { Cart } from '@world'; export const first = new Cart().items[0];\n",
+    );
+    const snapshot = analyze({ version: 1, root: temp, config });
+    assert.ok(
+      snapshot.diagnostics.every((d) => d.code === "TS_DYNAMIC_REFERENCE"),
+    );
+    assert.equal(
+      new Set(snapshot.symbols.map((s) => s.id)).size,
+      snapshot.symbols.length,
+    );
+    assert.ok(
+      snapshot.relations.some(
+        (r) => r.kind === "uses" && r.toId.endsWith("Cart.items"),
+      ),
+    );
+  } finally {
+    fs.rmSync(temp, { recursive: true, force: true });
+  }
+});

@@ -262,6 +262,11 @@ function analyze(req) {
     if (symIDs.has(s)) return symIDs.get(s);
     const decl = (s.declarations || []).find((d) => !ts.isSourceFile(d));
     if (!decl) return "";
+    // Instantiated member symbols can have the same declaration as the original
+    // symbol. Architecture identities and signatures describe that declaration,
+    // rather than each consumer's inferred instantiation.
+    const declared = decl.name && checker.getSymbolAtLocation(decl.name);
+    if (declared && declared !== s) return add(declared);
     const sf = decl.getSourceFile(),
       own = owner(sf.fileName);
     if (!own || modules[own.slice(7)].Language !== "typescript") return "";
