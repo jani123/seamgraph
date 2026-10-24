@@ -136,7 +136,13 @@
  .code-main .review-selection { height: 65vh; flex: none; }
 }
 
-.code-main .workspace-review[open] { max-height: 45vh; overflow: auto; border-top: 1px solid #334155; padding-top: .5rem; }
+.code-tabs { flex: none; display: flex; gap: .5rem; border-bottom: 1px solid #334155; padding-bottom: .5rem; }
+.code-tabs [role=tab] { border: 1px solid transparent; }
+.code-tabs [aria-selected=true] { color: #6ee7b7; border-color: #34d399; background: #123430; }
+.code-source-panel { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: .5rem; }
+.code-source-panel > form { flex: none; }
+.code-review-panel { flex: 1; min-height: 0; overflow: auto; padding: .5rem; border: 1px solid #334155; border-radius: .5rem; }
+.code-source-panel[hidden], .code-review-panel[hidden] { display: none; }
 .unified-diff { overflow: hidden; }
 .diff-legend { display: flex; flex: none; gap: 1rem; font-size: .75rem; padding: .35rem .5rem; border-bottom: 1px solid #334155; }
 .diff-document { width: max-content; min-width: 100%; font: .85rem/1.5rem ui-monospace, SFMono-Regular, Consolas, monospace; }

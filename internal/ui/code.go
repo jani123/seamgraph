@@ -233,3 +233,16 @@ func comparisonHead(browser application.CodeBrowser) string {
 	}
 	return "WORKTREE"
 }
+
+func codeToolsValue(review bool) string {
+	if review {
+		return "1"
+	}
+	return "0"
+}
+func codeTabIndex(selected bool) string {
+	if selected {
+		return "0"
+	}
+	return "-1"
+}
