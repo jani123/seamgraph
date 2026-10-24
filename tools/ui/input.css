@@ -194,3 +194,10 @@
 .comment-form pre { white-space: pre-wrap; overflow-wrap: anywhere; font: .8125rem/1.5 ui-monospace, monospace; }
 .comment-form button { align-self: flex-start; }
 .comment-composer[open] { display: flex; flex-direction: column; }
+
+.history-commit h3 { margin: .5rem 0; }
+.history-commit > code { color: #94a3b8; font-size: .75rem; }
+.history-breaking { margin-left: .75rem; color: #fbbf24; font-size: .75rem; }
+.history-message { white-space: pre-wrap; overflow-wrap: anywhere; }
+.history-commit [data-commit-files] { margin: .75rem 0; }
+.history-commit li { display: flex; flex-wrap: wrap; gap: .5rem; padding: .375rem 0; }

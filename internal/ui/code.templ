@@ -67,7 +67,7 @@ templ CodePage(token string, browser application.CodeBrowser, filter CodeFilter,
 						@ReviewFindings(*review, filter.CommitType)
 					}
 					@CodeTabPanel("hotspots", active) { @ReviewHotspots(*review, filter.Query, filter.CommitType) }
-					@CodeTabPanel("history", active) { @ReviewHistory(*review, filter.CommitType) }
+					@CodeTabPanel("history", active) { @ReviewHistory(*review) }
 					@CodeTabPanel("impact", active) { @ReviewImpact(*review, filter.CommitType) }
 					@CodeTabPanel("exports", active) {
 						<h2>Review exports</h2>

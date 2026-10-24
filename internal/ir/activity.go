@@ -7,6 +7,7 @@ type LineStats struct {
 	Binary  bool `json:"binary"`
 }
 type ReviewCommit struct {
+	Parent   string               `json:"parent,omitempty"`
 	Revision string               `json:"revision"`
 	Message  string               `json:"message"`
 	Type     string               `json:"type"`

@@ -108,3 +108,15 @@ func hotspotVisible(r application.ReviewWorkspace, h application.Hotspot, kind, 
 	}
 	return false
 }
+
+func historySourceLink(commit ir.ReviewCommit, file string) string {
+	values := url.Values{"revision": {commit.Revision}, "file": {file}, "changes": {"1"}}
+	if commit.Parent != "" {
+		values.Set("base", commit.Parent)
+	}
+	return "/explore?" + values.Encode()
+}
+func reviewCommitBody(message string) string {
+	_, body, _ := strings.Cut(message, "\n")
+	return strings.TrimSpace(body)
+}

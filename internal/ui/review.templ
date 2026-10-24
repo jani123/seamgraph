@@ -47,44 +47,42 @@ templ ReviewHotspots(r application.ReviewWorkspace, query, kind string) {
 	</section>
 }
 
-templ ReviewHistory(r application.ReviewWorkspace, kind string) {
- @ReviewCommitFilters(r, kind)
+templ ReviewHistory(r application.ReviewWorkspace) {
+ {{ commits := reviewCommits(r, "") }}
 	<section aria-label="Touching commits">
 		<h2>Commits</h2>
-		<p>Original messages are preserved. Merge commits are excluded; unmatched subjects stay unmatched. Breaking markers and footers are shown explicitly.</p>
-		for _,c := range reviewCommits(r,kind) {
-			<details data-review-commit={ c.Revision }>
-				<summary>
-					{ c.Revision } · { c.Type }<span>{ c.Scope }</span>
-					if c.Breaking {
-						<strong>Breaking change</strong>
-					}
-				</summary>
-				<pre>{ c.Message }</pre>
-				<ul>
-					for path,stats := range c.Files {
-						<li>
-							<a data-code-tab-link="source" href={ templ.SafeURL(reviewLink(r, path, "", "", kind)) }>{ path }</a>
-							if stats.Binary {
-								Unknown (binary)
-							} else {
-								{ fmt.Sprintf("+%d / −%d",stats.Added,stats.Deleted) }
-							}
-						</li>
-					}
-				</ul>
-				if c.Patch != "" {
-					<pre data-commit-patch>{ c.Patch }</pre>
-				}
-			</details>
+		if r.Activity.Unavailable!="" {
+			<p role="status">{ r.Activity.Unavailable }</p>
 		}
-		if r.Selected != "" {
-			<h3>Final net patch</h3>
-			if r.Activity.Unavailable != "" {
-				<p>{ r.Activity.Unavailable }</p>
-			} else {
-				<pre data-net-patch>{ r.Activity.Patch }</pre>
-			}
+		if len(commits)==0 && r.Activity.Unavailable=="" {
+ <p>No commits in this selection.</p>
+ }
+ for _,c := range commits {
+			<article data-review-commit={ c.Revision } class="history-commit">
+				<h3>{ strings.SplitN(c.Message,"\n",2)[0] }</h3>
+				<code>{ c.Revision[:min(12,len(c.Revision))] }</code>
+				if c.Breaking {
+					<strong class="history-breaking">Breaking change</strong>
+				}
+				if body:=reviewCommitBody(c.Message);body!="" {
+					<p class="history-message">{ body }</p>
+				}
+				<details data-commit-files>
+					<summary>{ fmt.Sprintf("Affected files (%d)", len(c.Files)) }</summary>
+					<ul>
+						for path,stats := range c.Files {
+							<li>
+								<a data-code-tab-link="source" href={ templ.SafeURL(historySourceLink(c,path)) } title="Open this commit's file in Source">{ path }</a>
+								if stats.Binary {
+									Unknown (binary)
+								} else {
+									{ fmt.Sprintf("+%d / −%d",stats.Added,stats.Deleted) }
+								}
+							</li>
+						}
+					</ul>
+				</details>
+			</article>
 		}
 	</section>
 }

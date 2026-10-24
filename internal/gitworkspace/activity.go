@@ -55,12 +55,19 @@ func Activity(ctx context.Context, root, base, head, file string) (ir.Activity, 
 
 func activityCommit(ctx context.Context, root, revision, file string) (ir.ReviewCommit, error) {
 	c := ir.ReviewCommit{Revision: revision}
-	message, err := git(ctx, root, "show", "-s", "--format=%B", revision, "--")
+	metadata, err := git(ctx, root, "show", "-s", "--format=%P%x00%B", revision, "--")
 	if err != nil {
 		return c, err
 	}
+	parents, message, ok := strings.Cut(string(metadata), "\x00")
+	if !ok {
+		return c, fmt.Errorf("invalid Git commit metadata")
+	}
+	if fields := strings.Fields(parents); len(fields) > 0 {
+		c.Parent = fields[0]
+	}
 	// Git's format adds one newline after the raw commit message.
-	c.Message = strings.TrimSuffix(string(message), "\n")
+	c.Message = strings.TrimSuffix(message, "\n")
 	c.Type, c.Scope, c.Breaking = classifyCommit(c.Message)
 	data, err := git(ctx, root, "diff-tree", "--no-ext-diff", "--no-textconv", "--root", "--no-commit-id", "--numstat", "-z", "-r", "--no-renames", revision, "--")
 	if err != nil {
