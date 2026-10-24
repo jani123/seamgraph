@@ -695,7 +695,8 @@ test('Help is a standalone responsive page available when project analysis fails
     await expect(page).toHaveURL(url+'/help');
     await expect(page.getByRole('heading',{name:'Using SeamGraph'})).toBeVisible();
     await expect(page.getByRole('link',{name:'Help',exact:true})).toHaveAttribute('aria-current','page');
-    await expect(page.locator('script')).toHaveCount(0);
+    await expect(page.locator('script')).toHaveCount(1);
+  await expect(page.locator('script')).toHaveAttribute('src','/assets/navigation.js');
     await page.getByRole('link',{name:'Reference modes',exact:true}).click();
     await expect(page.getByRole('heading',{name:'Reference modes',exact:true})).toBeInViewport();
     await expect(page.locator('tbody tr')).toHaveCount(5);
@@ -718,7 +719,8 @@ test('Rules opens its own responsive page with navigation to Help and Architectu
   await expect(page.getByRole('heading',{name:'Architecture rules'})).toBeVisible();
   await expect(page.getByRole('link',{name:'Rules',exact:true})).toHaveAttribute('aria-current','page');
   await expect(page.locator('#details')).toHaveCount(0);
-  await expect(page.locator('script')).toHaveCount(0);
+  await expect(page.locator('script')).toHaveCount(1);
+  await expect(page.locator('script')).toHaveAttribute('src','/assets/navigation.js');
   await expect(page.getByText('Default:',{exact:false})).toBeVisible();
   await page.setViewportSize({width:390,height:844});
   await expect.poll(()=>page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
@@ -987,4 +989,73 @@ test('code explorer browses an unconfigured directory and follows local evidence
   expect(fs.existsSync(path.join(root,'.git'))).toBe(false);
   await page.setViewportSize({width:390,height:844});
   await expect.poll(()=>page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+});
+
+test('view navigation and native forms show loading feedback until the destination arrives', async () => {
+  test.setTimeout(60000);
+  fs.rmSync(root,{recursive:true,force:true});
+  fs.cpSync(path.join(repo,'testdata/projects/go'),root,{recursive:true});
+  const git=args=>execFileSync('git',['-C',root,...args]);
+  git(['init','-q']);
+  git(['add','.']);
+  git(['-c','user.name=Test','-c','user.email=test@example.test','commit','-qm','test: loading feedback']);
+  const states=[];
+  await page.exposeFunction('captureViewLoading',state=>states.push(state));
+  const errors=[];
+  const recordError=error=>errors.push(String(error));
+  page.on('pageerror',recordError);
+  const slowNavigation=async (pathname,action) => {
+    states.length=0;
+    await page.evaluate(()=>{
+      const indicator=document.querySelector('#view-loading');
+      new MutationObserver(()=>window.captureViewLoading({
+        visible:!indicator.hidden && getComputedStyle(indicator).display!=='none',
+        busy:document.querySelector('main')?.getAttribute('aria-busy')
+      })).observe(indicator,{attributes:true});
+    });
+    let release;
+    const pending=new Promise(resolve=>{release=resolve;});
+    const intercept=async route=>{
+      if(route.request().isNavigationRequest() && new URL(route.request().url()).pathname===pathname)await pending;
+      await route.continue();
+    };
+    await page.route(url+'/**',intercept);
+    let click;
+    try {
+      click=action();
+      await expect.poll(()=>states.some(state=>state.visible && state.busy==='true')).toBe(true);
+      release();
+      await click;
+      await expect(page.locator('#view-loading')).toBeHidden();
+      await expect(page.locator('main')).not.toHaveAttribute('aria-busy','true');
+    } finally {
+      release();
+      await click?.catch(()=>{});
+      await page.unroute(url+'/**',intercept);
+    }
+  };
+  for(const [name,pathname] of [['Code','/explore'],['Review','/review'],['Rules','/rules'],['Help','/help'],['Architecture','/']]){
+    await page.goto(url+'/help');
+    await slowNavigation(pathname,()=>page.getByRole('navigation',{name:'Main navigation',exact:true}).getByRole('link',{name,exact:true}).click());
+  }
+  await expect(page.locator('#summary')).toContainText('modules');
+  await page.getByRole('navigation',{name:'Main navigation',exact:true}).getByRole('link',{name:'Architecture',exact:true}).click();
+  expect(await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(()=>resolve(document.querySelector('#view-loading').hidden)))))).toBe(true);
+  await page.goto(url+'/review');
+  const download=page.waitForEvent('download');
+  await page.getByRole('link',{name:'Export json',exact:true}).click();
+  await download;
+  await expect(page.locator('#view-loading')).toBeHidden();
+  await page.goto(url+'/explore');
+  await slowNavigation('/explore',()=>page.getByRole('button',{name:'Explore',exact:true}).click());
+  await page.goto(url+'/help');
+  await page.getByRole('link',{name:'Graph controls',exact:true}).click();
+  await expect(page.locator('#view-loading')).toBeHidden();
+  await page.evaluate(()=>{
+    document.querySelector('#view-loading').hidden=false;
+    window.dispatchEvent(new PageTransitionEvent('pageshow',{persisted:true}));
+  });
+  await expect(page.locator('#view-loading')).toBeHidden();
+  page.off('pageerror',recordError);
+  expect(errors).toEqual([]);
 });
