@@ -102,3 +102,6 @@
 
 .view-loading { position: fixed; bottom: 1rem; right: 1rem; z-index: 100; display: flex; align-items: center; gap: .75rem; max-width: calc(100vw - 2rem); padding: .75rem 1rem; border: 1px solid #475569; border-radius: .5rem; background: #0f172a; color: #e2e8f0; box-shadow: 0 4px 16px #0008; pointer-events: none; }
 .view-loading[hidden] { display: none; }
+
+.code-entry-icon { display: inline-block; width: 1rem; height: 1rem; margin-right: .35rem; vertical-align: -.15rem; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; color: #94a3b8; }
+[data-code-entry="directory"] .code-entry-icon { color: #fbbf24; }

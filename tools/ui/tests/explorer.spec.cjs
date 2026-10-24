@@ -954,12 +954,18 @@ test('fulfillment review connects directories, hotspots, impact, durable finding
 test('code explorer browses an unconfigured directory and follows local evidence', async () => {
   fs.rmSync(root,{recursive:true,force:true});
   fs.mkdirSync(path.join(root,'src'),{recursive:true});
+  fs.writeFileSync(path.join(root,'src/notes.txt'),'Project notes');
   fs.writeFileSync(path.join(root,'src/code.ts'), '/** Read documentation. */\nexport function read():number{return 1}\nexport function caller(){return read()}\nexport interface Reader {get():number}\nexport class Store {private hidden=1; get(){return read()}}\n');
   await page.setViewportSize({width:1440,height:1000});
   await page.goto(url+'/explore');
   await expect(page.getByRole('heading',{name:'Code explorer',exact:true})).toBeVisible();
   await expect(page.getByRole('link',{name:'read',exact:true})).not.toBeVisible();
+  await expect(page.getByLabel('Code tree').locator('[data-code-entry="directory"] svg')).toHaveCount(1);
   await page.getByLabel('Code tree').getByText('src',{exact:true}).click();
+  await expect(page.getByLabel('Code tree').locator('[data-code-entry="file"] svg')).toHaveCount(2);
+  await page.getByRole('link',{name:'notes.txt',exact:true}).click();
+  await expect(page.getByLabel('Code tree').getByText('No indexed symbols.',{exact:true})).toBeVisible();
+  await expect(page.locator('[data-code-source]')).toContainText('Project notes');
   await page.getByRole('link',{name:'code.ts',exact:true}).click();
   await expect(page.locator('[data-code-source]')).toContainText('function read');
   await page.getByRole('link',{name:'read',exact:true}).click();

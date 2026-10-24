@@ -115,11 +115,23 @@ templ CodeFiles(browser application.CodeBrowser, filter CodeFilter, tree codeTre
 			<li>
 				if len(node.Children)>0 {
 					<details open?={ (filter.Query!="" || filter.Kind!="" || filter.Visibility!="" || filter.Status!="") || strings.HasPrefix(browser.Selected,node.Path+"/") }>
-						<summary>{ node.Name }</summary>@CodeFiles(browser, filter, tree, node.Children)
+						<summary data-code-entry="directory">
+							@CodeEntryLabel(true, node.Name)
+						</summary>
+						@CodeFiles(browser, filter, tree, node.Children)
 					</details>
 				} else {
 					<details open?={ browser.Selected==node.Path || filter.Query!="" }>
-						<summary><a href={ templ.SafeURL(codeLink(browser, filter, node.Path, "")) }>{ node.Name }</a> · { node.Status }</summary>@CodeSymbols(browser, filter, tree.Symbols[node.Path])
+						<summary data-code-entry="file">
+							<a href={ templ.SafeURL(codeLink(browser, filter, node.Path, "")) }>
+								@CodeEntryLabel(false, node.Name)
+							</a> · { node.Status }
+						</summary>
+						if len(tree.Symbols[node.Path])>0 {
+							@CodeSymbols(browser, filter, tree.Symbols[node.Path])
+						} else {
+							<p class="code-empty">No indexed symbols.</p>
+						}
 					</details>
 				}
 			</li>
@@ -160,4 +172,15 @@ templ CodeRelationships(browser application.CodeBrowser, filter CodeFilter) {
 			}
 		</article>
 	}
+}
+
+templ CodeEntryLabel(directory bool, name string) {
+	<svg class="code-entry-icon" viewBox="0 0 20 20" aria-hidden="true" focusable="false">
+		if directory {
+			<path d="M2 5a1 1 0 0 1 1-1h5l2 2h7a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1Z"></path>
+		} else {
+			<path d="M5 2h6l4 4v12H5ZM11 2v5h4M8 11h4M8 14h4"></path>
+		}
+	</svg>
+	{ name }
 }
