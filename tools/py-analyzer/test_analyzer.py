@@ -30,6 +30,18 @@ class AnalyzerTests(unittest.TestCase):
             self.assertIn('-> str', symbol['displaySignature'])
             self.assertIn('new_value: str', symbol['displaySignature'])
 
+    def test_ignored_ancestor_does_not_hide_project_sources(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)/'.build'/'example'
+            (root/'world'/'.build').mkdir(parents=True)
+            (root/'world/api.py').write_text("def read(): return 'world'\n")
+            (root/'world/.build/broken.py').write_text("invalid python !!!")
+            config = {'Modules': {'world': {'Language': 'python', 'Paths': ['world'], 'Seams': {'reader': {'Entrypoints': ['world/api.py']}}}}}
+            snapshot = module.analyze({'version': 1, 'root': str(root), 'config': config})
+            self.assertFalse(snapshot['diagnostics'])
+            self.assertEqual(len(snapshot['symbols']), 1)
+            self.assertTrue(snapshot['seams'][0]['contractMembers'][0].endswith('read'))
+
     def test_bad_protocol(self):
         with self.assertRaises(ValueError):
             module.analyze({'version': 99})

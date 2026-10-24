@@ -54,7 +54,7 @@ def analyze(request):
             if not source_root.is_dir():
                 raise ValueError('Missing Python root '+directory)
             for file in project_files(source_root):
-                if any(p in {'.venv', '__pycache__', '.git', 'node_modules', '.build', '.seamgraph', '.devbox', '.codex-local'} for p in file.parts) or file.name.startswith('test_') or file.name.endswith('_test.py'):
+                if any(p in {'.venv', '__pycache__', '.git', 'node_modules', '.build', '.seamgraph', '.devbox', '.codex-local'} for p in file.relative_to(root).parts) or file.name.startswith('test_') or file.name.endswith('_test.py'):
                     continue
                 relative(file)
                 files[file.resolve()] = dict(file=file.resolve(), tree=ast.parse(file.read_text(encoding='utf-8'), filename=relative(file)), own='module:'+name, symbols={}, imports={}, exports={}, all=None)
