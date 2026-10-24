@@ -100,14 +100,14 @@ func ComparisonControls(architecture bool, base, head, clear string, active bool
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "<button class=\"bg-slate-700 rounded px-4 py-2\">Compare</button> <a id=\"clear-comparison\" href=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "<button class=\"bg-slate-700 rounded px-4 py-2\">Compare</button> <span class=\"comparison-loading\" data-comparison-loading role=\"status\" aria-live=\"polite\" hidden><span class=\"details-spinner\" aria-hidden=\"true\"></span>Comparing…</span> <a id=\"clear-comparison\" href=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var4 templ.SafeURL
 		templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(clear))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/comparison.templ`, Line: 24, Col: 55}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/comparison.templ`, Line: 25, Col: 55}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 		if templ_7745c5c3_Err != nil {

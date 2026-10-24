@@ -1,5 +1,13 @@
 /* Shared comparison controls and native navigation feedback. */
 (() => {
+  const comparisonBusy = (form, busy) => {
+    if (!form?.matches("[data-comparison-controls]")) return;
+    form.setAttribute("aria-busy", String(busy));
+    form.querySelector("button").disabled = busy;
+    form.querySelector("[data-comparison-loading]").hidden = !busy;
+  };
+  document.addEventListener("htmx:beforeRequest", event => comparisonBusy(event.detail.elt, true));
+  document.addEventListener("htmx:afterRequest", event => comparisonBusy(event.detail.elt, false));
   document.querySelectorAll("[data-comparison-controls]").forEach(form => {
     const scope = form.elements.scope, base = form.elements.base, head = form.elements.head;
     let revisions = scope.value === "working" ? ["HEAD~1", "HEAD"] : [base.value, head.value];
@@ -16,12 +24,14 @@
   const indicator = document.querySelector("#view-loading");
   const reset = () => {
     indicator.hidden = true;
+    document.querySelectorAll("[data-comparison-controls]").forEach(form => comparisonBusy(form, false));
     document.querySelector("main")?.removeAttribute("aria-busy");
   };
   const show = (event) => {
     // Other handlers may turn a link or form into an in-page interaction.
     setTimeout(() => {
       if (event.defaultPrevented) return;
+      comparisonBusy(event.target, true);
       indicator.hidden = false;
       document.querySelector("main")?.setAttribute("aria-busy", "true");
     }, 0);

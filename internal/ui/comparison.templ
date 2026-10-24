@@ -21,6 +21,7 @@ templ ComparisonControls(architecture bool, base, head, clear string, active boo
 			<input name="head" value={ head } aria-label="Head revision" required class="bg-slate-950 rounded px-3 py-2 border border-slate-700"/>
 			{ children... }
 			<button class="bg-slate-700 rounded px-4 py-2">Compare</button>
+			<span class="comparison-loading" data-comparison-loading role="status" aria-live="polite" hidden><span class="details-spinner" aria-hidden="true"></span>Comparing…</span>
 			<a id="clear-comparison" href={ templ.SafeURL(clear) } hidden?={ !active } class="bg-slate-700 rounded px-4 py-2">Clear comparison</a>
 		</form>
 		if architecture {

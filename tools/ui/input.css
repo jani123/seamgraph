@@ -149,3 +149,7 @@
 .diff-row.diff-hunk { color: #7dd3fc; background: #0c2135; }
 @media (max-width:767px) { .diff-row { grid-template-columns: 2.5rem 2.5rem 1rem minmax(0,1fr); } }
 .unified-diff > [data-diff-source] { display: none; }
+
+.comparison-loading { display: inline-flex; align-items: center; gap: .5rem; font-size: .875rem; }
+.comparison-loading[hidden] { display: none; }
+.comparison-form button:disabled { opacity: .6; cursor: wait; }

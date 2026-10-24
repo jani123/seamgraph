@@ -1041,13 +1041,14 @@ test('view navigation and native forms show loading feedback until the destinati
   const errors=[];
   const recordError=error=>errors.push(String(error));
   page.on('pageerror',recordError);
-  const slowNavigation=async (pathname,action) => {
+  const slowNavigation=async (pathname,action,comparison=false) => {
     states.length=0;
     await page.evaluate(()=>{
       const indicator=document.querySelector('#view-loading');
       new MutationObserver(()=>window.captureViewLoading({
         visible:!indicator.hidden && getComputedStyle(indicator).display!=='none',
-        busy:document.querySelector('main')?.getAttribute('aria-busy')
+        busy:document.querySelector('main')?.getAttribute('aria-busy'),
+        comparing:document.querySelector('[data-comparison-loading]')?.hidden===false
       })).observe(indicator,{attributes:true});
     });
     let release;
@@ -1060,7 +1061,7 @@ test('view navigation and native forms show loading feedback until the destinati
     let click;
     try {
       click=action();
-      await expect.poll(()=>states.some(state=>state.visible && state.busy==='true')).toBe(true);
+      await expect.poll(()=>states.some(state=>state.visible && state.busy==='true' && (!comparison || state.comparing))).toBe(true);
       release();
       await click;
       await expect(page.locator('#view-loading')).toBeHidden();
@@ -1078,6 +1079,30 @@ test('view navigation and native forms show loading feedback until the destinati
   await expect(page.locator('#summary')).toContainText('modules');
   await page.getByRole('navigation',{name:'Main navigation',exact:true}).getByRole('link',{name:'Architecture',exact:true}).click();
   expect(await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(()=>resolve(document.querySelector('#view-loading').hidden)))))).toBe(true);
+  for (const outcome of ['success','error','abort']) {
+    let release;
+    const pending=new Promise(resolve=>{release=resolve;});
+    const intercept=async route=>{
+      await pending;
+      if(outcome==='error') await route.fulfill({status:500,body:'Comparison failed'});
+      else if(outcome==='abort') await route.abort();
+      else await route.continue();
+    };
+    await page.route(url+'/changes?**',intercept);
+    try {
+      await page.getByRole('button',{name:'Compare',exact:true}).click();
+      await expect(page.locator('[data-comparison-loading]')).toBeVisible();
+      await expect(page.locator('[data-comparison-controls]')).toHaveAttribute('aria-busy','true');
+      await expect(page.getByRole('button',{name:'Compare',exact:true})).toBeDisabled();
+      release();
+      await expect(page.locator('[data-comparison-loading]')).toBeHidden();
+      await expect(page.getByRole('button',{name:'Compare',exact:true})).toBeEnabled();
+      await expect(page.locator('[data-comparison-controls]')).toHaveAttribute('aria-busy','false');
+    } finally {
+      release();
+      await page.unroute(url+'/changes?**',intercept);
+    }
+  }
   await page.goto(url+'/review');
   const download=page.waitForEvent('download');
   await page.getByRole('link',{name:'Export json',exact:true}).click();
@@ -1085,6 +1110,9 @@ test('view navigation and native forms show loading feedback until the destinati
   await expect(page.locator('#view-loading')).toBeHidden();
   await page.goto(url+'/explore');
   await slowNavigation('/explore',()=>page.getByRole('button',{name:'Explore',exact:true}).click());
+  await slowNavigation('/explore',()=>page.getByRole('button',{name:'Compare',exact:true}).click(),true);
+  await expect(page.locator('[data-comparison-loading]')).toBeHidden();
+  await expect(page.getByRole('button',{name:'Compare',exact:true})).toBeEnabled();
   await page.goto(url+'/help');
   await page.getByRole('link',{name:'Graph controls',exact:true}).click();
   await expect(page.locator('#view-loading')).toBeHidden();
