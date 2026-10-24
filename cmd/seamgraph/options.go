@@ -1,9 +1,10 @@
 package main
 
 import (
-	"flag"
-	"fmt"
-	"io"
+	"strings"
+
+	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 )
 
 type commandOptions struct {
@@ -30,11 +31,8 @@ type commandOptions struct {
 	tests        bool
 }
 
-func parseOptions(command string, args []string, errOut io.Writer) (*commandOptions, int) {
-	c := commandInvocation{errOut: errOut}
-	opts := &commandOptions{}
-	fs := flag.NewFlagSet(command, flag.ContinueOnError)
-	fs.SetOutput(errOut)
+func bindOptions(cmd *cobra.Command, opts *commandOptions) {
+	fs := cmd.Flags()
 	fs.StringVar(&opts.languages, "languages", "", "doctor runtime selection: go,typescript,python,git,ssh")
 	fs.StringVar(&opts.root, "root", ".", "project root")
 	fs.StringVar(&opts.remoteRef, "ref", "HEAD", "remote branch, tag or commit for open")
@@ -56,14 +54,24 @@ func parseOptions(command string, args []string, errOut io.Writer) (*commandOpti
 	fs.StringVar(&opts.baseline, "baseline", "", "JSON array of accepted violation IDs")
 	fs.BoolVar(&opts.contracts, "contracts", false, "enforce contract verification")
 	fs.BoolVar(&opts.tests, "tests", false, "inspect test evidence")
-	if err := fs.Parse(args); err != nil {
-		return nil, 2
+}
+
+// Keep previously accepted flags available while showing each command's relevant options.
+func focusCommandHelp(cmd *cobra.Command) {
+	visible := map[string]string{
+		"init": "root", "validate": "root", "fingerprint": "root",
+		"scan":         "root revision format json output",
+		"snapshot":     "root revision format json output",
+		"check":        "root revision format json output baseline contracts tests",
+		"inspect":      "root revision format json output contracts tests",
+		"diff":         "root base head format json",
+		"test":         "root runner",
+		"import-tests": "root artifact metadata format",
+		"serve":        "root addr allow-network listen-file",
+		"open":         "root ref cache-dir config prepare-only addr allow-network listen-file json",
+		"doctor":       "root languages json",
 	}
-	if fs.NArg() != 0 {
-		return nil, c.fail(fmt.Errorf("unexpected positional arguments"))
-	}
-	if opts.asJSON {
-		opts.format = "json"
-	}
-	return opts, 0
+	cmd.Flags().VisitAll(func(f *pflag.Flag) {
+		f.Hidden = !strings.Contains(" "+visible[cmd.Name()]+" ", " "+f.Name+" ")
+	})
 }

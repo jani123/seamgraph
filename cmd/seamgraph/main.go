@@ -7,8 +7,6 @@ import (
 	"io"
 	"os"
 	"os/signal"
-	"seamgraph/internal/bootstrap"
-	"strings"
 	"syscall"
 )
 
@@ -51,30 +49,12 @@ func runContext(ctx context.Context, args []string, out, errOut io.Writer) (exit
 			exitCode = fail(trackedOutput.err)
 		}
 	}()
-	if len(args) == 0 {
-		return fail(fmt.Errorf("usage: seamgraph <init|validate|scan|check|snapshot|inspect|diff|serve|open|doctor|version> [options]"))
-	}
-	if args[0] == "version" || args[0] == "--version" {
-		_, _ = fmt.Fprintf(out, "seamgraph %s (commit %s, built %s)\n", version, commit, buildDate)
-		return 0
-	}
-	command := args[0]
-	inspectID := ""
-	args = args[1:]
-	if (command == "inspect" || command == "open") && len(args) > 0 && !strings.HasPrefix(args[0], "-") {
-		inspectID = args[0]
-		args = args[1:]
-	}
-	opts, code := parseOptions(command, args, errOut)
-	if opts == nil {
-		return code
-	}
-	svc, err := bootstrap.New(opts.root)
-	if err != nil {
+	root := newRootCommand(out, errOut, trackedOutput, &exitCode)
+	root.SetArgs(args)
+	if err := root.ExecuteContext(ctx); err != nil {
 		return fail(err)
 	}
-	c := commandInvocation{ctx: ctx, out: out, errOut: errOut, command: command, inspectID: inspectID, opts: opts, svc: svc, trackedOutput: trackedOutput}
-	return c.execute()
+	return exitCode
 }
 
 func main() {
