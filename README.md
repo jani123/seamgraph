@@ -105,6 +105,22 @@ required for Python. The TypeScript compiler, its standard declaration libraries
 Python helper and frontend assets are embedded in the binary. Scanning downloads
 nothing; Go project dependencies must already be available locally.
 
+## Try a realistic local review
+
+Generate the [order fulfillment example](examples/order-fulfillment/README.md)
+with Go, TypeScript and Python, local fakes, reproducible review branches and
+explicit expected findings:
+
+```sh
+python3 scripts/examples/generate.py .build/fulfillment
+.build/seamgraph serve --root .build/fulfillment
+```
+
+The [scenario guide](examples/order-fulfillment/SCENARIOS.md) covers boundary
+violations and fixes, cancellation, incompatible consumers, evidence freshness,
+Git history edge cases and a bounded larger graph. `task examples:test` verifies
+the supported workflows independently of the browser.
+
 ## Run with bundled analysis runtimes
 
 ```sh

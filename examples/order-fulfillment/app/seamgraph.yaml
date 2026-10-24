@@ -1,0 +1,124 @@
+version: 1
+modules:
+  orders:
+    language: go
+    paths: [orders]
+    seams:
+      lifecycle:
+        symbols: [Service, New, Order, StockReader, Status, Pending, Fulfilled, Cancelled]
+  inventory:
+    language: go
+    paths: [inventory]
+    seams:
+      reservations:
+        symbols: [Stock, New, Reservation, ErrStock]
+  payments:
+    language: go
+    paths: [payments]
+    seams:
+      authorization:
+        symbols: [Adapter, New, Authorization]
+  http:
+    language: go
+    paths: [api]
+    seams:
+      orders:
+        symbols: [Handler, Request, Response]
+  demo:
+    language: go
+    paths: [cmd/demo]
+  client:
+    language: typescript
+    paths: [storefront/client]
+    seams:
+      orders:
+        entrypoints: [storefront/client/index.ts]
+  cart:
+    language: typescript
+    paths: [storefront/cart]
+    seams:
+      items:
+        entrypoints: [storefront/cart/cart.ts]
+  checkout:
+    language: typescript
+    paths: [storefront/checkout]
+  status:
+    language: typescript
+    paths: [storefront/status]
+  fulfillment:
+    language: python
+    paths: [python/fulfillment]
+    importRoots: [python]
+    seams:
+      shipping:
+        entrypoints: [python/fulfillment/api.py]
+  reporting:
+    language: python
+    paths: [python/reporting]
+    importRoots: [python]
+    seams:
+      summaries:
+        entrypoints: [python/reporting/summary.py]
+  operations:
+    language: python
+    paths: [python/operations]
+    importRoots: [python]
+  pricing:
+    language: typescript
+    paths: [storefront/pricing]
+    seams:
+      quote:
+        entrypoints: [storefront/pricing/index.ts]
+  discounts:
+    language: typescript
+    paths: [storefront/discounts]
+    seams:
+      quote:
+        entrypoints: [storefront/discounts/index.ts]
+  tax:
+    language: typescript
+    paths: [storefront/tax]
+    seams:
+      quote:
+        entrypoints: [storefront/tax/index.ts]
+  routing:
+    language: typescript
+    paths: [storefront/routing]
+    seams:
+      quote:
+        entrypoints: [storefront/routing/index.ts]
+  dispatch:
+    language: typescript
+    paths: [storefront/dispatch]
+    seams:
+      quote:
+        entrypoints: [storefront/dispatch/index.ts]
+  audit:
+    language: typescript
+    paths: [storefront/audit]
+    seams:
+      quote:
+        entrypoints: [storefront/audit/index.ts]
+policies:
+  default: deny
+  unresolved: warn
+  allow:
+    - {from: orders, to: inventory.reservations}
+    - {from: orders, to: payments.authorization}
+    - {from: http, to: orders.lifecycle}
+    - {from: demo, to: orders.lifecycle}
+    - {from: demo, to: inventory.reservations}
+    - {from: demo, to: payments.authorization}
+    - {from: checkout, to: client.orders}
+    - {from: checkout, to: cart.items}
+    - {from: status, to: client.orders}
+    - {from: reporting, to: fulfillment.shipping}
+    - {from: operations, to: fulfillment.shipping}
+    - {from: operations, to: reporting.summaries}
+    - {from: checkout, to: pricing.quote}
+    - {from: pricing, to: discounts.quote}
+    - {from: discounts, to: tax.quote}
+    - {from: tax, to: routing.quote}
+    - {from: tax, to: pricing.quote}
+    - {from: routing, to: dispatch.quote}
+    - {from: dispatch, to: audit.quote}

@@ -144,6 +144,14 @@ tasks:
     cmds:
       - .build/test-python/bin/python -m unittest discover -s tools/test-runners -v
 
+  examples:test:
+    desc: Verify realistic fulfillment flows, generated histories and review transitions
+    preconditions:
+      - sh: test -x .build/seamgraph && test -f tools/ts-analyzer/node_modules/typescript/bin/tsc
+        msg: Run task deps and task build before testing examples.
+    cmds:
+      - python3 -m unittest discover -s scripts/examples -v
+
   browser:test:
     desc: Test real local browser interactions with bundled Chromium
     cmds:
@@ -171,4 +179,5 @@ tasks:
       - task: installer:test
       - task: helpers:test
       - task: runners:test
+      - task: examples:test
       - task: browser:test

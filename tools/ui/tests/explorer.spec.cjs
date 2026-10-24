@@ -799,3 +799,47 @@ test('details show loading feedback, replace slow selections, and clear loading 
     release();if(!page.isClosed()){await page.unroute('**/api/model');await page.unroute(moduleRoute);}
   }
 });
+
+test('generated fulfillment repository supports exploration, comparison and a bounded larger graph', async () => {
+  test.setTimeout(60000);
+  fs.rmSync(root, {recursive:true, force:true});
+  execFileSync('python3', [path.join(repo,'scripts/examples/generate.py'), root, '--warehouses','120'], {cwd:repo});
+  await page.setViewportSize({width:1440,height:1000});
+  const errors=[];
+  const recordError = error => errors.push(String(error));
+  page.on('pageerror', recordError);
+  try {
+    const started=Date.now();
+    await page.goto(url);
+    await expect(page.locator('#summary')).toContainText('138 modules');
+    await page.waitForFunction(()=>document.querySelector('#graph')._cyreg?.cy?.nodes().length===138);
+    expect(Date.now()-started).toBeLessThan(10000);
+    await page.getByLabel('Dependency view').selectOption('all');
+    await page.locator('#search').fill('warehouse-042');
+    await expect.poll(()=>page.evaluate(()=>document.querySelector('#graph')._cyreg.cy.nodes(':visible').length)).toBe(1);
+    await page.locator('#search').fill('');
+    await page.evaluate(()=>document.querySelector('#graph')._cyreg.cy.getElementById('module:orders').emit('tap'));
+    await expect(page.locator('#details')).toContainText('seam:orders.lifecycle');
+    const source=page.locator('#details a[href^="/source?"]').first();
+    await expect(source).toBeVisible();
+    const response=await page.request.get(new URL(await source.getAttribute('href'),url).href);
+    expect(response.ok()).toBe(true);
+    expect(await response.text()).toContain('package');
+    await page.getByLabel('Comparison scope').selectOption('revisions');
+    await page.getByLabel('Base revision').fill('main');
+    await page.getByLabel('Head revision').fill('review/boundary');
+    await page.getByRole('button',{name:'Compare',exact:true}).click();
+    await expect(page.locator('#changes')).toContainText('added violation',{timeout:15000});
+    const refs=JSON.parse(fs.readFileSync(path.join(root,'.seamgraph/scenarios.json'))).refs;
+    await expect(page.locator('#changes')).toContainText(refs['review/boundary']);
+    await page.getByLabel('Base revision').fill('review/boundary');
+    await page.getByLabel('Head revision').fill('review/boundary-fixed');
+    await page.getByRole('button',{name:'Compare',exact:true}).click();
+    await expect(page.locator('#changes')).toContainText('removed violation',{timeout:15000});
+    expect(execFileSync('git',['-C',root,'status','--porcelain'],{encoding:'utf8'})).toBe('');
+    await page.screenshot({path:path.join(repo,'.build/order-review-large.png'),fullPage:true});
+    expect(errors).toEqual([]);
+  } finally {
+    page.off('pageerror', recordError);
+  }
+});

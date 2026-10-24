@@ -1,0 +1,21 @@
+version: 1
+requirements:
+  - id: behavior:order.retry
+    seamId: seam:orders.lifecycle
+    description: Identical retries reserve and charge once and conflicting retries fail
+    kind: behavior
+  - id: behavior:order.payment-failure
+    seamId: seam:orders.lifecycle
+    description: Payment rejection releases reserved stock
+    kind: error
+links:
+  - testId: example.test/fulfillment/orders/TestPlace
+    requirementIds: [behavior:order.retry]
+    memberIds: []
+    reviewed: true
+  - testId: example.test/fulfillment/orders/TestAuthorizationFailure
+    requirementIds: [behavior:order.payment-failure]
+    memberIds: []
+    reviewed: true
+policies:
+  seam:orders.lifecycle: require-verified
