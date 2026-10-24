@@ -221,13 +221,6 @@ func comparisonLink(browser application.CodeBrowser, filter CodeFilter) string {
 	return codeLink(browser, filter, browser.Selected, browser.Object)
 }
 
-func sourceRevision(browser application.CodeBrowser) string {
-	if revision := codeRevision(browser); revision != "" {
-		return revision
-	}
-	return "WORKTREE"
-}
-
 func comparisonBase(browser application.CodeBrowser) string {
 	if browser.ReviewBaseRef != "" {
 		return browser.ReviewBaseRef

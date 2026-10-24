@@ -27,7 +27,7 @@ templ CodePage(token string, browser application.CodeBrowser, filter CodeFilter,
 					<input type="hidden" name="revision" value={ browser.ReviewHeadRef }/>
 					<label><input type="checkbox" name="changes" value="1" checked?={ filter.ChangesOnly }/>Changes only</label>
 				} else {
-					<label>Source revision<input name="revision" value={ sourceRevision(browser) }/></label>
+					<input type="hidden" name="revision" value={ codeRevision(browser) }/>
 				}
 				<input type="hidden" name="file" value={ browser.Selected }/>
 				<input type="hidden" name="object" value={ browser.Object }/>

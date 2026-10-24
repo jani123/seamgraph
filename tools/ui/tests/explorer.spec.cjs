@@ -1113,6 +1113,8 @@ test('Code compares working changes in one colored diff and toggles the changed 
   fs.unlinkSync(path.join(root,'removed.txt'));
   await page.setViewportSize({width:1440,height:1000});
   await page.goto(url+'/explore?file=src/code.py');
+  await expect(page.getByLabel('Source revision',{exact:true})).toHaveCount(0);
+  await expect(page.locator('input[name=revision]:visible')).toHaveCount(0);
   await expect(page.getByRole('navigation',{name:'Main navigation',exact:true}).getByRole('link',{name:'Review',exact:true})).toHaveCount(0);
   const controls = page.locator('[data-comparison-controls]');
   await expect(page.getByLabel('Comparison scope')).toHaveValue('working');
