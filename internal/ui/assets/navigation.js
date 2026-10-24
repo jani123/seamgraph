@@ -1,5 +1,18 @@
-/* Shared feedback for native page navigation; all assets remain local. */
+/* Shared comparison controls and native navigation feedback. */
 (() => {
+  document.querySelectorAll("[data-comparison-controls]").forEach(form => {
+    const scope = form.elements.scope, base = form.elements.base, head = form.elements.head;
+    let revisions = scope.value === "working" ? ["HEAD~1", "HEAD"] : [base.value, head.value];
+    const update = () => {
+      const working = scope.value === "working";
+      if (working) { base.value = "HEAD"; head.value = "WORKTREE"; }
+      else { [base.value, head.value] = revisions; }
+      base.readOnly = head.readOnly = working;
+    };
+    scope.addEventListener("change", update);
+    form.addEventListener("input", event => { if ((event.target === base || event.target === head) && scope.value === "revisions") revisions = [base.value, head.value]; });
+    update();
+  });
   const indicator = document.querySelector("#view-loading");
   const reset = () => {
     indicator.hidden = true;

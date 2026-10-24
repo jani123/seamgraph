@@ -9,16 +9,25 @@ import (
 templ CodePage(token string, browser application.CodeBrowser, filter CodeFilter, review *application.ReviewWorkspace) {
 	@pageLayout("Code", token, false) {
 		<main class="review-main code-main">
+			@ComparisonControls(false, comparisonBase(browser), comparisonHead(browser), comparisonLink(browser, filter), browser.Base!="") {
+				<input type="hidden" name="file" value={ browser.Selected }/>
+				<input type="hidden" name="changes" value="1"/>
+				<input type="hidden" name="object" value={ browser.Object }/>
+				<input type="hidden" name="q" value={ filter.Query }/>
+				<input type="hidden" name="kind" value={ filter.Kind }/>
+				<input type="hidden" name="visibility" value={ filter.Visibility }/>
+				if filter.Tools {
+					<input type="hidden" name="tools" value="1"/>
+				}
+			}
 			<h1>Code explorer</h1>
 			<form method="get" action="/explore" class="review-controls">
 				if browser.Base!="" {
-					<label>Base revision<input name="base" value={ browser.ReviewBaseRef } required/></label>
-					<label>Head revision<input name="revision" value={ browser.ReviewHeadRef } required/></label>
+					<input type="hidden" name="base" value={ browser.ReviewBaseRef }/>
+					<input type="hidden" name="revision" value={ browser.ReviewHeadRef }/>
 					<label><input type="checkbox" name="changes" value="1" checked?={ filter.ChangesOnly }/>Changes only</label>
-					<a href={ templ.SafeURL(comparisonLink(browser, filter, false)) }>Browse code</a>
 				} else {
-					<label>Revision (empty for working directory)<input name="revision" value={ codeRevision(browser) }/></label>
-					<a href={ templ.SafeURL(comparisonLink(browser, filter, true)) }>Compare changes</a>
+					<label>Source revision<input name="revision" value={ sourceRevision(browser) }/></label>
 				}
 				<input type="hidden" name="file" value={ browser.Selected }/>
 				<input type="hidden" name="object" value={ browser.Object }/>

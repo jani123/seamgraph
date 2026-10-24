@@ -205,27 +205,38 @@ func codeContains(node *codeSymbolNode, selected string) bool {
 	return false
 }
 
-func comparisonLink(browser application.CodeBrowser, filter CodeFilter, compare bool) string {
-	if compare {
-		browser.ReviewBaseRef = "HEAD"
-		browser.ReviewHeadRef = codeRevision(browser)
-		if browser.ReviewHeadRef == "" {
-			browser.ReviewHeadRef = "WORKTREE"
-		}
-		filter.ChangesOnly = true
-	} else {
-		for _, file := range browser.Files {
-			if file.Path == browser.Selected && file.Status == "removed" {
-				browser.Revision = browser.Base
-			}
-		}
-		if object := selectedCode(browser); object != nil && object.Status == "removed" {
+func comparisonLink(browser application.CodeBrowser, filter CodeFilter) string {
+	for _, file := range browser.Files {
+		if file.Path == browser.Selected && file.Status == "removed" {
 			browser.Revision = browser.Base
 		}
-		browser.Base = ""
-		browser.ReviewBaseRef = ""
-		browser.ReviewHeadRef = ""
-		filter.ChangesOnly = false
 	}
+	if object := selectedCode(browser); object != nil && object.Status == "removed" {
+		browser.Revision = browser.Base
+	}
+	browser.Base = ""
+	browser.ReviewBaseRef = ""
+	browser.ReviewHeadRef = ""
+	filter.ChangesOnly = false
 	return codeLink(browser, filter, browser.Selected, browser.Object)
+}
+
+func sourceRevision(browser application.CodeBrowser) string {
+	if revision := codeRevision(browser); revision != "" {
+		return revision
+	}
+	return "WORKTREE"
+}
+
+func comparisonBase(browser application.CodeBrowser) string {
+	if browser.ReviewBaseRef != "" {
+		return browser.ReviewBaseRef
+	}
+	return "HEAD"
+}
+func comparisonHead(browser application.CodeBrowser) string {
+	if browser.ReviewHeadRef != "" {
+		return browser.ReviewHeadRef
+	}
+	return "WORKTREE"
 }

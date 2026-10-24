@@ -324,10 +324,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     };
     document.querySelector("#dependency-view").addEventListener("change", filter);
     document.querySelector("#changes-only").addEventListener("change", filter);
-    document.querySelector("#clear-comparison").addEventListener("click",()=>location.reload());
-    const scope=document.querySelector('[name="scope"]');
-    const updateScope=()=>document.querySelectorAll('[name="base"], [name="head"]').forEach(input=>{input.disabled=scope.value==="working";});
-    scope.addEventListener("change",updateScope);updateScope();
     document.querySelector("#reset-focus").addEventListener("click", () => {focusedModule = null; filter();});
     filter();
     document.querySelector("#search").addEventListener("input", filter);

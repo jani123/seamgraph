@@ -251,10 +251,7 @@ func (a *App) changes(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "revision comparison unavailable", http.StatusServiceUnavailable)
 		return
 	}
-	base, head := r.URL.Query().Get("base"), r.URL.Query().Get("head")
-	if r.URL.Query().Get("scope") == "working" {
-		base, head = "HEAD", "WORKTREE"
-	}
+	head, base := comparisonRefs(r)
 	result, err := a.backend.Compare(r.Context(), base, head)
 	if err != nil {
 		render(w, r, ui.Message(err.Error()))

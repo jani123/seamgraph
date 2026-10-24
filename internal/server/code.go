@@ -15,7 +15,7 @@ func (a *App) code(w http.ResponseWriter, r *http.Request) {
 		a.review(w, r)
 		return
 	}
-	revision, base := q.Get("revision"), q.Get("base")
+	revision, base := comparisonRefs(r)
 	if base != "" && revision == "" {
 		revision = "WORKTREE"
 	}
@@ -46,4 +46,23 @@ func (a *App) code(w http.ResponseWriter, r *http.Request) {
 	}
 	filter := ui.CodeFilter{Query: q.Get("q"), Kind: q.Get("kind"), Visibility: q.Get("visibility"), Status: q.Get("status"), View: q.Get("view"), CommitType: q.Get("type"), ChangesOnly: q.Get("changes") == "1", Tools: q.Get("tools") == "1", ReviewIssue: reviewIssue}
 	render(w, r, ui.CodePage(a.token, browser, filter, review))
+}
+
+func comparisonRefs(r *http.Request) (string, string) {
+	q := r.URL.Query()
+	switch q.Get("scope") {
+	case "working":
+		return "WORKTREE", "HEAD"
+	case "revisions":
+		return q.Get("head"), q.Get("base")
+	default:
+		revision := q.Get("revision")
+		if head := q.Get("head"); head != "" {
+			revision = head
+		}
+		if revision == "WORKTREE" && q.Get("base") == "" {
+			revision = ""
+		}
+		return revision, q.Get("base")
+	}
 }

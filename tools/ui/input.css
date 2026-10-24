@@ -81,6 +81,9 @@
 .review-main label { display: flex; flex-wrap: wrap; gap: .4rem; align-items: center; }
 .review-main input:not([type=checkbox]), .review-main textarea, .review-main select { background: #020617; border: 1px solid #475569; border-radius: .3rem; padding: .4rem; max-width: 100%; }
 .review-main button { background: #334155; border-radius: .3rem; padding: .45rem .8rem; }
+.comparison h2 { font-size: .875rem; font-weight: 500; margin: 0; }
+.comparison .comparison-form :is(input, select) { background: #020617; border: 1px solid #334155; border-radius: .3rem; padding: .375rem .75rem; max-width: 100%; }
+.comparison .comparison-form :is(button, a) { background: #334155; color: #f1f5f9; border-radius: .3rem; padding: .375rem .75rem; font-size: .875rem; text-decoration: none; }
 .review-workspace { display: grid; grid-template-columns: minmax(12rem,1fr) minmax(0,3fr); gap: 1rem; }
 .review-main { overflow-wrap: anywhere; }
 .review-tree, .review-selection { min-width: 0; border: 1px solid #334155; padding: .75rem; border-radius: .5rem; }
