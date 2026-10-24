@@ -9,6 +9,8 @@ task devcontainer:rebuild
 task devcontainer:dev
 # Print that URL again from another host terminal:
 task devcontainer:url
+# Print the workspace and all example URLs:
+task devcontainer:urls
 ```
 
 The host needs Python 3 for the URL helper, plus the existing Dev Container CLI,
@@ -16,9 +18,10 @@ Docker/Compose and Task/Devbox setup. The helper discovers the running workspace
 by Dev Container labels, reads its actual Compose project label, and finds the
 published relay port. It does not guess container names or Compose project names.
 
-Container startup automatically launches one background Air session and waits
-for HTTP readiness. Repeated starts reuse that session. Logs are written to
-`.build/dev-server.log`. To stop it, run `task devcontainer:dev-stop` on the host
+Container startup automatically launches one background Air session for the
+workspace and three example servers, and waits for all four HTTP endpoints.
+Repeated starts reuse that session. Logs are written to
+`.build/dev-server.log`. To stop all four servers, run `task devcontainer:dev-stop` on the host
 or `python3 .devcontainer/start-dev.py --stop` inside the container.
 
 Inside an already prepared container, stop the background session before using
@@ -43,18 +46,47 @@ outputs, generated templates and generated bundles are excluded. Refresh the
 browser after changes to load the newly built UI. Air's optional browser proxy
 is not used.
 
+## Example endpoints
+
+The devcontainer starts these [review examples](../examples/order-fulfillment/README.md)
+alongside the main workspace:
+
+| Container port | VS Code label | Repository |
+| --- | --- | --- |
+| 8765 | SeamGraph dev | Main workspace |
+| 8766 | Order fulfillment | 18 modules, reproducible review branches |
+| 8767 | Fulfillment working changes | Staged, unstaged and untracked edits |
+| 8768 | Fulfillment large graph | 138 modules, including 120 warehouse consumers |
+
+VS Code forwards and labels each port. With the standalone CLI, Docker assigns a
+separate available **localhost** host port to each endpoint. Run
+`task devcontainer:urls` to print all four URLs, or
+`task devcontainer:url -- --example large` for one example (`fulfillment` and
+`working` are also available). The main URL remains `task devcontainer:url`.
+Run `task devcontainer:rebuild` from the host once to apply the added relay ports.
+
+Examples are generated locally on first startup under `.build/dev-examples/`.
+Later starts and Air rebuilds reuse those repositories, preserving branch
+selections, working changes and local evidence. All servers use the same freshly
+built binary and restart together on an Air rebuild. They share
+`.build/dev-server.log`; a server failure stops the group and readiness reports
+which ports are unavailable. A custom main project root leaves the example roots
+unchanged. To regenerate after editing the source example, stop the dev session
+and move `.build/dev-examples` aside before restarting; keep any review state you
+want to retain. Generation only publishes complete repositories.
+
 ## Dynamic host ports with the standalone CLI
 
 Within the devcontainer, Air serves on `0.0.0.0:8765` with explicit container
 network binding. The workspace remains attached only to its isolated private
-network. A small immutable Nginx relay can reach that fixed workspace endpoint
-and publishes its listener on **127.0.0.1 at an available host port**. It forwards
+network. A small immutable Nginx relay can reach the four fixed workspace endpoints
+and publishes each listener on **127.0.0.1 at an available host port**. It forwards
 the original Host and Origin headers, retaining the application's Host/CSRF
 checks. It is a fixed-target HTTP ingress, separate from the Squid egress proxy.
 
 Docker selects the host port when creating the relay container. It stays stable
 through Air rebuilds and server restarts, and may change when the relay is
-recreated. Multiple project containers can all use internal port 8765 without
+recreated. Multiple project containers can use the same internal ports without
 colliding on the host. The relay has no checkout mount and does not give the
 workspace an internet connection or a default route.
 
@@ -63,8 +95,8 @@ host. A 502 response means the relay is running but Air has not finished startin
 or the backend has stopped. Ctrl-C closes the log stream while Air continues
 running. `task devcontainer:dev-stop` stops the background server.
 
-VS Code support remains optional: process-based port discovery can still forward
-the server and label it **SeamGraph dev**. The CLI workflow uses Docker's published
+VS Code support remains optional: explicit port forwarding labels the workspace
+and all three example endpoints. The CLI workflow uses Docker's published
 port and requires no editor port-forwarding service.
 
 ## Native development without a devcontainer
@@ -88,8 +120,10 @@ local tooling. It is written only after a successful bind. Development uses its
 own temporary file; normal serving does not create one.
 
 The native Air smoke check observed two rebuilds on the same selected port.
-Unit tests cover Docker label/project discovery, dynamic host ports, missing or
-ambiguous containers and container/native launcher arguments. Docker-enabled CI
+Tests cover Docker label/project discovery, per-example host ports, missing or
+ambiguous containers and container/native launcher arguments. A live local test
+starts all four servers, checks each graph, and verifies shutdown and preservation
+of review edits across restarts. Docker-enabled CI
 builds the relay, serves the mixed graph from an isolated backend, resolves its
 host URL using the real helper, and verifies Host checks through the relay. There
 is no Docker daemon in this workspace, so that ingress integration cannot be run

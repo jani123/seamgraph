@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Keep one background Air session per checkout, independent of CLI terminals."""
 import fcntl
+import json
 import os
 from pathlib import Path
 import signal
@@ -59,16 +60,21 @@ def start():
     # Do not send a local readiness probe through the container's egress proxy.
     client = urllib.request.build_opener(urllib.request.ProxyHandler({}))
     deadline = time.monotonic() + 120
+    ports = [8765, *[example['port'] for example in json.loads((ROOT / '.devcontainer/examples.json').read_text())]]
+    pending = set(ports)
     while time.monotonic() < deadline:
-        try:
-            with client.open('http://127.0.0.1:8765/', timeout=2) as response:
-                if response.status == 200:
-                    print('Development server ready on container port 8765.', flush=True)
-                    return
-        except (OSError, urllib.error.URLError):
-            pass
+        for port in list(pending):
+            try:
+                with client.open(f'http://127.0.0.1:{port}/', timeout=2) as response:
+                    if response.status == 200:
+                        pending.remove(port)
+            except (OSError, urllib.error.URLError):
+                pass
+        if not pending:
+            print('Development servers ready on container ports ' + ', '.join(map(str, ports)) + '.', flush=True)
+            return
         time.sleep(1)
-    raise SystemExit(f'Development server did not become ready within 120s. See {LOG}')
+    raise SystemExit(f'Development servers did not become ready within 120s (pending ports: {sorted(pending)}). See {LOG}')
 
 
 if __name__ == '__main__':

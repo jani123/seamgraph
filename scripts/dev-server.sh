@@ -7,7 +7,9 @@ if [ -s "$SEAMGRAPH_DEV_STATE" ]; then addr=$(cat "$SEAMGRAPH_DEV_STATE"); fi
 # Native development keeps the loopback-only, OS-assigned address by default.
 if [ "${SEAMGRAPH_DEVCONTAINER:-}" = 1 ]; then
   addr=${SEAMGRAPH_DEV_ADDR:-0.0.0.0:8765}
-  set -- --allow-network "$@"
+  exec python3 .devcontainer/dev-servers.py .build/air/seamgraph serve \
+    --root "${SEAMGRAPH_DEV_ROOT:-.}" --addr "$addr" \
+    --listen-file "$SEAMGRAPH_DEV_STATE" --allow-network "$@"
 fi
 exec .build/air/seamgraph serve --root "${SEAMGRAPH_DEV_ROOT:-.}" \
   --addr "$addr" --listen-file "$SEAMGRAPH_DEV_STATE" "$@"

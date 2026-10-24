@@ -20,6 +20,12 @@ must already be available; generation invokes only Git and gofmt, and applicatio
 code has no third-party dependencies. The TypeScript test compiler comes from
 SeamGraph's installed development dependencies. No runtime download is needed.
 
+In the devcontainer, fulfillment, working-change and larger-graph repositories
+also start automatically on container ports 8766, 8767 and 8768. Run
+`task devcontainer:urls` from the host for their separately published localhost
+URLs; VS Code labels and forwards the ports. See
+[example endpoints](../../docs/development.md#example-endpoints) for setup and lifecycle.
+
 Run the application and its assertions:
 
 ```sh

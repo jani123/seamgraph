@@ -1,0 +1,5 @@
+[
+  {"name": "fulfillment", "label": "Order fulfillment", "port": 8766, "relayPort": 8081, "warehouses": 0, "working": false},
+  {"name": "working", "label": "Fulfillment working changes", "port": 8767, "relayPort": 8082, "warehouses": 0, "working": true},
+  {"name": "large", "label": "Fulfillment large graph", "port": 8768, "relayPort": 8083, "warehouses": 120, "working": false}
+]

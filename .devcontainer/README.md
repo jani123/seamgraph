@@ -20,6 +20,8 @@ task devcontainer:shell
 task devcontainer:dev
 # In another host terminal, print the browser URL:
 task devcontainer:url
+# Print the workspace and all three example URLs:
+task devcontainer:urls
 task devcontainer:codex
 # Later:
 task devcontainer:codex -- resume --last
@@ -33,8 +35,8 @@ To run only network checks, use `task devcontainer:check-network`.
 
 `up` and `rebuild` automatically start Air in the background through the
 post-start hook. `task devcontainer:dev` ensures it is running, prints the host
-browser URL, and follows `.build/dev-server.log`. Ctrl-C closes the log stream;
-`task devcontainer:dev-stop` stops Air. Docker picks an available localhost port for the fixed-target UI relay;
+browser URLs for the workspace and examples, and follows `.build/dev-server.log`. Ctrl-C closes the log stream;
+`task devcontainer:dev-stop` stops Air and all four servers. Docker picks an available localhost port for the fixed-target UI relay;
 `task devcontainer:url` discovers it without relying on editor forwarding or
 hard-coded Compose project/container names. Run `task devcontainer:rebuild` once
 after this configuration change to create the relay and port mapping.
@@ -44,11 +46,32 @@ seconds for HTTP readiness and reports the log path if the build fails. Use `dev
 VS Code/Cursor's **Reopen in Container** is also supported; its integrated port
 forwarding is optional. See [development](../docs/development.md) for Air details.
 
+## Review examples
+
+Startup generates three local example repositories under `.build/dev-examples/`:
+
+| Container port | Example |
+| --- | --- |
+| 8766 | Order fulfillment: 18 modules and reproducible review branches |
+| 8767 | Working changes: staged, unstaged and untracked edits |
+| 8768 | Larger graph: 138 modules |
+
+The main workspace remains on port 8765. VS Code forwards all four labeled ports;
+CLI users run `task devcontainer:urls` for Docker's separately assigned localhost
+URLs, or `task devcontainer:url -- --example fulfillment` for a single example.
+Rebuild the devcontainer once to add the relay listeners and mappings.
+
+Air rebuilds restart all four servers with the new binary. Existing example
+repositories are reused, preserving exploratory edits, branches and evidence.
+See [development](../docs/development.md#example-endpoints) for lifecycle details
+and the [scenario guide](../examples/order-fulfillment/SCENARIOS.md) for review tasks.
+
 ## Network boundary
 
 The workspace is attached only to an internal Docker bridge with an isolated
 gateway. The Squid proxy and fixed-target HTTP ingress relay have external networks.
-The ingress relay forwards only to workspace:8765 and publishes on host localhost. Public DNS forwarding is
+The ingress relay forwards only to workspace ports 8765–8768, with one fixed
+backend per listener, and publishes each on host localhost. Public DNS forwarding is
 disabled for the workspace, while Docker service discovery resolves `proxy`.
 `NET_ADMIN` and `NET_RAW` are dropped. No Docker socket, host home, desktop
 sockets, or host network is mounted.

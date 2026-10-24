@@ -37,8 +37,26 @@
     }
   },
   "portsAttributes": {
-    ".*seamgraph.*": {
+    "8765": {
       "label": "SeamGraph dev",
+      "protocol": "http",
+      "onAutoForward": "notify",
+      "requireLocalPort": false
+    },
+    "8766": {
+      "label": "Order fulfillment",
+      "protocol": "http",
+      "onAutoForward": "notify",
+      "requireLocalPort": false
+    },
+    "8767": {
+      "label": "Fulfillment working changes",
+      "protocol": "http",
+      "onAutoForward": "notify",
+      "requireLocalPort": false
+    },
+    "8768": {
+      "label": "Fulfillment large graph",
       "protocol": "http",
       "onAutoForward": "notify",
       "requireLocalPort": false
@@ -47,5 +65,11 @@
   "otherPortsAttributes": {
     "onAutoForward": "notify",
     "requireLocalPort": false
-  }
+  },
+  "forwardPorts": [
+    8765,
+    8766,
+    8767,
+    8768
+  ]
 }

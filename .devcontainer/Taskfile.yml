@@ -19,7 +19,7 @@ tasks:
     deps: [up]
     cmds:
       - env -u LD_LIBRARY_PATH "{{.DEVCONTAINER}}" exec --workspace-folder "{{.ROOT_DIR}}" python3 .devcontainer/start-dev.py {{.CLI_ARGS}}
-      - task: url
+      - task: urls
       - env -u LD_LIBRARY_PATH "{{.DEVCONTAINER}}" exec --workspace-folder "{{.ROOT_DIR}}" tail -n 50 -f .build/dev-server.log
 
   dev-stop:
@@ -28,9 +28,14 @@ tasks:
       - env -u LD_LIBRARY_PATH "{{.DEVCONTAINER}}" exec --workspace-folder "{{.ROOT_DIR}}" python3 .devcontainer/start-dev.py --stop
 
   url:
-    desc: Print the localhost URL assigned by Docker for this workspace
+    desc: Print the workspace URL (or select --example fulfillment, working or large)
     cmds:
-      - python3 "{{.ROOT_DIR}}/.devcontainer/browser-url.py" --workspace-folder "{{.ROOT_DIR}}"
+      - python3 "{{.ROOT_DIR}}/.devcontainer/browser-url.py" --workspace-folder "{{.ROOT_DIR}}" {{.CLI_ARGS}}
+
+  urls:
+    desc: Print all localhost URLs for the workspace and review examples
+    cmds:
+      - python3 "{{.ROOT_DIR}}/.devcontainer/browser-url.py" --workspace-folder "{{.ROOT_DIR}}" --all
 
   codex:
     desc: Start Codex in the project Dev Container

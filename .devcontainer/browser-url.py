@@ -25,7 +25,7 @@ def one_container(*filters):
     return ids[0]
 
 
-def browser_url(workspace):
+def browser_url(workspace, relay_port=8080):
     workspace = os.path.abspath(workspace)
     container = one_container('label=devcontainer.local_folder=' + workspace,
                               'label=devcontainer.config_file=' + str(Path(workspace) / '.devcontainer/devcontainer.json'))
@@ -35,7 +35,7 @@ def browser_url(workspace):
         raise RuntimeError('Workspace has no Compose project label')
     relay = one_container('label=com.docker.compose.project=' + project,
                           'label=com.docker.compose.service=dev-ui')
-    bindings = json.loads(docker('inspect', relay))[0]['NetworkSettings']['Ports'].get('8080/tcp') or []
+    bindings = json.loads(docker('inspect', relay))[0]['NetworkSettings']['Ports'].get(f'{relay_port}/tcp') or []
     for binding in bindings:
         if binding.get('HostIp') == '127.0.0.1':
             port = binding.get('HostPort', '')
@@ -47,9 +47,18 @@ def browser_url(workspace):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--workspace-folder', default='.')
+    examples = json.loads(Path(__file__).with_name('examples.json').read_text())
+    selection = parser.add_mutually_exclusive_group()
+    selection.add_argument('--example', choices=[e['name'] for e in examples])
+    selection.add_argument('--all', action='store_true', help='print labeled workspace and example URLs')
     args = parser.parse_args()
     try:
-        print(browser_url(args.workspace_folder))
+        if args.all:
+            for entry in [{'label': 'SeamGraph dev', 'relayPort': 8080}, *examples]:
+                print(entry['label'] + ': ' + browser_url(args.workspace_folder, entry['relayPort']))
+        else:
+            port = next((e['relayPort'] for e in examples if e['name'] == args.example), 8080)
+            print(browser_url(args.workspace_folder, port))
     except (OSError, RuntimeError, ValueError, KeyError, IndexError) as error:
         print('SeamGraph URL: ' + str(error), file=sys.stderr)
         return 2
