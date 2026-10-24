@@ -1,6 +1,7 @@
 /* All assets and data remain local. */
 document.addEventListener("DOMContentLoaded", async () => {
   const status = document.querySelector("#status");
+  const diagnostics = entries => document.dispatchEvent(new CustomEvent("seamgraph:diagnostics", {detail: entries}));
   const details=document.querySelector("#details");
   let detailsRequest;
   const abortedDetails=new WeakSet();
@@ -32,6 +33,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   };
   document.addEventListener("htmx:responseError", (event) => {
     status.textContent = event.detail.xhr.responseText || "Request failed.";
+    diagnostics([{severity:"error", code:"request", message:status.textContent}]);
   });
   document.addEventListener("click", async (event) => {
     const copy = event.target.closest("[data-copy]");
@@ -66,6 +68,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     const response = await fetch("/api/model");
     if (!response.ok) throw Error(await response.text());
     let { snapshot: s, check } = await response.json();
+    diagnostics(s.diagnostics || []);
     let activeComparison = null;
     document.querySelector("#summary").textContent =
       `${s.modules.length} modules · ${s.seams.length} seams · ${check.violations.length} violations${check.incomplete ? " · analysis incomplete" : ""}`;
@@ -372,6 +375,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       const result=JSON.parse(element.dataset.comparison),projection=SeamGraphLayout.comparison(result);
       cancelDetails();
       activeComparison={result,projection};s=result.after;check=result.afterCheck;
+      diagnostics(s.diagnostics || []);
       document.querySelector("#summary").textContent=`${s.modules.length} current modules · ${result.modules.length} changed modules · ${check.violations.length} violations`;
       owners=projection.owners;pairs=projection.pairs;focusedModule=null;
       cy.elements().remove();
@@ -395,6 +399,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       filter();
     });
   } catch (error) {
+    diagnostics([{severity:"error", code:"architecture", message:String(error)}]);
     status.textContent = String(error);
     document.querySelector("#summary").textContent = "Architecture unavailable";
     const graph = document.querySelector("#graph");

@@ -7,7 +7,7 @@ import (
 )
 
 templ CodePage(token string, browser application.CodeBrowser, filter CodeFilter, review *application.ReviewWorkspace) {
-	@pageLayout("Code", token, false) {
+	@pageLayoutWithDiagnostics("Code", token, false, codeDiagnostics(browser, filter)) {
 		<main class="review-main code-main">
 			@ComparisonControls(false, comparisonBase(browser), comparisonHead(browser), comparisonLink(browser, filter), browser.Base!="") {
 				<input type="hidden" name="file" value={ browser.Selected }/>
@@ -44,19 +44,6 @@ templ CodePage(token string, browser application.CodeBrowser, filter CodeFilter,
 					Source: { browser.Revision }
 				}
 			</p>
-			for _,issue:=range browser.Issues {
-				<p role="alert">{ issue }</p>
-			}
-			<details>
-				<summary>Analysis diagnostics and limits</summary>
-				if filter.ReviewIssue!="" {
-					<p>Optional architecture and saved-review context is unavailable: { filter.ReviewIssue }</p>
-				}
-				<p>Static references do not prove runtime invocation. Type relationships describe structural conformance. Comparisons use the two selected trees, not a simulated merge.</p>
-				for _,d:=range browser.Diagnostics {
-					<p>{ d.Severity } · { d.Code } · { d.Message }</p>
-				}
-			</details>
 			@CodeWorkspace(browser, filter)
 			if review!=nil {
 				<details class="workspace-review" open?={ filter.Tools }>

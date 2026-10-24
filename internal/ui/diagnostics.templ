@@ -1,0 +1,33 @@
+package ui
+
+import "fmt"
+
+templ DiagnosticsConsole(entries []consoleEntry) {
+	<button type="button" class="diagnostics-toggle" data-diagnostics-open aria-haspopup="dialog" aria-controls="diagnostics-console" aria-label={ consoleLabel(entries) }>
+		<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v6m0 3v1"></path></svg>
+		<span data-diagnostics-errors>{ consoleCount(entries, "error") }</span>
+		<span class="diagnostics-warning" aria-hidden="true">⚠</span>
+		<span data-diagnostics-warnings>{ consoleCount(entries, "warning") }</span>
+	</button>
+	<dialog id="diagnostics-console" class="diagnostics-console" aria-labelledby="diagnostics-title">
+		<header><h2 id="diagnostics-title">Diagnostics console</h2><form method="dialog"><button aria-label="Close diagnostics" autofocus>Close</button></form></header>
+		<div class="diagnostics-body">
+			<p data-diagnostics-empty hidden?={ len(entries)>0 }>No diagnostics.</p>
+			<ol data-diagnostics-list>
+				for _,entry:=range entries {
+					<li data-diagnostic-level={ entry.Severity }>
+						<div><strong>{ entry.Severity }</strong> <code>{ entry.Code }</code></div>
+						<pre data-diagnostic-message>{ entry.Message }</pre>
+						for _,e:=range entry.Evidence {
+							<code>{ fmt.Sprintf("%s:%d:%d", e.File, e.StartLine, e.StartColumn) }</code>
+						}
+						if len(entry.EntityIDs)>0 {
+							<p>{ consoleEntities(entry) }</p>
+						}
+					</li>
+				}
+			</ol>
+		</div>
+		<footer><details><summary>Analysis limits</summary><p>Static references do not prove runtime invocation. Type relationships describe structural conformance. Comparisons use the two selected trees, not a simulated merge.</p></details></footer>
+	</dialog>
+}

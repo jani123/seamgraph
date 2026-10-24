@@ -695,8 +695,9 @@ test('Help is a standalone responsive page available when project analysis fails
     await expect(page).toHaveURL(url+'/help');
     await expect(page.getByRole('heading',{name:'Using SeamGraph'})).toBeVisible();
     await expect(page.getByRole('link',{name:'Help',exact:true})).toHaveAttribute('aria-current','page');
-    await expect(page.locator('script')).toHaveCount(1);
-  await expect(page.locator('script')).toHaveAttribute('src','/assets/navigation.js');
+    await expect(page.locator('script')).toHaveCount(2);
+  await expect(page.locator('script').nth(0)).toHaveAttribute('src','/assets/navigation.js');
+  await expect(page.locator('script').nth(1)).toHaveAttribute('src','/assets/diagnostics.js');
     await page.getByRole('link',{name:'Reference modes',exact:true}).click();
     await expect(page.getByRole('heading',{name:'Reference modes',exact:true})).toBeInViewport();
     await expect(page.locator('tbody tr')).toHaveCount(5);
@@ -719,8 +720,9 @@ test('Rules opens its own responsive page with navigation to Help and Architectu
   await expect(page.getByRole('heading',{name:'Architecture rules'})).toBeVisible();
   await expect(page.getByRole('link',{name:'Rules',exact:true})).toHaveAttribute('aria-current','page');
   await expect(page.locator('#details')).toHaveCount(0);
-  await expect(page.locator('script')).toHaveCount(1);
-  await expect(page.locator('script')).toHaveAttribute('src','/assets/navigation.js');
+  await expect(page.locator('script')).toHaveCount(2);
+  await expect(page.locator('script').nth(0)).toHaveAttribute('src','/assets/navigation.js');
+  await expect(page.locator('script').nth(1)).toHaveAttribute('src','/assets/diagnostics.js');
   await expect(page.getByText('Default:',{exact:false})).toBeVisible();
   await page.setViewportSize({width:390,height:844});
   await expect.poll(()=>page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
@@ -1013,7 +1015,9 @@ test('code explorer browses an unconfigured directory and follows local evidence
   await expect(page.getByLabel('Object details')).toContainText('Reader');
   fs.writeFileSync(path.join(root,'src/bad.py'),'invalid python !!!');
   await page.goto(url+'/explore?file=src/bad.py');
-  await expect(page.getByRole('alert')).toContainText('python');
+  await page.getByRole('button',{name:/Diagnostics console:/}).click();
+  await expect(page.getByRole('dialog',{name:'Diagnostics console'})).toContainText('python');
+  await page.getByRole('button',{name:'Close diagnostics',exact:true}).click();
   await expect(page.locator('[data-code-source]')).toContainText('invalid python');
   expect(fs.existsSync(path.join(root,'seamgraph.yaml'))).toBe(false);
   expect(fs.existsSync(path.join(root,'.git'))).toBe(false);
@@ -1186,4 +1190,72 @@ test('Code compares working changes in one colored diff and toggles the changed 
   expect(fs.existsSync(path.join(root,'seamgraph.yaml'))).toBe(false);
   await page.setViewportSize({width:390,height:844});
   await expect.poll(()=>page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+});
+
+test('diagnostics console collects analyzer failures and warnings without cluttering source', async () => {
+  fs.rmSync(root,{recursive:true,force:true});
+  for (const directory of ['a/npc','b/npc']) {
+    fs.mkdirSync(path.join(root,directory),{recursive:true});
+    fs.writeFileSync(path.join(root,directory,'__init__.py'),'');
+    fs.writeFileSync(path.join(root,directory,'main.py'),'import unknown_dependency\nvalue = 1\n');
+  }
+  await page.goto(url+'/explore?file=a/npc/main.py');
+  const trigger=page.getByRole('button',{name:/Diagnostics console:/});
+  const dialog=page.getByRole('dialog',{name:'Diagnostics console'});
+  await expect(trigger).toContainText('1 error');
+  await expect(dialog).not.toBeVisible();
+  await expect(page.getByText('Analysis diagnostics and limits',{exact:true})).toHaveCount(0);
+  await expect(page.locator('main [role=alert]')).toHaveCount(0);
+  await expect(page.locator('[data-code-source]')).toContainText('value = 1');
+  await trigger.click();
+  await expect(dialog).toBeVisible();
+  await expect(dialog).toContainText('Ambiguous Python import npc');
+  await expect(dialog.locator('[data-diagnostic-level=error]')).toHaveCount(1);
+  await page.keyboard.press('Escape');
+  await expect(dialog).not.toBeVisible();
+  await expect(trigger).toBeFocused();
+  fs.rmSync(path.join(root,'b'),{recursive:true,force:true});
+  await page.reload();
+  await expect(trigger).toContainText('0 errors');
+  await expect(trigger).toContainText('1 warning');
+  await trigger.click();
+  await expect(dialog).toContainText('PY_IMPORT_UNRESOLVED');
+  await expect(dialog).toContainText('a/npc/main.py:1:1');
+  await page.getByRole('button',{name:'Close diagnostics',exact:true}).click();
+  await expect(trigger).toBeFocused();
+  await expect(page.locator('#view-loading')).toBeHidden();
+  await page.setViewportSize({width:390,height:844});
+  await trigger.click();
+  await expect.poll(()=>page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+  await expect(dialog).toBeVisible();
+  await page.screenshot({path:path.join(repo,'.build/diagnostics-mobile.png')});
+  await page.keyboard.press('Escape');
+  await page.goto(url+'/help');
+  await expect(trigger).toContainText('0 errors');
+  await expect(trigger).toContainText('0 warnings');
+  await trigger.click();
+  await expect(dialog).toContainText('No diagnostics.');
+  await page.getByRole('button',{name:'Close diagnostics',exact:true}).click();
+  fs.rmSync(root,{recursive:true,force:true});
+  fs.cpSync(path.join(repo,'testdata/projects/go'),root,{recursive:true});
+  const modelRoute=async route=>{
+    const response=await route.fetch();
+    const model=await response.json();
+    const diagnostic={severity:'warning',code:'CONSOLE_TEST',message:'<img src=x onerror=alert(1)>',evidence:[],entityIds:[]};
+    model.snapshot.diagnostics=[diagnostic,diagnostic];
+    await route.fulfill({response,json:model});
+  };
+  await page.route(url+'/api/model',modelRoute);
+  try {
+    await page.goto(url);
+    await expect(trigger).toContainText('1 warning');
+    await trigger.click();
+    await expect(dialog.locator('[data-diagnostic-level=warning]')).toHaveCount(1);
+    await expect(dialog).toContainText('<img src=x onerror=alert(1)>');
+    await expect(dialog.locator('img')).toHaveCount(0);
+    await page.mouse.click(1,1);
+    await expect(dialog).not.toBeVisible();
+  } finally {
+    await page.unroute(url+'/api/model',modelRoute);
+  }
 });

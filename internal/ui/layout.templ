@@ -1,6 +1,10 @@
 package ui
 
 templ pageLayout(title, token string, architecture bool) {
+ @pageLayoutWithDiagnostics(title, token, architecture, nil) { { children... } }
+}
+
+templ pageLayoutWithDiagnostics(title, token string, architecture bool, entries []consoleEntry) {
 	<!DOCTYPE html>
 	<html lang="en">
 		<head>
@@ -12,6 +16,7 @@ templ pageLayout(title, token string, architecture bool) {
 			<title>{ "SeamGraph · " + title }</title>
 			<link rel="stylesheet" href="/assets/styles.css"/>
 			<script src="/assets/navigation.js" defer></script>
+			<script src="/assets/diagnostics.js" defer></script>
 			if title=="Code" || title=="Review" {
 				<link rel="stylesheet" href="/assets/highlight.css"/>
 				<script src="/assets/source.js" defer></script>
@@ -25,6 +30,7 @@ templ pageLayout(title, token string, architecture bool) {
 		</head>
 		<body class="explorer bg-slate-950 text-slate-100 font-sans">
 			@pageHeader(title, architecture)
+			@DiagnosticsConsole(entries)
 			<div id="view-loading" class="view-loading" role="status" aria-live="polite" hidden><span class="details-spinner" aria-hidden="true"></span><span>Loading view…</span></div>
 			{ children... }
 		</body>
