@@ -735,11 +735,11 @@ test('Rules opens its own responsive page with navigation to Help and Architectu
   await expect(page.locator('#graph')).toBeVisible();
 });
 
-test('Architecture, Rules and Help share the same responsive header and navigation',async()=>{
+test('all views share the same responsive header, navigation and diagnostics control',async()=>{
   for(const viewport of [{width:1440,height:1000},{width:390,height:844}]){
     await page.setViewportSize(viewport);
     let expected;
-    for(const [path,title] of [['/','Architecture'],['/rules','Rules'],['/help','Help']]){
+    for(const [path,title] of [['/','Architecture'],['/explore','Code'],['/rules','Rules'],['/help','Help']]){
       await page.goto(url+path);
       if(path==='/')await expect(page.locator('#summary')).toContainText('modules');
       const nav=page.getByRole('navigation',{name:'Main navigation',exact:true});
@@ -751,6 +751,9 @@ test('Architecture, Rules and Help share the same responsive header and navigati
           links:[...nav.querySelectorAll('a')].map(a=>[a.textContent,a.getAttribute('href')])};
       });
       expect(chrome.inHeader).toBe(true);
+      const diagnostics=page.locator('.app-header [data-diagnostics-open]');
+      await expect(diagnostics).toBeVisible();
+      expect(await diagnostics.evaluate(element=>{const button=element.getBoundingClientRect(),header=element.closest('header').getBoundingClientRect();return getComputedStyle(element).position!=='fixed' && button.top>=header.top && button.bottom<=header.bottom && button.left>=header.left && button.right<=header.right;})).toBe(true);
       expected??=chrome;
       expect(chrome).toEqual(expected);
       expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
@@ -1201,8 +1204,9 @@ test('diagnostics console collects analyzer failures and warnings without clutte
   }
   await page.goto(url+'/explore?file=a/npc/main.py');
   const trigger=page.getByRole('button',{name:/Diagnostics console:/});
+  await expect(page.locator('.app-header [data-diagnostics-open]')).toHaveCount(1);
   const dialog=page.getByRole('dialog',{name:'Diagnostics console'});
-  await expect(trigger).toContainText('1 error');
+  await expect(trigger.locator('[data-diagnostics-errors]')).toHaveText('1');
   await expect(dialog).not.toBeVisible();
   await expect(page.getByText('Analysis diagnostics and limits',{exact:true})).toHaveCount(0);
   await expect(page.locator('main [role=alert]')).toHaveCount(0);
@@ -1216,8 +1220,8 @@ test('diagnostics console collects analyzer failures and warnings without clutte
   await expect(trigger).toBeFocused();
   fs.rmSync(path.join(root,'b'),{recursive:true,force:true});
   await page.reload();
-  await expect(trigger).toContainText('0 errors');
-  await expect(trigger).toContainText('1 warning');
+  await expect(trigger.locator('[data-diagnostics-errors]')).toHaveText('0');
+  await expect(trigger.locator('[data-diagnostics-warnings]')).toHaveText('1');
   await trigger.click();
   await expect(dialog).toContainText('PY_IMPORT_UNRESOLVED');
   await expect(dialog).toContainText('a/npc/main.py:1:1');
@@ -1231,8 +1235,8 @@ test('diagnostics console collects analyzer failures and warnings without clutte
   await page.screenshot({path:path.join(repo,'.build/diagnostics-mobile.png')});
   await page.keyboard.press('Escape');
   await page.goto(url+'/help');
-  await expect(trigger).toContainText('0 errors');
-  await expect(trigger).toContainText('0 warnings');
+  await expect(trigger.locator('[data-diagnostics-errors]')).toHaveText('0');
+  await expect(trigger.locator('[data-diagnostics-warnings]')).toHaveText('0');
   await trigger.click();
   await expect(dialog).toContainText('No diagnostics.');
   await page.getByRole('button',{name:'Close diagnostics',exact:true}).click();
@@ -1248,7 +1252,7 @@ test('diagnostics console collects analyzer failures and warnings without clutte
   await page.route(url+'/api/model',modelRoute);
   try {
     await page.goto(url);
-    await expect(trigger).toContainText('1 warning');
+    await expect(trigger.locator('[data-diagnostics-warnings]')).toHaveText('1');
     await trigger.click();
     await expect(dialog.locator('[data-diagnostic-level=warning]')).toHaveCount(1);
     await expect(dialog).toContainText('<img src=x onerror=alert(1)>');

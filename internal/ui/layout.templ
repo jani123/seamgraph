@@ -29,7 +29,7 @@ templ pageLayoutWithDiagnostics(title, token string, architecture bool, entries 
 			}
 		</head>
 		<body class="explorer bg-slate-950 text-slate-100 font-sans">
-			@pageHeader(title, architecture)
+			@pageHeader(title, architecture, entries)
 			@DiagnosticsConsole(entries)
 			<div id="view-loading" class="view-loading" role="status" aria-live="polite" hidden><span class="details-spinner" aria-hidden="true"></span><span>Loading view…</span></div>
 			{ children... }
@@ -37,15 +37,18 @@ templ pageLayoutWithDiagnostics(title, token string, architecture bool, entries 
 	</html>
 }
 
-templ pageHeader(title string, architecture bool) {
+templ pageHeader(title string, architecture bool, entries []consoleEntry) {
 	<header class="app-header border-b border-slate-800">
-		<div><span class="text-emerald-400 font-mono text-lg">◈</span><strong class="ml-3 text-xl tracking-tight">SeamGraph</strong><span class="app-subtitle ml-4 text-xs text-slate-400 uppercase tracking-widest">Local architecture explorer</span></div>
+		<div class="app-brand"><span class="text-emerald-400 font-mono text-lg">◈</span><strong class="ml-3 text-xl tracking-tight">SeamGraph</strong><span class="app-subtitle ml-4 text-xs text-slate-400 uppercase tracking-widest">Local architecture explorer</span></div>
 		@pageNavigation(title)
+		<div class="header-actions">
 		if architecture {
 			<span id="summary" class="page-context text-sm text-slate-400">Loading architecture…</span>
 		} else {
 			<span class="page-context text-sm text-slate-400">{ title }</span>
 		}
+			@DiagnosticsButton(entries)
+		</div>
 	</header>
 }
 

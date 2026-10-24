@@ -36,13 +36,18 @@ func codeDiagnostics(browser application.CodeBrowser, filter CodeFilter) []conso
 	return entries
 }
 
-func consoleCount(entries []consoleEntry, severity string) string {
+func consoleTotal(entries []consoleEntry, severity string) int {
 	count := 0
 	for _, entry := range entries {
 		if entry.Severity == severity {
 			count++
 		}
 	}
+	return count
+}
+
+func consoleCount(entries []consoleEntry, severity string) string {
+	count := consoleTotal(entries, severity)
 	label := severity
 	if count != 1 {
 		label += "s"

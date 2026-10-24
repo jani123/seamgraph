@@ -5,13 +5,14 @@
   const list = dialog.querySelector('[data-diagnostics-list]');
   const count = severity => {
     const n = list.querySelectorAll(`[data-diagnostic-level="${severity}"]`).length;
-    return `${n} ${severity}${n === 1 ? '' : 's'}`;
+    return n;
   };
   const refresh = () => {
     const errors = count('error'), warnings = count('warning');
     trigger.querySelector('[data-diagnostics-errors]').textContent = errors;
     trigger.querySelector('[data-diagnostics-warnings]').textContent = warnings;
-    trigger.setAttribute('aria-label', `Diagnostics console: ${errors}, ${warnings}`);
+    const label = (n, severity) => `${n} ${severity}${n === 1 ? '' : 's'}`;
+    trigger.setAttribute('aria-label', `Diagnostics console: ${label(errors, 'error')}, ${label(warnings, 'warning')}`);
     dialog.querySelector('[data-diagnostics-empty]').hidden = list.children.length > 0;
   };
   trigger.addEventListener('click', () => dialog.showModal());
