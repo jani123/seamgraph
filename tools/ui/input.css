@@ -70,3 +70,30 @@
 .details-spinner { width: 1.25rem; height: 1.25rem; flex: none; border: 2px solid #475569; border-top-color: #34d399; border-radius: 50%; animation: details-spin .8s linear infinite; }
 @keyframes details-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .details-spinner { animation: none; } }
+
+.review-main { flex: 1; min-height: 0; overflow: auto; padding: 1rem; overflow-wrap: anywhere; }
+.review-main h1 { font-size: 1.6rem; font-weight: 600; }
+.review-main h2 { font-size: 1.25rem; font-weight: 600; margin: 1rem 0 .5rem; }
+.review-main h3 { font-weight: 600; margin: .75rem 0 .25rem; }
+.review-main p { margin: .6rem 0; color: #cbd5e1; }
+.review-main a { color: #6ee7b7; text-decoration: underline; }
+.review-controls { display: flex; flex-wrap: wrap; gap: .75rem; align-items: end; margin: .75rem 0; }
+.review-main label { display: flex; flex-wrap: wrap; gap: .4rem; align-items: center; }
+.review-main input:not([type=checkbox]), .review-main textarea { background: #020617; border: 1px solid #475569; border-radius: .3rem; padding: .4rem; max-width: 100%; }
+.review-main button { background: #334155; border-radius: .3rem; padding: .45rem .8rem; }
+.review-workspace { display: grid; grid-template-columns: minmax(12rem,1fr) minmax(0,3fr); gap: 1rem; }
+.review-tree, .review-selection { min-width: 0; border: 1px solid #334155; padding: .75rem; border-radius: .5rem; }
+.review-tree ul { padding-left: .8rem; }
+.review-tree li { margin: .3rem 0; }
+.review-tree span { font-size: .75rem; color: #94a3b8; }
+.review-main summary { cursor: pointer; }
+.review-main pre { max-height: 28rem; overflow: auto; white-space: pre; background: #0f172a; padding: .5rem; font-size: .8rem; }
+.review-sources { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: .75rem; }
+.review-note { display: flex; flex-direction: column; gap: .6rem; margin: 1rem 0; }
+.review-note textarea { flex: 1; min-height: 5rem; }
+.review-note button { align-self: start; }
+.review-table { overflow-x: auto; }
+.review-main table { width: 100%; border-collapse: collapse; }
+.review-main th, .review-main td { text-align: left; padding: .5rem; border-bottom: 1px solid #334155; }
+.review-main article { border-top: 1px solid #334155; padding: .5rem 0; }
+@media (max-width: 767px) { .review-workspace, .review-sources { grid-template-columns: minmax(0,1fr); } .review-main { padding: .5rem; } }

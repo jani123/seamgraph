@@ -55,6 +55,8 @@ for the intended behavior and omitted production concerns.
 
 `task examples:test` exercises real Go/TypeScript/Python behavior, CLI scanning,
 inspection, comparison, snapshot exports, contract collection and history facts.
+The browser suite also covers the Review workspace from directory navigation and
+hotspot investigation through persisted findings and evidence-preserving exports.
 It creates fresh temporary repositories and leaves the source template unchanged.
 `task check` includes this suite and the generated example's real browser test.
 See the [scenario guide](SCENARIOS.md) for branch-by-branch review questions.

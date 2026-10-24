@@ -843,3 +843,100 @@ test('generated fulfillment repository supports exploration, comparison and a bo
     page.off('pageerror', recordError);
   }
 });
+
+test('fulfillment review connects directories, hotspots, impact, durable findings and evidence exports', async () => {
+  test.setTimeout(180000);
+  fs.rmSync(root,{recursive:true,force:true});
+  execFileSync('python3',[path.join(repo,'scripts/examples/generate.py'),root],{cwd:repo});
+  const reviewPath=(extra={})=>'/review?'+new URLSearchParams({base:'target',head:'review/history',...extra});
+  const checkout='storefront/checkout/checkout.ts';
+  await page.setViewportSize({width:1440,height:1000});
+  await page.goto(url+reviewPath());
+  await expect(page.getByRole('heading',{name:'Local branch review',exact:true})).toBeVisible();
+  await expect(page.getByLabel('Directory explorer')).toContainText('storefront');
+  const hotspot=page.locator(`[data-hotspot-path="${checkout}"]`);
+  await expect(hotspot.locator('td')).toHaveText([checkout,'3','3','3','6','+0 / −0']);
+  await expect(page.locator('[data-hotspot-path="unassigned/logo.bin"]')).toContainText('Unknown (binary)');
+  await page.getByRole('navigation',{name:'Commit type filters'}).getByRole('link',{name:'assets (1 commits)',exact:true}).click();
+  await expect(page.locator('[data-hotspot-path]')).toHaveCount(1);
+  await expect(page.locator('[data-review-commit]')).toHaveCount(1);
+  await page.getByRole('link',{name:'All commit types',exact:true}).click();
+  await page.locator(`[data-hotspot-path="${checkout}"] a`).click();
+  await expect(page.locator('[data-review-before]')).toContainText('Place order');
+  await expect(page.locator('[data-review-after]')).toContainText('Place order');
+  await expect(page.locator('[data-review-commit]')).toHaveCount(3);
+  await page.locator('[data-review-commit] summary').first().click();
+  await expect(page.locator('[data-commit-patch]').first()).toContainText('Confirm order');
+  await expect(page.locator('[data-net-patch]')).toBeEmpty();
+  const oracle=JSON.parse(fs.readFileSync(path.join(root,'.seamgraph/scenarios.json'))).history;
+  const facts=await (await page.request.get(url+reviewPath({export:'json'}))).json();
+  const groups={};
+  for(const commit of facts.activity.commits)groups[commit.type]=(groups[commit.type]||0)+1;
+  expect(groups).toEqual(oracle.groups);
+  expect(facts.activity.commits.filter(commit=>commit.breaking)).toHaveLength(2);
+  for(const hotspot of facts.hotspots){
+    const expected=oracle.files[hotspot.path];
+    expect(hotspot.touches).toBe(expected.touches);
+    if(!hotspot.binary){expect(hotspot.churn).toBe(expected.churn);}
+  }
+  const originalHead=await page.locator('[data-review-head]').textContent();
+  await page.getByLabel('Review note',{exact:true}).fill('Check retry behavior <script>alert(1)</script>');
+  await page.getByLabel('Viewed',{exact:true}).check();
+  await page.getByRole('button',{name:'Save file review',exact:true}).click();
+  await expect(page.locator('[data-review-mark]')).toContainText('viewed: true');
+  const oldForm=await page.locator('.review-note').evaluate(form=>Object.fromEntries(new FormData(form)));
+  const git=args=>execFileSync('git',['-C',root,...args],{encoding:'utf8'});
+  git(['switch','-q','review/history']);
+  const sourceFile=path.join(root,checkout);
+  fs.writeFileSync(sourceFile,fs.readFileSync(sourceFile,'utf8').replace('Place order','Next order'));
+  git(['add',checkout]);
+  git(['-c','user.name=Test','-c','user.email=test@example.invalid','commit','-qm','fix(checkout): clarify the next action']);
+  const staleSave=await page.request.post(url+'/review',{form:oldForm});
+  expect(staleSave.status()).toBe(409);
+  expect(await staleSave.text()).toContain('comparison changed');
+  await page.reload();
+  await expect(page.locator('[data-review-mark]')).toContainText('needs reconsideration');
+  await expect(page.locator('[data-review-after]')).toContainText('Next order');
+  // Restarting the server proves that review state is held by the repository,
+  // rather than a browser session or an in-memory application cache.
+  const exited=new Promise(resolve=>server.once('exit',resolve));
+  server.kill();await exited;
+  server=spawn(path.join(repo,'.build/seamgraph'),['serve','--root',root,'--addr','127.0.0.1:18765'],{cwd:repo,stdio:'pipe'});
+  for(let i=0;i<100;i++){
+    try{if((await fetch(url)).ok)break;}catch{}
+    await new Promise(resolve=>setTimeout(resolve,50));
+  }
+  await page.goto(url+reviewPath({file:checkout}));
+  const mark=page.locator('[data-review-mark]');
+  await expect(mark).toContainText('needs reconsideration');
+  await expect(mark).toContainText(originalHead);
+  await expect(mark).toContainText('Check retry behavior <script>alert(1)</script>');
+  const response=await page.request.get(url+reviewPath({file:checkout,export:'json'}));
+  const exported=await response.json();
+  expect(exported.marks[0].entry.head).toBe(originalHead);
+  expect(exported.marks[0].entry.context).toContain('Place order');
+  expect(exported.after.text).toContain('Next order');
+  expect(exported.comparison.after.relations.some(rel=>rel.evidence.length>0)).toBe(true);
+  expect(exported.activity.commits).toHaveLength(9);
+  for(const format of ['html','markdown']){
+    const download=await page.request.get(url+reviewPath({file:checkout,export:format}));
+    expect(download.headers()['content-disposition']).toContain('attachment');
+    const text=await download.text();
+    expect(text).toContain(originalHead);
+    expect(text).toContain('Check retry behavior');
+    expect(text).not.toContain('<script>');
+    expect(text).not.toContain('/assets/');
+  }
+  await page.goto(url+reviewPath({object:'symbol:orders:orders.Service.Place'}));
+  await expect(page.locator('[data-review-object]')).toContainText('module:demo');
+  await expect(page.locator('[data-review-object]')).toContainText('module:http');
+  await expect(page.locator('[data-review-object]')).toContainText('Possible transitive module impact');
+  await page.goto(url+reviewPath({file:'unassigned/status.txt'}));
+  await expect(page.getByLabel('Review details')).toContainText('File absent at this revision');
+  await expect(page.locator('[data-review-before]')).toContainText('architectur');
+  await page.goto(url+reviewPath({file:'unassigned/logo.bin'}));
+  await expect(page.getByLabel('Review details')).toContainText('Binary file; text diff unavailable');
+  await page.setViewportSize({width:390,height:844});
+  await expect.poll(()=>page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+  await page.screenshot({path:path.join(repo,'.build/fulfillment-review-mobile.png'),fullPage:true});
+});

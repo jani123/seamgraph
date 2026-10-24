@@ -39,7 +39,7 @@ templ pageHeader(title string, architecture bool) {
 
 templ pageNavigation(active string) {
  <nav aria-label="Main navigation" class="app-nav app-navigation flex flex-wrap gap-2">
-  for _,item := range []struct{ title, href string }{{"Architecture","/"},{"Rules","/rules"},{"Help","/help"}} {
+  for _,item := range []struct{ title, href string }{{"Architecture","/"},{"Review","/review"},{"Rules","/rules"},{"Help","/help"}} {
    <a href={ templ.SafeURL(item.href) }
     if item.title == active {
      aria-current="page"

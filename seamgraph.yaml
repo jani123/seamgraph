@@ -17,7 +17,7 @@ modules:
       inspection:
         symbols: [internal/application.Service.InspectProject, InspectionSession, Inspect]
       explorer:
-        symbols: [internal/application.Service.Load, internal/application.Service.Source]
+        symbols: [internal/application.Service.Load, internal/application.Service.Source, internal/application.Service.Review, internal/application.Service.RecordReview]
       comparison:
         symbols: [internal/application.Service.Compare]
       project:
@@ -27,7 +27,7 @@ modules:
       rules:
         symbols: [internal/application.Service.Propose, internal/application.Service.Cancel, internal/application.Service.Confirm]
       views:
-        symbols: [Model, Result, Proposal, Workspace, Inspection, SourceError, ErrUnknownProposal, ModuleChange, FileChange]
+        symbols: [Model, Result, Proposal, Workspace, Inspection, SourceError, ErrUnknownProposal, ModuleChange, FileChange, ReviewFile, ReviewEntry, ReviewMark, ReviewContent, Hotspot, ReviewWorkspace, ReviewJSON]
       ports:
         symbols: [Ports, RuleEdit, internal/application.Extract, EvidenceRun]
       construction:
@@ -69,13 +69,13 @@ modules:
     paths: [internal/projectfiles]
     seams:
       access:
-        symbols: [Load, LoadContracts, ReadStore, AppendEvidence, EvidenceDir, Initialize, SetupAgent, PrepareProject, PrepareRule, Edit, Source, ConfigKey, Inventory]
+        symbols: [Load, LoadContracts, ReadStore, AppendEvidence, EvidenceDir, Initialize, SetupAgent, PrepareProject, PrepareRule, Edit, Source, ConfigKey, Inventory, ReadReview, AppendReview]
   git-workspaces:
     language: go
     paths: [internal/gitworkspace]
     seams:
       access:
-        symbols: [Workspace, Open, Extract, Identity, Revision]
+        symbols: [Workspace, Open, Extract, Identity, Revision, Activity]
   test-runners:
     language: go
     paths: [internal/analyzer/testresults]
@@ -87,7 +87,7 @@ modules:
     paths: [internal/ir]
     seams:
       graph:
-        symbols: [SchemaVersion, Module, Seam, Symbol, Evidence, Relation, Diagnostic, Snapshot, PartialSnapshot, ValidName, ModuleID, SeamID, SymbolID, RelationID, ViolationID, ValidPath, ValidRoot, Merge, Decode, Owners, IsConsumerRelation]
+        symbols: [SchemaVersion, Module, Seam, Symbol, Evidence, Relation, Diagnostic, Snapshot, PartialSnapshot, ValidName, ModuleID, SeamID, SymbolID, RelationID, ViolationID, ValidPath, ValidRoot, Merge, Decode, Owners, IsConsumerRelation, LineStats, ReviewCommit, Activity]
   policy:
     language: go
     paths: [internal/policy]
@@ -137,7 +137,7 @@ modules:
     paths: [internal/ui]
     seams:
       components:
-        symbols: [Assets, Page, Help, ModuleDetails, Relationship, Rules, RulesPage, Proposal, Message, Source, Changes]
+        symbols: [Assets, Page, Help, ModuleDetails, Relationship, Rules, RulesPage, Proposal, Message, Source, Changes, ReviewPage, ReviewSnapshot]
   release-tools:
     language: go
     paths: [scripts/packagezip]

@@ -1,0 +1,231 @@
+package ui
+
+import (
+	"fmt"
+	"seamgraph/internal/application"
+	"strings"
+)
+
+templ ReviewPage(token string, r application.ReviewWorkspace, query, kind string) {
+	@pageLayout("Review", token, false) {
+		<main class="review-main">
+			<h1>Local branch review</h1>
+			<form method="get" action="/review" class="review-controls">
+				<label>Target/base revision <input name="base" value={ r.BaseRef } required/></label>
+				<label>Review/head revision <input name="head" value={ r.HeadRef } required/></label>
+				<label>Search paths <input name="q" value={ query }/></label>
+				<button>Open review</button>
+			</form>
+			<p>Two-tree comparison: <code data-review-base>{ r.Comparison.Base }</code> to <code data-review-head>{ r.Comparison.Head }</code>. This is not a simulated merge. Enter a merge-base hash explicitly for a merge-base review. Use WORKTREE to inspect combined staged, unstaged and untracked nonignored files.</p>
+			<p>Static references are evidence of references; reachability is possible impact, not proof of runtime invocation. Diagnostics and verification changes are retained in the architecture evidence below.</p>
+			<nav aria-label="Review exports" class="review-controls">
+				for _,format := range []string{"json","markdown","html"} {
+					<a href={ templ.SafeURL(reviewLink(r, r.Selected, "", format, kind)) }>{ "Export "+format }</a>
+				}
+			</nav>
+			<p>Exports include both snapshots, reference evidence, history and review anchors. Full source is included only for the selected file. Saved findings also include their original bounded source excerpts.</p>
+			<div class="review-workspace">
+				<aside class="review-tree" aria-label="Directory explorer">
+					<h2>Directories and files</h2>
+					@ReviewTree(r, reviewTree(r.Files, query))
+				</aside>
+				<section class="review-selection" aria-label="Review details">
+					if r.Selected != "" {
+						<h2>{ r.Selected }</h2>
+						for _,f := range r.Files {
+							if f.Path == r.Selected {
+								<p>
+									{ f.Status } ·
+									if f.Module == "" {
+										Unassigned
+									} else {
+										{ f.Module }
+									}
+								</p>
+							}
+						}
+						<div class="review-sources">
+							<section><h3>Before</h3><p>{ r.Before.Unavailable }</p><pre data-review-before>{ r.Before.Text }</pre></section>
+							<section><h3>After</h3><p>{ r.After.Unavailable }</p><pre data-review-after>{ r.After.Text }</pre></section>
+						</div>
+						@ReviewNote(token, r)
+					} else {
+						<p>Select a file to inspect both revisions, its touching commits, final patch and review state.</p>
+					}
+					<details>
+						<summary>Objects and signatures (adapter facts)</summary>
+						<p>Object IDs refer to declared symbols. Source links below show observed reference locations, not inferred definition locations.</p>
+						<ul>
+							for _,symbol := range reviewSymbols(r) {
+								<li>
+									<a href={ templ.SafeURL(reviewLink(r, r.Selected, symbol.ID, "", kind)) }>{ symbol.ID }</a> · { symbol.Kind } · { symbol.Visibility }
+								</li>
+							}
+						</ul>
+					</details>
+					if r.Object != nil {
+						<section data-review-object>
+							<h2>{ r.Object.ID }</h2>
+							<pre>{ r.Object.DisplaySignature }</pre>
+							<h3>Observed references</h3>
+							for _,rel := range r.References {
+								<p>{ rel.Kind } · { rel.FromID } → { rel.ToID }</p>
+								for _,e := range rel.Evidence {
+									<a href={ templ.SafeURL(reviewLink(r, e.File, r.Object.ID, "", kind)) }>{ fmt.Sprintf("%s:%d:%d · %s/%s",e.File,e.StartLine,e.StartColumn,e.Confidence,e.Resolution) }</a>
+								}
+							}
+							<h3>Possible transitive module impact</h3>
+							<p>{ strings.Join(r.PossibleImpact,", ") }</p>
+						</section>
+					}
+				</section>
+			</div>
+			<section>
+				<h2>Branch hotspots</h2>
+				<p>{ r.Activity.Policy }. Frequency counts commits; churn counts additions plus deletions, including reverted work. Paths are not followed across renames. Binary line statistics are unknown. Unassigned, generated and vendor paths remain included. Table sorts by frequency, then path.</p>
+				if r.Activity.Unavailable != "" {
+					<p role="status">{ r.Activity.Unavailable }</p>
+				}
+				<nav aria-label="Commit type filters" class="review-controls">
+					<a href={ templ.SafeURL(reviewLink(r, r.Selected, "", "", "")) }>All commit types</a>
+					for _,t := range reviewTypes(r) {
+						<a href={ templ.SafeURL(reviewLink(r, r.Selected, "", "", t)) }>{ fmt.Sprintf("%s (%d commits)",t,reviewTypeCount(r,t)) }</a>
+					}
+				</nav>
+				<p>Commit type filtering selects hotspot paths touched by those commits; each row retains its full-range totals.</p>
+				<div class="review-table">
+					<table>
+						<thead><tr><th>Path</th><th>Touches</th><th>Added</th><th>Deleted</th><th>Churn</th><th>Final net +/−</th></tr></thead>
+						<tbody>
+							for _,h := range r.Hotspots {
+								if hotspotVisible(r,h,kind,query) {
+									<tr data-hotspot-path={ h.Path }>
+										<td><a href={ templ.SafeURL(reviewLink(r, h.Path, "", "", kind)) }>{ h.Path }</a></td>
+										<td>{ fmt.Sprint(h.Touches) }</td>
+										if h.Binary {
+											<td colspan="3">Unknown (binary)</td>
+										} else {
+											<td>{ fmt.Sprint(h.Added) }</td>
+											<td>{ fmt.Sprint(h.Deleted) }</td>
+											<td>{ fmt.Sprint(h.Churn) }</td>
+										}
+										<td>
+											if h.Net.Binary {
+												Unknown (binary)
+											} else {
+												{ fmt.Sprintf("+%d / −%d",h.Net.Added,h.Net.Deleted) }
+											}
+										</td>
+									</tr>
+								}
+							}
+						</tbody>
+					</table>
+				</div>
+			</section>
+			<section aria-label="Touching commits">
+				<h2>Commits</h2>
+				<p>Original messages are preserved. Merge commits are excluded; unmatched subjects stay unmatched. Breaking markers and footers are shown explicitly.</p>
+				for _,c := range reviewCommits(r,kind) {
+					<details data-review-commit={ c.Revision }>
+						<summary>
+							{ c.Revision } · { c.Type }<span>{ c.Scope }</span>
+							if c.Breaking {
+								<strong>Breaking change</strong>
+							}
+						</summary>
+						<pre>{ c.Message }</pre>
+						<ul>
+							for path,stats := range c.Files {
+								<li>
+									<a href={ templ.SafeURL(reviewLink(r, path, "", "", kind)) }>{ path }</a>
+									if stats.Binary {
+										Unknown (binary)
+									} else {
+										{ fmt.Sprintf("+%d / −%d",stats.Added,stats.Deleted) }
+									}
+								</li>
+							}
+						</ul>
+						if c.Patch != "" {
+							<pre data-commit-patch>{ c.Patch }</pre>
+						}
+					</details>
+				}
+				if r.Selected != "" {
+					<h3>Final net patch</h3>
+					if r.Activity.Unavailable != "" {
+						<p>{ r.Activity.Unavailable }</p>
+					} else {
+						<pre data-net-patch>{ r.Activity.Patch }</pre>
+					}
+				}
+			</section>
+			<section aria-label="Review findings">
+				<h2>Review findings and viewed files</h2>
+				for _,mark := range r.Marks {
+					<article data-review-mark={ mark.Entry.File }>
+						<h3>
+							if mark.Status == "anchor unavailable" {
+								{ mark.Entry.File }
+							} else {
+								<a href={ templ.SafeURL(reviewLink(r, mark.Entry.File, "", "", kind)) }>{ mark.Entry.File }</a>
+							}
+						</h3>
+						<p>{ mark.Status } · viewed: { fmt.Sprint(mark.Entry.Viewed) } · resolved: { fmt.Sprint(mark.Entry.Resolved) }</p>
+						<pre>{ mark.Entry.Note }</pre><details><summary>Original anchor</summary><p>{ mark.Entry.Base } to { mark.Entry.Head } · { mark.Entry.RecordedAt }</p><pre>{ mark.Entry.Context }</pre></details>
+					</article>
+				}
+			</section>
+			<section>
+				<h2>Architecture impact and contract changes</h2>
+				for _,id := range reviewSubjects(r) {
+					<p><a href={ templ.SafeURL(reviewLink(r, r.Selected, id, "", kind)) }>{ id }</a></p>
+				}
+				<details><summary>Complete architecture comparison and source evidence</summary><pre>{ comparisonJSON(r.Comparison) }</pre></details>
+			</section>
+		</main>
+	}
+}
+
+templ ReviewTree(r application.ReviewWorkspace, nodes []*reviewNode) {
+	<ul>
+		for _,node := range nodes {
+			<li>
+				if len(node.Children)>0 {
+					<details open?={ r.PathFilter != "" || strings.HasPrefix(r.Selected,node.Path+"/") }>
+						<summary>{ node.Name }</summary>
+						@ReviewTree(r, node.Children)
+					</details>
+				} else {
+					<a href={ templ.SafeURL(reviewLink(r, node.Path, "", "", "")) }>{ node.Name }</a><span>{ node.Status }</span>
+				}
+			</li>
+		}
+	</ul>
+}
+
+templ ReviewNote(token string, r application.ReviewWorkspace) {
+	<form method="post" action="/review" class="review-note">
+		<h3>File review</h3>
+		<input type="hidden" name="token" value={ token }/><input type="hidden" name="baseRef" value={ r.BaseRef }/><input type="hidden" name="headRef" value={ r.HeadRef }/><input type="hidden" name="base" value={ r.Comparison.Base }/><input type="hidden" name="head" value={ r.Comparison.Head }/><input type="hidden" name="file" value={ r.Selected }/>
+		<label>Review note<textarea name="note" maxlength="8000">{ reviewMark(r,r.Selected).Entry.Note }</textarea></label>
+		<label><input type="checkbox" name="viewed" checked?={ reviewMark(r,r.Selected).Entry.Viewed }/> Viewed</label>
+		<label><input type="checkbox" name="resolved" checked?={ reviewMark(r,r.Selected).Entry.Resolved }/> Resolved</label>
+		<button>Save file review</button>
+		<p>Saving acknowledges the current comparison. Earlier notes and source context remain in the local append-only log.</p>
+	</form>
+}
+
+templ ReviewSnapshot(r application.ReviewWorkspace) {
+	<!DOCTYPE html>
+	<html lang="en">
+		<head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>SeamGraph review snapshot</title></head>
+		<body>
+			<h1>Local review snapshot</h1>
+			<p>Two-tree comparison: { r.Comparison.Base } to { r.Comparison.Head }</p>
+			<p>Contains complete architecture and reference evidence, history, review findings and original anchors. Full source is included only for the selected file: { r.Selected }. Saved findings also include original bounded source excerpts.</p>
+			<pre>{ application.ReviewJSON(r) }</pre>
+		</body>
+	</html>
+}

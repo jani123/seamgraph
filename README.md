@@ -121,6 +121,13 @@ violations and fixes, cancellation, incompatible consumers, evidence freshness,
 Git history edge cases and a bounded larger graph. `task examples:test` verifies
 the supported workflows independently of the browser.
 
+Open **Review** to browse the comparison's directories, inspect adapter objects,
+drill from hotspots into commits and patches, save file notes and viewed state,
+and export the complete evidence as JSON, Markdown or standalone HTML. Findings
+retain their original revision and context across commits and server restarts;
+changed anchors are flagged for reconsideration. See the
+[review workflow and limits](examples/order-fulfillment/SCENARIOS.md#end-to-end-review-workspace).
+
 ## Run with bundled analysis runtimes
 
 ```sh

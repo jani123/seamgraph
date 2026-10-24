@@ -58,12 +58,13 @@ and provide useful repositories for manual exploration.
 - [x] Document each scenario's review questions and expected findings, including
   uncertainty and unsupported cases. Assert meaningful outcomes rather than
   merely snapshotting generated output.
-- [ ] Exercise shared workflows end to end: directory exploration, object details,
+- [x] Exercise shared workflows end to end: directory exploration, object details,
   branch comparison, hotspot drill-down, architecture impact, review persistence
   after another commit and evidence-preserving exports as features land.
-  Current graph/search/details, comparison, source and snapshot exports are covered;
-  directory trees, hotspots, persisted review state and review exports await their
-  later roadmap features.
+  The Review workspace exercises directory/file navigation, adapter object details,
+  hotspot commit/patch drill-down, observed references and possible impact,
+  file notes/viewed state across a new commit and server restart, and JSON,
+  Markdown and self-contained HTML exports with evidence and original anchors.
 - [x] Provide a bounded larger scenario for navigation and rendering performance,
   with explicit size and performance expectations. Keep generation reproducible,
   local and independent of remote hosting, credentials or runtime downloads.

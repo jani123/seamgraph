@@ -42,8 +42,8 @@ hides nodes with no remaining matching edges. The CLI `scan` preserves raw facts
 
 In the browser choose Revisions, enter those base/head names and compare. The
 resolved hashes and added/removed violations should match the CLI. Comparisons
-must leave checkout and index unchanged. Snapshot exports retain relation evidence;
-they are not yet a persisted review report or self-contained HTML export.
+must leave checkout and index unchanged. Snapshot exports retain relation evidence. The Review workspace additionally
+exports persisted findings and original anchors as JSON, Markdown and standalone HTML.
 
 The current comparison uses the two selected trees. Before merging target, use
 `git merge-base target <review-ref>` explicitly when you want a merge-base review;
@@ -106,11 +106,56 @@ per-path touches/cumulative churn, final net changes and the counting policy are
 recorded outside the UI. Tests compare the authored-tree oracle with Git numstat,
 parentage and reachability and assert the meaningful revert/rename outcomes.
 
-## Follow-up workflows
+## End-to-end Review workspace
 
-The current product has module/seam graph navigation, search, details, source,
-working/committed comparisons and raw snapshot exports. Directory/symbol tree
-navigation, hotspot charts/drill-down, persisted review notes or viewed markers,
-reconsideration after another commit, and Markdown/HTML review exports are later
-roadmap items. Use the same branches and manifest to add end-to-end assertions
-when those features land. Their absence is not a passing test of those workflows.
+Open **Review** from the main navigation. Set target/base to `target` and
+review/head to `review/history`, then open the review. The page compares those
+exact trees and labels their resolved hashes. It does not automatically select
+a merge base or simulate a merge. `WORKTREE` is supported as a tree comparison;
+commit activity is explicitly unavailable for that mode.
+
+1. Expand directories and select files, including `unassigned/`. Search paths to
+   retain their directory context. Removed files have before source and an absent
+   after side; binary files are labeled without fabricated text. Source panes
+   contain the two exact revisions, not the live checkout.
+2. Find checkout in Branch hotspots: three touches and churn six, with zero net
+   changes. Select that row. Three touching commits retain their original
+   messages and individual patches; the final net patch is empty. Filter by
+   `assets` to inspect the custom commit and binary marker. Filters select paths
+   while row statistics retain full-range totals. The counting policy, binary
+   uncertainty and included paths are visible.
+3. Open an object from Objects and signatures or a changed-symbol link. Inspect
+   its signature, observed references and source evidence. Possible transitive
+   module impact is reverse dependency reachability, not a runtime-call claim.
+   The complete comparison retains violations, requirement and evidence changes.
+4. Select checkout, write a review note and mark it Viewed. Advance the same
+   review branch with another checkout edit and commit, then refresh. The note
+   remains bound to its original hash and context and needs reconsideration.
+   Restart the server: the finding and viewed state must survive. An old save
+   form is rejected after the comparison changes. Saving again acknowledges the
+   new comparison; earlier records remain in `.seamgraph/reviews.jsonl`.
+5. Export JSON, Markdown and HTML. Each retains the complete normalized
+   comparison, source reference evidence, history and latest findings with their
+   original anchors. Full source is included only for the selected file; saved findings also retain
+   their original bounded source excerpts. HTML
+   is self-contained with no scripts or external assets. Display filters are
+   recorded; exports keep the complete evidence rather than discarding facts
+   hidden by those filters.
+
+The browser acceptance test performs this sequence against a freshly generated
+repository, checks history against the independent oracle, commits a real follow-up
+change, restarts the actual server and inspects the exported artifacts. It also
+checks removed/binary source handling, stale-save rejection and mobile overflow.
+
+Current limits are explicit: the review requires an analyzable configured Git
+project; object details show available adapter signatures and reference locations,
+not inferred definition positions. Notes attach to whole files (one latest note
+and viewed/resolved state per path and selected ref pair), not diff hunks or
+symbols. Anchor digests include both compared file contents; unavailable anchors
+retain their original context. Activity excludes merges, follows no renames and
+is bounded to 500 commits. Patches and source displays are bounded to 2 MiB;
+binary or oversized text stays unavailable. The review log is append-only,
+serialized between writers, and bounded to 16 MiB; archive a full log before
+adding notes. The later roadmap still covers configuration-free symbol trees,
+automatic merge-base selection, richer filtering and hotspot visualizations,
+hunk/symbol anchors, and more concise review reports.
