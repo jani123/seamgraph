@@ -38,7 +38,7 @@ func reviewTree(files []application.ReviewFile, query string) []*reviewNode {
 	return root.Children
 }
 func reviewLink(r application.ReviewWorkspace, file, object, export, kind string) string {
-	return "/review?" + url.Values{"base": {r.BaseRef}, "head": {r.HeadRef}, "file": {file}, "object": {object}, "export": {export}, "type": {kind}, "q": {r.PathFilter}}.Encode()
+	return "/explore?" + url.Values{"tools": {"1"}, "base": {r.BaseRef}, "revision": {r.HeadRef}, "file": {file}, "object": {object}, "export": {export}, "type": {kind}, "q": {r.PathFilter}}.Encode()
 }
 func reviewMark(r application.ReviewWorkspace, file string) application.ReviewMark {
 	for _, mark := range r.Marks {

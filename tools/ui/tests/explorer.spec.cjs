@@ -862,7 +862,7 @@ test('fulfillment review connects directories, hotspots, impact, durable finding
   const checkout='storefront/checkout/checkout.ts';
   await page.setViewportSize({width:1440,height:1000});
   await page.goto(url+reviewPath());
-  await expect(page.getByRole('heading',{name:'Local branch review',exact:true})).toBeVisible();
+  await expect(page.getByRole('heading',{name:'Code explorer',exact:true})).toBeVisible();
   await expect(page.getByLabel('Code tree')).toContainText('storefront');
   const hotspot=page.locator(`[data-hotspot-path="${checkout}"]`);
   await expect(hotspot.locator('td')).toHaveText([checkout,'3','3','3','6','+0 / −0']);
@@ -872,8 +872,8 @@ test('fulfillment review connects directories, hotspots, impact, durable finding
   await expect(page.locator('[data-review-commit]')).toHaveCount(1);
   await page.getByRole('link',{name:'All commit types',exact:true}).click();
   await page.locator(`[data-hotspot-path="${checkout}"] a`).click();
-  await expect(page.locator('[data-review-before]')).toContainText('Place order');
-  await expect(page.locator('[data-review-after]')).toContainText('Place order');
+  await expect(page.locator('[data-unified-diff]')).toContainText('Place order');
+  await expect(page.locator('[data-unified-diff] .source-scroll')).toHaveCount(1);
   await expect(page.locator('[data-review-commit]')).toHaveCount(3);
   await page.locator('[data-review-commit] summary').first().click();
   await expect(page.locator('[data-commit-patch]').first()).toContainText('Confirm order');
@@ -906,7 +906,7 @@ test('fulfillment review connects directories, hotspots, impact, durable finding
   expect(await staleSave.text()).toContain('comparison changed');
   await page.reload();
   await expect(page.locator('[data-review-mark]')).toContainText('needs reconsideration');
-  await expect(page.locator('[data-review-after]')).toContainText('Next order');
+  await expect(page.locator('[data-diff-kind="added"]')).toContainText(['Next order']);
   // Restarting the server proves that review state is held by the repository,
   // rather than a browser session or an in-memory application cache.
   const exited=new Promise(resolve=>server.once('exit',resolve));
@@ -938,14 +938,14 @@ test('fulfillment review connects directories, hotspots, impact, durable finding
     expect(text).not.toContain('/assets/');
   }
   await page.goto(url+reviewPath({object:'symbol:orders:orders.Service.Place'}));
-  await expect(page.locator('[data-review-before] code')).toHaveAttribute('data-highlighted','true');
-  await expect(page.locator('[data-review-after] code')).toHaveAttribute('data-highlighted','true');
+  await expect(page.locator('[data-diff-source="before"]')).toHaveAttribute('data-highlighted','true');
+  await expect(page.locator('[data-diff-source="after"]')).toHaveAttribute('data-highlighted','true');
   await expect(page.locator('[data-review-object]')).toContainText('module:demo');
   await expect(page.locator('[data-review-object]')).toContainText('module:http');
   await expect(page.locator('[data-review-object]')).toContainText('Possible transitive module impact');
   await page.goto(url+reviewPath({file:'unassigned/status.txt'}));
-  await expect(page.getByLabel('File comparison')).toContainText('File absent at this revision');
-  await expect(page.locator('[data-review-before]')).toContainText('architectur');
+  await expect(page.getByLabel('File comparison').locator('[data-diff-kind="removed"]').first()).toBeVisible();
+  await expect(page.locator('[data-diff-kind="removed"]').first()).toContainText('architectur');
   await page.goto(url+reviewPath({file:'unassigned/logo.bin'}));
   await expect(page.getByLabel('File comparison')).toContainText('Binary file; text diff unavailable');
   await page.setViewportSize({width:390,height:844});
@@ -1071,7 +1071,7 @@ test('view navigation and native forms show loading feedback until the destinati
       await page.unroute(url+'/**',intercept);
     }
   };
-  for(const [name,pathname] of [['Code','/explore'],['Review','/review'],['Rules','/rules'],['Help','/help'],['Architecture','/']]){
+  for(const [name,pathname] of [['Code','/explore'],['Rules','/rules'],['Help','/help'],['Architecture','/']]){
     await page.goto(url+'/help');
     await slowNavigation(pathname,()=>page.getByRole('navigation',{name:'Main navigation',exact:true}).getByRole('link',{name,exact:true}).click());
   }
@@ -1095,4 +1095,50 @@ test('view navigation and native forms show loading feedback until the destinati
   await expect(page.locator('#view-loading')).toBeHidden();
   page.off('pageerror',recordError);
   expect(errors).toEqual([]);
+});
+
+test('Code compares working changes in one colored diff and toggles the changed tree', async () => {
+  test.setTimeout(60000);
+  fs.rmSync(root,{recursive:true,force:true});
+  fs.mkdirSync(path.join(root,'src'),{recursive:true});
+  const git=args=>execFileSync('git',['-C',root,...args],{encoding:'utf8'});
+  const before=Array.from({length:24},(_,i)=>'stable_'+i+' = '+i).join('\n')+'\nvalue = 1\n';
+  fs.writeFileSync(path.join(root,'src/code.py'),before);
+  fs.writeFileSync(path.join(root,'unchanged.txt'),'unchanged');
+  fs.writeFileSync(path.join(root,'removed.txt'),'removed content\n');
+  git(['init','-q']);git(['add','.']);
+  git(['-c','user.name=Test','-c','user.email=test@example.test','commit','-qm','feat: base']);
+  fs.writeFileSync(path.join(root,'src/code.py'),before.replace('value = 1','value = 2'));
+  fs.writeFileSync(path.join(root,'added.txt'),'added content\n');
+  fs.unlinkSync(path.join(root,'removed.txt'));
+  await page.setViewportSize({width:1440,height:1000});
+  await page.goto(url+'/explore?file=src/code.py');
+  await expect(page.getByRole('navigation',{name:'Main navigation',exact:true}).getByRole('link',{name:'Review',exact:true})).toHaveCount(0);
+  await page.getByRole('link',{name:'Compare changes',exact:true}).click();
+  await expect(page.getByLabel('Changes only',{exact:true})).toBeChecked();
+  await expect(page.locator('[data-code-revision]')).toContainText('WORKTREE:');
+  await expect(page.locator('[data-unified-diff] .source-scroll')).toHaveCount(1);
+  await expect(page.locator('[data-unified-diff] [data-diff-kind="removed"]')).toContainText(['value = 1']);
+  await expect(page.locator('[data-unified-diff] [data-diff-kind="added"]')).toContainText(['value = 2']);
+  await expect(page.locator('[data-diff-kind="added"] [data-diff-code]')).toHaveAttribute('data-highlighted','true');
+  const colors=await page.evaluate(()=>['added','removed'].map(kind=>getComputedStyle(document.querySelector('[data-diff-kind="'+kind+'"]')).backgroundColor));
+  expect(colors).toEqual(['rgb(5, 46, 22)','rgb(69, 10, 10)']);
+  await expect(page.getByLabel('Code tree')).not.toContainText('unchanged.txt');
+  await expect(page.locator('[data-unified-diff] .diff-document')).not.toContainText('stable_0 =');
+  await page.screenshot({path:path.join(repo,'.build/unified-diff-desktop.png'),fullPage:true});
+  await page.getByLabel('Changes only',{exact:true}).uncheck();
+  await page.getByRole('button',{name:'Explore',exact:true}).click();
+  await expect(page.getByLabel('Code tree')).toContainText('unchanged.txt');
+  await expect(page.locator('[data-unified-diff] .diff-document')).toContainText('stable_0 =');
+  await page.getByRole('link',{name:'added.txt',exact:true}).click();
+  await expect(page.locator('[data-diff-kind="added"]')).toContainText(['added content']);
+  await expect(page.locator('[data-diff-kind="removed"]')).toHaveCount(0);
+  await page.getByRole('link',{name:'removed.txt',exact:true}).click();
+  await expect(page.locator('[data-diff-kind="removed"]')).toContainText(['removed content']);
+  await page.getByRole('link',{name:'Browse code',exact:true}).click();
+  await expect(page.locator('[data-code-source]')).toContainText('removed content');
+  await expect(page.locator('[data-unified-diff]')).toHaveCount(0);
+  expect(fs.existsSync(path.join(root,'seamgraph.yaml'))).toBe(false);
+  await page.setViewportSize({width:390,height:844});
+  await expect.poll(()=>page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
 });

@@ -26,7 +26,7 @@ func TestCodeNavigationKeepsLiveRefsUsable(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if link.Path != "/review" || link.Query().Get("head") != "review" || link.Query().Get("symbolKind") != "method" {
+	if link.Path != "/explore" || link.Query().Get("revision") != "review" || link.Query().Get("kind") != "method" {
 		t.Fatal(link)
 	}
 }

@@ -181,6 +181,9 @@ func TestCodeRevisionChangesAndRemovedSource(t *testing.T) {
 	if selected.Revision != head || selected.ContentRevision != base || selected.RelationshipRevision != base || !strings.Contains(selected.Content.Text, "def removed") {
 		t.Fatal(selected)
 	}
+	if !strings.Contains(selected.Before.Text, "def removed") || strings.Contains(selected.After.Text, "def removed") || !strings.Contains(selected.After.Text, "return 2") {
+		t.Fatal("removed-object inspection must keep distinct base/head source", selected)
+	}
 	// Live files invalidate the content cache without changing immutable revisions.
 	write("def read(): return 3\n")
 	live, err := service.Code(context.Background(), "", "", "", "")

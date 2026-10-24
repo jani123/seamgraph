@@ -6,20 +6,33 @@ import (
 	"strings"
 )
 
-templ CodePage(browser application.CodeBrowser, filter CodeFilter) {
-	@pageLayout("Code", "", false) {
+templ CodePage(token string, browser application.CodeBrowser, filter CodeFilter, review *application.ReviewWorkspace) {
+	@pageLayout("Code", token, false) {
 		<main class="review-main code-main">
 			<h1>Code explorer</h1>
 			<form method="get" action="/explore" class="review-controls">
-				<label>Revision (empty for working directory)<input name="revision" value={ codeRevision(browser) }/></label>
-				<label>Compare base (optional)<input name="base" value={ codeRef(browser.Base) }/></label>
+				if browser.Base!="" {
+					<label>Base revision<input name="base" value={ browser.ReviewBaseRef } required/></label>
+					<label>Head revision<input name="revision" value={ browser.ReviewHeadRef } required/></label>
+					<label><input type="checkbox" name="changes" value="1" checked?={ filter.ChangesOnly }/>Changes only</label>
+					<a href={ templ.SafeURL(comparisonLink(browser, filter, false)) }>Browse code</a>
+				} else {
+					<label>Revision (empty for working directory)<input name="revision" value={ codeRevision(browser) }/></label>
+					<a href={ templ.SafeURL(comparisonLink(browser, filter, true)) }>Compare changes</a>
+				}
+				<input type="hidden" name="file" value={ browser.Selected }/>
+				<input type="hidden" name="object" value={ browser.Object }/>
+				if filter.Tools {
+					<input type="hidden" name="tools" value="1"/>
+				}
 				@CodeFilters(browser, filter)
 				<button>Explore</button>
 			</form>
 			<p data-code-revision>
-				Source: { browser.Revision }
 				if browser.Base!="" {
-					<span>· Compared with { browser.Base }</span>
+					Base: <code data-review-base>{ browser.Base }</code> → Head: <code data-review-head>{ browser.Revision }</code>
+				} else {
+					Source: { browser.Revision }
 				}
 			</p>
 			for _,issue:=range browser.Issues {
@@ -27,13 +40,29 @@ templ CodePage(browser application.CodeBrowser, filter CodeFilter) {
 			}
 			<details>
 				<summary>Analysis diagnostics and limits</summary>
-				<p>No architecture configuration is required. Module and seam labels show declared context only. Test sources and build constraints follow each adapter.</p>
-				<p>Callers are statically attributed call sites, not whole-program runtime invocation. Type relationships describe structural conformance, not interface dispatch. Missing references and dynamic behavior remain uncertain. Go generic call expressions may appear as references; Python instance attributes and dynamic calls are not fully resolved. Definitions are adapter facts; files stay browseable when analysis fails.</p>
+				if filter.ReviewIssue!="" {
+					<p>Optional architecture and saved-review context is unavailable: { filter.ReviewIssue }</p>
+				}
+				<p>Static references do not prove runtime invocation. Type relationships describe structural conformance. Comparisons use the two selected trees, not a simulated merge.</p>
 				for _,d:=range browser.Diagnostics {
 					<p>{ d.Severity } · { d.Code } · { d.Message }</p>
 				}
 			</details>
 			@CodeWorkspace(browser, filter)
+			if review!=nil {
+				<details class="workspace-review" open?={ filter.Tools }>
+					<summary>Review activity and findings</summary>
+					<nav aria-label="Review exports" class="review-controls">
+						for _,format:=range []string{"json","markdown","html"} {
+							<a href={ templ.SafeURL(reviewLink(*review, browser.Selected, "", format, filter.CommitType)) }>{ "Export "+format }</a>
+						}
+					</nav>
+					if browser.Selected!="" {
+						@ReviewNote(token, *review)
+					}
+					@ReviewActivity(*review, filter.Query, filter.CommitType)
+				</details>
+			}
 		</main>
 	}
 }
@@ -42,7 +71,7 @@ templ CodeFilters(browser application.CodeBrowser, filter CodeFilter) {
 	<label>Search objects<input name="q" value={ filter.Query }/></label>
 	<label>
 		Symbol kind
-		<select name={ codeKindField(browser) } aria-label="Symbol kind">
+		<select name="kind" aria-label="Symbol kind">
 			<option value="">All kinds</option>
 			for _,kind:=range codeKinds(browser) {
 				<option value={ kind } selected?={ kind==filter.Kind }>{ kind }</option>
@@ -104,8 +133,12 @@ templ CodeWorkspace(browser application.CodeBrowser, filter CodeFilter) {
 					}
 				</details>
 			}
-			if browser.Selected!="" && browser.ReviewHeadRef=="" {
-				@SourceViewer(browser.Content, browser.Selected, "code", codeFocus(browser))
+			if browser.Selected!="" {
+				if browser.Base!="" {
+					@UnifiedDiff(browser, filter.ChangesOnly)
+				} else {
+					@SourceViewer(browser.Content, browser.Selected, codeFocus(browser))
+				}
 			}
 			{ children... }
 		</section>
@@ -180,7 +213,7 @@ templ CodeRelationships(browser application.CodeBrowser, filter CodeFilter) {
 	<p>Consumers and callers show observed static reference sites. Type relationships show inferred structural conformance and do not prove runtime dispatch.</p>
 	<nav aria-label="Relationship views" class="review-controls">
 		for _,v:=range []struct{value,label string}{{"consumers","Consumers"},{"callers","Callers"},{"outgoing","References from"},{"types","Type relationships"}} {
-			<a href={ templ.SafeURL(codeLink(browser, CodeFilter{Query: filter.Query, Kind: filter.Kind, Visibility: filter.Visibility, Status: filter.Status, View: v.value}, "", browser.Object)) }>{ v.label }</a>
+			<a href={ templ.SafeURL(codeLink(browser, CodeFilter{Query: filter.Query, Kind: filter.Kind, Visibility: filter.Visibility, Status: filter.Status, View: v.value, ChangesOnly: filter.ChangesOnly, Tools: filter.Tools, CommitType: filter.CommitType}, "", browser.Object)) }>{ v.label }</a>
 		}
 	</nav>
 	<p>View: { filter.View } · Evidence revision: { browser.RelationshipRevision }. Each arrow below is backed by the displayed source evidence.</p>

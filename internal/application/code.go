@@ -32,6 +32,8 @@ type CodeBrowser struct {
 	Selected             string          `json:"selected,omitempty"`
 	Object               string          `json:"object,omitempty"`
 	Content              ReviewContent   `json:"content"`
+	Before               ReviewContent   `json:"before"`
+	After                ReviewContent   `json:"after"`
 }
 type codeCache struct {
 	mu      sync.Mutex
@@ -116,6 +118,7 @@ func (s *Service) codeContent(ctx context.Context, root string, files map[string
 		if previous.Revision != result.Base {
 			return result, fmt.Errorf("comparison base moved during source selection; refresh")
 		}
+		result.Before = previous.Content
 		result.Content = previous.Content
 		result.ContentRevision = previous.Revision
 		if removed {
@@ -126,6 +129,36 @@ func (s *Service) codeContent(ctx context.Context, root string, files map[string
 		result.Content = s.reviewContent(root, result.Selected, files[result.Selected])
 	} else {
 		return result, fmt.Errorf("unknown code file")
+	}
+	result.After = result.Content
+	if removed && files[result.Selected] != "" {
+		result.After = s.reviewContent(root, result.Selected, files[result.Selected])
+	}
+	for _, file := range result.Files {
+		if file.Path == result.Selected && file.AfterDigest == "" {
+			result.After = ReviewContent{Unavailable: "File absent at this revision"}
+		}
+	}
+	if base != "" && result.Before.Text == "" && result.Before.Unavailable == "" {
+		return s.codeBaseline(ctx, base, result)
+	}
+	return result, nil
+}
+
+func (s *Service) codeBaseline(ctx context.Context, base string, result CodeBrowser) (CodeBrowser, error) {
+	result.Before = ReviewContent{Unavailable: "File absent at this revision"}
+	for _, file := range result.Files {
+		if file.Path != result.Selected || file.BeforeDigest == "" {
+			continue
+		}
+		before, err := s.Code(ctx, base, "", result.Selected, "")
+		if err != nil {
+			return result, err
+		}
+		if before.Revision != result.Base {
+			return result, fmt.Errorf("comparison base moved during source selection; refresh")
+		}
+		result.Before = before.Content
 	}
 	return result, nil
 }

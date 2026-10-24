@@ -1,0 +1,29 @@
+package ui
+
+import "seamgraph/internal/application"
+
+templ UnifiedDiff(browser application.CodeBrowser, changes bool) {
+	{{ view := sourceDiff(browser.Before, browser.After, changes) }}
+	<section class="unified-diff source-viewer" aria-label="File comparison" data-unified-diff>
+		<div class="diff-legend"><span class="diff-added">+ Added</span><span class="diff-removed">− Removed</span><span>Base → Head</span></div>
+		if view.Unavailable!="" {
+			<p role="status">{ view.Unavailable }</p>
+		} else if view.Unchanged && changes {
+			<p role="status">No changes in this file.</p>
+		}
+		<div class="source-scroll diff-scroll">
+			<div class="diff-document">
+				for _,row:=range view.Rows {
+					<div class={ "diff-row diff-" + row.Kind } data-diff-kind={ row.Kind }>
+						<span class="diff-line-number" aria-label="Base line">{ diffNumber(row.Old) }</span>
+						<span class="diff-line-number" aria-label="Head line">{ diffNumber(row.New) }</span>
+						<span class="diff-mark" aria-hidden="true">{ row.Mark }</span>
+						<code data-diff-code data-diff-side={ diffSide(row) } data-diff-line={ diffSourceLine(row) }>{ row.Text }</code>
+					</div>
+				}
+			</div>
+		</div>
+		<code hidden data-source-code data-source-file={ browser.Selected } data-diff-source="before">{ view.Before }</code>
+		<code hidden data-source-code data-source-file={ browser.Selected } data-diff-source="after">{ view.After }</code>
+	</section>
+}

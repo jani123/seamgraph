@@ -6,156 +6,121 @@ import (
 	"strings"
 )
 
-templ ReviewPage(token string, r application.ReviewWorkspace, query, kind string, codeFilter CodeFilter) {
-	@pageLayout("Review", token, false) {
-		<main class="review-main">
-			<h1>Local branch review</h1>
-			<form method="get" action="/review" class="review-controls">
-				<label>Target/base revision <input name="base" value={ r.BaseRef } required/></label>
-				<label>Review/head revision <input name="head" value={ r.HeadRef } required/></label>
-				@CodeFilters(r.Code, codeFilter)
-				<button>Open review</button>
-			</form>
-			<p>Two-tree comparison: <code data-review-base>{ r.Comparison.Base }</code> to <code data-review-head>{ r.Comparison.Head }</code>. This is not a simulated merge. Enter a merge-base hash explicitly for a merge-base review. Use WORKTREE to inspect combined staged, unstaged and untracked nonignored files.</p>
-			<p>Static references are evidence of references; reachability is possible impact, not proof of runtime invocation. Diagnostics and verification changes are retained in the architecture evidence below.</p>
-			<nav aria-label="Review exports" class="review-controls">
-				for _,format := range []string{"json","markdown","html"} {
-					<a href={ templ.SafeURL(reviewLink(r, r.Selected, "", format, kind)) }>{ "Export "+format }</a>
-				}
-			</nav>
-			<p>Exports include both snapshots, reference evidence, history and review anchors. Full source is included only for the selected file. Saved findings also include their original bounded source excerpts.</p>
-			@CodeWorkspace(r.Code, codeFilter) {
-				if r.Selected!="" {
-					<section aria-label="File comparison">
-						<h2>{ r.Selected }</h2>
-						<div class="review-sources">
-							<section>
-								<h3>Before</h3>@SourceViewer(r.Before, r.Selected, "before", 0)
-							</section>
-							<section>
-								<h3>After</h3>@SourceViewer(r.After, r.Selected, "after", 0)
-							</section>
-						</div>
-						@ReviewNote(token, r)
-					</section>
-				}
+templ ReviewActivity(r application.ReviewWorkspace, query, kind string) {
+	if r.Object != nil {
+		<section data-review-object>
+			<h3>Observed architecture references</h3>
+			for _,rel := range r.References {
+				<p>{ rel.Kind } · { rel.FromID } → { rel.ToID }</p>
 			}
-			if r.Object != nil {
-				<section data-review-object>
-					<h3>Observed architecture references</h3>
-					for _,rel := range r.References {
-						<p>{ rel.Kind } · { rel.FromID } → { rel.ToID }</p>
-					}
-					<h3>Possible transitive module impact</h3>
-					<p>{ strings.Join(r.PossibleImpact,", ") }</p>
-				</section>
+			<h3>Possible transitive module impact</h3>
+			<p>{ strings.Join(r.PossibleImpact,", ") }</p>
+		</section>
+	}
+	<section>
+		<h2>Branch hotspots</h2>
+		<p>{ r.Activity.Policy }. Frequency counts commits; churn counts additions plus deletions, including reverted work. Paths are not followed across renames. Binary line statistics are unknown. Unassigned, generated and vendor paths remain included. Table sorts by frequency, then path.</p>
+		if r.Activity.Unavailable != "" {
+			<p role="status">{ r.Activity.Unavailable }</p>
+		}
+		<nav aria-label="Commit type filters" class="review-controls">
+			<a href={ templ.SafeURL(reviewLink(r, r.Selected, "", "", "")) }>All commit types</a>
+			for _,t := range reviewTypes(r) {
+				<a href={ templ.SafeURL(reviewLink(r, r.Selected, "", "", t)) }>{ fmt.Sprintf("%s (%d commits)",t,reviewTypeCount(r,t)) }</a>
 			}
-			<section>
-				<h2>Branch hotspots</h2>
-				<p>{ r.Activity.Policy }. Frequency counts commits; churn counts additions plus deletions, including reverted work. Paths are not followed across renames. Binary line statistics are unknown. Unassigned, generated and vendor paths remain included. Table sorts by frequency, then path.</p>
-				if r.Activity.Unavailable != "" {
-					<p role="status">{ r.Activity.Unavailable }</p>
-				}
-				<nav aria-label="Commit type filters" class="review-controls">
-					<a href={ templ.SafeURL(reviewLink(r, r.Selected, "", "", "")) }>All commit types</a>
-					for _,t := range reviewTypes(r) {
-						<a href={ templ.SafeURL(reviewLink(r, r.Selected, "", "", t)) }>{ fmt.Sprintf("%s (%d commits)",t,reviewTypeCount(r,t)) }</a>
-					}
-				</nav>
-				<p>Commit type filtering selects hotspot paths touched by those commits; each row retains its full-range totals.</p>
-				<div class="review-table">
-					<table>
-						<thead><tr><th>Path</th><th>Touches</th><th>Added</th><th>Deleted</th><th>Churn</th><th>Final net +/−</th></tr></thead>
-						<tbody>
-							for _,h := range r.Hotspots {
-								if hotspotVisible(r,h,kind,query) {
-									<tr data-hotspot-path={ h.Path }>
-										<td><a href={ templ.SafeURL(reviewLink(r, h.Path, "", "", kind)) }>{ h.Path }</a></td>
-										<td>{ fmt.Sprint(h.Touches) }</td>
-										if h.Binary {
-											<td colspan="3">Unknown (binary)</td>
-										} else {
-											<td>{ fmt.Sprint(h.Added) }</td>
-											<td>{ fmt.Sprint(h.Deleted) }</td>
-											<td>{ fmt.Sprint(h.Churn) }</td>
-										}
-										<td>
-											if h.Net.Binary {
-												Unknown (binary)
-											} else {
-												{ fmt.Sprintf("+%d / −%d",h.Net.Added,h.Net.Deleted) }
-											}
-										</td>
-									</tr>
+		</nav>
+		<p>Commit type filtering selects hotspot paths touched by those commits; each row retains its full-range totals.</p>
+		<div class="review-table">
+			<table>
+				<thead><tr><th>Path</th><th>Touches</th><th>Added</th><th>Deleted</th><th>Churn</th><th>Final net +/−</th></tr></thead>
+				<tbody>
+					for _,h := range r.Hotspots {
+						if hotspotVisible(r,h,kind,query) {
+							<tr data-hotspot-path={ h.Path }>
+								<td><a href={ templ.SafeURL(reviewLink(r, h.Path, "", "", kind)) }>{ h.Path }</a></td>
+								<td>{ fmt.Sprint(h.Touches) }</td>
+								if h.Binary {
+									<td colspan="3">Unknown (binary)</td>
+								} else {
+									<td>{ fmt.Sprint(h.Added) }</td>
+									<td>{ fmt.Sprint(h.Deleted) }</td>
+									<td>{ fmt.Sprint(h.Churn) }</td>
 								}
-							}
-						</tbody>
-					</table>
-				</div>
-			</section>
-			<section aria-label="Touching commits">
-				<h2>Commits</h2>
-				<p>Original messages are preserved. Merge commits are excluded; unmatched subjects stay unmatched. Breaking markers and footers are shown explicitly.</p>
-				for _,c := range reviewCommits(r,kind) {
-					<details data-review-commit={ c.Revision }>
-						<summary>
-							{ c.Revision } · { c.Type }<span>{ c.Scope }</span>
-							if c.Breaking {
-								<strong>Breaking change</strong>
-							}
-						</summary>
-						<pre>{ c.Message }</pre>
-						<ul>
-							for path,stats := range c.Files {
-								<li>
-									<a href={ templ.SafeURL(reviewLink(r, path, "", "", kind)) }>{ path }</a>
-									if stats.Binary {
+								<td>
+									if h.Net.Binary {
 										Unknown (binary)
 									} else {
-										{ fmt.Sprintf("+%d / −%d",stats.Added,stats.Deleted) }
+										{ fmt.Sprintf("+%d / −%d",h.Net.Added,h.Net.Deleted) }
 									}
-								</li>
-							}
-						</ul>
-						if c.Patch != "" {
-							<pre data-commit-patch>{ c.Patch }</pre>
+								</td>
+							</tr>
 						}
-					</details>
-				}
-				if r.Selected != "" {
-					<h3>Final net patch</h3>
-					if r.Activity.Unavailable != "" {
-						<p>{ r.Activity.Unavailable }</p>
-					} else {
-						<pre data-net-patch>{ r.Activity.Patch }</pre>
 					}
-				}
-			</section>
-			<section aria-label="Review findings">
-				<h2>Review findings and viewed files</h2>
-				for _,mark := range r.Marks {
-					<article data-review-mark={ mark.Entry.File }>
-						<h3>
-							if mark.Status == "anchor unavailable" {
-								{ mark.Entry.File }
+				</tbody>
+			</table>
+		</div>
+	</section>
+	<section aria-label="Touching commits">
+		<h2>Commits</h2>
+		<p>Original messages are preserved. Merge commits are excluded; unmatched subjects stay unmatched. Breaking markers and footers are shown explicitly.</p>
+		for _,c := range reviewCommits(r,kind) {
+			<details data-review-commit={ c.Revision }>
+				<summary>
+					{ c.Revision } · { c.Type }<span>{ c.Scope }</span>
+					if c.Breaking {
+						<strong>Breaking change</strong>
+					}
+				</summary>
+				<pre>{ c.Message }</pre>
+				<ul>
+					for path,stats := range c.Files {
+						<li>
+							<a href={ templ.SafeURL(reviewLink(r, path, "", "", kind)) }>{ path }</a>
+							if stats.Binary {
+								Unknown (binary)
 							} else {
-								<a href={ templ.SafeURL(reviewLink(r, mark.Entry.File, "", "", kind)) }>{ mark.Entry.File }</a>
+								{ fmt.Sprintf("+%d / −%d",stats.Added,stats.Deleted) }
 							}
-						</h3>
-						<p>{ mark.Status } · viewed: { fmt.Sprint(mark.Entry.Viewed) } · resolved: { fmt.Sprint(mark.Entry.Resolved) }</p>
-						<pre>{ mark.Entry.Note }</pre><details><summary>Original anchor</summary><p>{ mark.Entry.Base } to { mark.Entry.Head } · { mark.Entry.RecordedAt }</p><pre>{ mark.Entry.Context }</pre></details>
-					</article>
+						</li>
+					}
+				</ul>
+				if c.Patch != "" {
+					<pre data-commit-patch>{ c.Patch }</pre>
 				}
-			</section>
-			<section>
-				<h2>Architecture impact and contract changes</h2>
-				for _,id := range reviewSubjects(r) {
-					<p><a href={ templ.SafeURL(reviewLink(r, r.Selected, id, "", kind)) }>{ id }</a></p>
-				}
-				<details><summary>Complete architecture comparison and source evidence</summary><pre>{ comparisonJSON(r.Comparison) }</pre></details>
-			</section>
-		</main>
-	}
+			</details>
+		}
+		if r.Selected != "" {
+			<h3>Final net patch</h3>
+			if r.Activity.Unavailable != "" {
+				<p>{ r.Activity.Unavailable }</p>
+			} else {
+				<pre data-net-patch>{ r.Activity.Patch }</pre>
+			}
+		}
+	</section>
+	<section aria-label="Review findings">
+		<h2>Review findings and viewed files</h2>
+		for _,mark := range r.Marks {
+			<article data-review-mark={ mark.Entry.File }>
+				<h3>
+					if mark.Status == "anchor unavailable" {
+						{ mark.Entry.File }
+					} else {
+						<a href={ templ.SafeURL(reviewLink(r, mark.Entry.File, "", "", kind)) }>{ mark.Entry.File }</a>
+					}
+				</h3>
+				<p>{ mark.Status } · viewed: { fmt.Sprint(mark.Entry.Viewed) } · resolved: { fmt.Sprint(mark.Entry.Resolved) }</p>
+				<pre>{ mark.Entry.Note }</pre><details><summary>Original anchor</summary><p>{ mark.Entry.Base } to { mark.Entry.Head } · { mark.Entry.RecordedAt }</p><pre>{ mark.Entry.Context }</pre></details>
+			</article>
+		}
+	</section>
+	<section>
+		<h2>Architecture impact and contract changes</h2>
+		for _,id := range reviewSubjects(r) {
+			<p><a href={ templ.SafeURL(reviewLink(r, r.Selected, id, "", kind)) }>{ id }</a></p>
+		}
+		<details><summary>Complete architecture comparison and source evidence</summary><pre>{ comparisonJSON(r.Comparison) }</pre></details>
+	</section>
 }
 
 templ ReviewNote(token string, r application.ReviewWorkspace) {

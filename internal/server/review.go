@@ -12,6 +12,24 @@ import (
 
 func (a *App) review(w http.ResponseWriter, r *http.Request) {
 	query := r.URL.Query()
+	if query.Get("export") == "" {
+		if query.Get("base") == "" {
+			query.Set("base", "HEAD")
+		}
+		if query.Get("head") == "" {
+			query.Set("head", "HEAD")
+		}
+		query.Set("revision", query.Get("head"))
+		query.Del("head")
+		query.Set("tools", "1")
+		if query.Get("symbolKind") != "" {
+			query.Set("kind", query.Get("symbolKind"))
+			query.Del("symbolKind")
+		}
+		// #nosec G710 -- The destination is the fixed local /explore path. url.Values.Encode escapes all untrusted query keys/values, so they cannot change the path or origin.
+		http.Redirect(w, r, "/explore?"+query.Encode(), http.StatusSeeOther)
+		return
+	}
 	base, head := query.Get("base"), query.Get("head")
 	if base == "" {
 		base = "HEAD"
@@ -40,7 +58,7 @@ func (a *App) review(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Disposition", `attachment; filename="seamgraph-review.html"`)
 		render(w, r, ui.ReviewSnapshot(result))
 	default:
-		render(w, r, ui.ReviewPage(a.token, result, query.Get("q"), query.Get("type"), ui.CodeFilter{Query: query.Get("q"), Kind: query.Get("symbolKind"), Visibility: query.Get("visibility"), Status: query.Get("status"), View: query.Get("view")}))
+		http.Error(w, "unknown review export", http.StatusBadRequest)
 	}
 }
 
@@ -53,6 +71,6 @@ func (a *App) recordReview(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusConflict)
 		return
 	}
-	query := url.Values{"base": {entry.BaseRef}, "head": {entry.HeadRef}, "file": {entry.File}}
-	http.Redirect(w, r, "/review?"+query.Encode(), http.StatusSeeOther)
+	query := url.Values{"tools": {"1"}, "base": {entry.BaseRef}, "revision": {entry.HeadRef}, "file": {entry.File}}
+	http.Redirect(w, r, "/explore?"+query.Encode(), http.StatusSeeOther)
 }

@@ -89,7 +89,6 @@
 .review-tree span { font-size: .75rem; color: #94a3b8; }
 .review-main summary { cursor: pointer; }
 .review-main pre { max-height: 28rem; overflow: auto; white-space: pre; background: #0f172a; padding: .5rem; font-size: .8rem; }
-.review-sources { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: .75rem; }
 .review-note { display: flex; flex-direction: column; gap: .6rem; margin: 1rem 0; }
 .review-note textarea { flex: 1; min-height: 5rem; }
 .review-note button { align-self: start; }
@@ -97,7 +96,7 @@
 .review-main table { width: 100%; border-collapse: collapse; }
 .review-main th, .review-main td { text-align: left; padding: .5rem; border-bottom: 1px solid #334155; }
 .review-main article { border-top: 1px solid #334155; padding: .5rem 0; }
-@media (max-width: 767px) { .review-workspace, .review-sources { grid-template-columns: minmax(0,1fr); } .review-main { padding: .5rem; } }
+@media (max-width: 767px) { .review-workspace { grid-template-columns: minmax(0,1fr); } .review-main { padding: .5rem; } }
 
 
 .view-loading { position: fixed; bottom: 1rem; right: 1rem; z-index: 100; display: flex; align-items: center; gap: .75rem; max-width: calc(100vw - 2rem); padding: .75rem 1rem; border: 1px solid #475569; border-radius: .5rem; background: #0f172a; color: #e2e8f0; box-shadow: 0 4px 16px #0008; pointer-events: none; }
@@ -124,12 +123,26 @@
 .review-main .source-document .source-gutter { position: sticky; left: 0; z-index: 1; flex: none; text-align: right; color: #64748b; border-right: 1px solid #334155; user-select: none; padding-right: .75rem; }
 .source-code { flex: 1; }
 .review-main .source-code code { display: block; padding: 0; overflow: visible; background: transparent; font: inherit; }
-.review-sources .source-viewer { height: 60vh; }
 @media (max-width: 767px) {
  .code-main { overflow: auto; }
  .code-main .review-workspace { display: flex; flex-direction: column; flex: 1 0 auto; overflow: visible; }
  .code-main .review-tree { max-height: 30vh; flex: none; }
  .code-main .review-selection { height: 65vh; flex: none; }
 }
-.review-selection > [aria-label="File comparison"] { min-width: 0; }
-.review-selection > [aria-label="File comparison"] > h2 { display: none; }
+
+.code-main .workspace-review[open] { max-height: 45vh; overflow: auto; border-top: 1px solid #334155; padding-top: .5rem; }
+.unified-diff { overflow: hidden; }
+.diff-legend { display: flex; flex: none; gap: 1rem; font-size: .75rem; padding: .35rem .5rem; border-bottom: 1px solid #334155; }
+.diff-document { width: max-content; min-width: 100%; font: .85rem/1.5rem ui-monospace, SFMono-Regular, Consolas, monospace; }
+.diff-row { display: grid; grid-template-columns: 4rem 4rem 1.5rem minmax(0,1fr); min-height: 1.5rem; }
+.diff-line-number, .diff-mark { user-select: none; color: #94a3b8; text-align: right; padding: 0 .5rem; white-space: pre; }
+.diff-mark { padding: 0 .25rem; text-align: center; }
+.diff-row code { display: block; padding: 0 .5rem; font: inherit; white-space: pre; background: transparent; min-width: 1rem; }
+.diff-row.diff-added { background: #052e16; border-left: 3px solid #22c55e; }
+.diff-row.diff-removed { background: #450a0a; border-left: 3px solid #f87171; }
+.diff-added, .diff-row.diff-added .diff-mark { color: #86efac; }
+.diff-removed, .diff-row.diff-removed .diff-mark { color: #fca5a5; }
+.diff-row.diff-equal, .diff-row.diff-hunk { border-left: 3px solid transparent; }
+.diff-row.diff-hunk { color: #7dd3fc; background: #0c2135; }
+@media (max-width:767px) { .diff-row { grid-template-columns: 2.5rem 2.5rem 1rem minmax(0,1fr); } }
+.unified-diff > [data-diff-source] { display: none; }

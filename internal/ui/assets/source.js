@@ -4,6 +4,29 @@
   const sources=[...document.querySelectorAll("[data-source-code]")];
   const languageFor=code=>languages[code.dataset.sourceFile.split(".").pop().toLowerCase()];
   const candidates=sources.filter(code=>languageFor(code) && code.textContent.length<=250000);
+  const highlightDiff=(source,html)=>{
+    const lines=[],stack=[];
+    let current="";
+    for(const token of html.split(/(\n|<\/?span\b[^>]*>)/)) {
+      if(token==="\n") {
+        lines.push(current+"</span>".repeat(stack.length));
+        current=stack.join("");
+      } else {
+        if(token.startsWith("<span"))stack.push(token);
+        if(token==="</span>")stack.pop();
+        current+=token;
+      }
+    }
+    lines.push(current+"</span>".repeat(stack.length));
+    source.closest("[data-unified-diff]").querySelectorAll("[data-diff-code]").forEach(code=>{
+      if(code.dataset.diffSide!==source.dataset.diffSource)return;
+      const line=lines[Number(code.dataset.diffLine)-1];
+      if(line===undefined)return;
+      code.innerHTML=line;
+      code.classList.add("hljs");
+      code.dataset.highlighted="true";
+    });
+  };
   const pending = new Map();
   let worker;
   try {
@@ -17,6 +40,7 @@
       if (typeof data.html === "string") {
         // highlight.js escapes source before producing its own token spans.
         code.innerHTML = data.html;
+        if(code.dataset.diffSource) highlightDiff(code,data.html);
         code.classList.add("hljs");
         code.dataset.highlighted = "true";
       }

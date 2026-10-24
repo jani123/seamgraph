@@ -9,7 +9,10 @@ import (
 	"seamgraph/internal/ir"
 )
 
-type CodeFilter struct{ Query, Kind, Visibility, Status, View string }
+type CodeFilter struct {
+	Query, Kind, Visibility, Status, View, CommitType, ReviewIssue string
+	ChangesOnly, Tools                                             bool
+}
 type codeSymbolNode struct {
 	Object   application.CodeObject
 	Children []*codeSymbolNode
@@ -21,12 +24,25 @@ type codeTreeView struct {
 
 func codeLink(browser application.CodeBrowser, filter CodeFilter, file, object string) string {
 	revision := codeRevision(browser)
+	base := codeRef(browser.Base)
 	if browser.ReviewHeadRef != "" {
-		return "/review?" + url.Values{"base": {browser.ReviewBaseRef}, "head": {browser.ReviewHeadRef}, "file": {file}, "object": {object}, "q": {filter.Query}, "symbolKind": {filter.Kind}, "visibility": {filter.Visibility}, "status": {filter.Status}, "view": {filter.View}}.Encode()
+		revision = browser.ReviewHeadRef
+		base = browser.ReviewBaseRef
 	}
-	return "/explore?" + url.Values{"revision": {revision}, "base": {codeRef(browser.Base)}, "file": {file}, "object": {object}, "q": {filter.Query}, "kind": {filter.Kind}, "visibility": {filter.Visibility}, "status": {filter.Status}, "view": {filter.View}}.Encode()
+	values := url.Values{"revision": {revision}, "base": {base}, "file": {file}, "object": {object}, "q": {filter.Query}, "kind": {filter.Kind}, "visibility": {filter.Visibility}, "status": {filter.Status}, "view": {filter.View}, "type": {filter.CommitType}}
+	if filter.ChangesOnly {
+		values.Set("changes", "1")
+	}
+	if filter.Tools {
+		values.Set("tools", "1")
+	}
+	return "/explore?" + values.Encode()
 }
+
 func codeMatch(object application.CodeObject, filter CodeFilter) bool {
+	if filter.ChangesOnly && object.Status == "unchanged" {
+		return false
+	}
 	if filter.Kind != "" && filter.Kind != object.Symbol.Kind {
 		return false
 	}
@@ -65,6 +81,9 @@ func codeTree(browser application.CodeBrowser, filter CodeFilter) codeTreeView {
 	paths := attachCodeNodes(nodes, allowed, &tree)
 	files := []application.ReviewFile{}
 	for _, file := range browser.Files {
+		if filter.ChangesOnly && file.Status == "unchanged" {
+			continue
+		}
 		direct := filter.Kind == "" && filter.Visibility == "" && (filter.Status == "" || filter.Status == file.Status) && strings.Contains(strings.ToLower(file.Path), strings.ToLower(filter.Query))
 		if direct || paths[file.Path] {
 			files = append(files, file)
@@ -186,9 +205,27 @@ func codeContains(node *codeSymbolNode, selected string) bool {
 	return false
 }
 
-func codeKindField(browser application.CodeBrowser) string {
-	if browser.ReviewHeadRef != "" {
-		return "symbolKind"
+func comparisonLink(browser application.CodeBrowser, filter CodeFilter, compare bool) string {
+	if compare {
+		browser.ReviewBaseRef = "HEAD"
+		browser.ReviewHeadRef = codeRevision(browser)
+		if browser.ReviewHeadRef == "" {
+			browser.ReviewHeadRef = "WORKTREE"
+		}
+		filter.ChangesOnly = true
+	} else {
+		for _, file := range browser.Files {
+			if file.Path == browser.Selected && file.Status == "removed" {
+				browser.Revision = browser.Base
+			}
+		}
+		if object := selectedCode(browser); object != nil && object.Status == "removed" {
+			browser.Revision = browser.Base
+		}
+		browser.Base = ""
+		browser.ReviewBaseRef = ""
+		browser.ReviewHeadRef = ""
+		filter.ChangesOnly = false
 	}
-	return "kind"
+	return codeLink(browser, filter, browser.Selected, browser.Object)
 }

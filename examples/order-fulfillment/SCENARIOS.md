@@ -108,7 +108,13 @@ parentage and reachability and assert the meaningful revert/rename outcomes.
 
 ## End-to-end Review workspace
 
-Open **Review** from the main navigation. Set target/base to `target` and
+Code and review share one workspace. **Changes only** filters changed files and
+objects and shows unified hunks with one scroll surface. Added lines are green
+and removed lines red, with base/head line numbers and explicit change markers.
+Expand **Review activity and findings** for notes, hotspots, history and exports.
+Existing `/review` links redirect into Code with their comparison context.
+
+Open **Code**, select **Compare changes**, and set base to `target` and
 review/head to `review/history`, then open the review. The page compares those
 exact trees and labels their resolved hashes. It does not automatically select
 a merge base or simulate a merge. `WORKTREE` is supported as a tree comparison;

@@ -139,9 +139,16 @@ Caches/dependency directories and symlinks are excluded, inventories are limited
 to 20,000 files and source previews to 2 MiB. Restart the server after changing
 external dependencies or analysis environment settings.
 
-Open **Review** to browse the comparison's directories, inspect adapter objects,
-drill from hotspots into commits and patches, save file notes and viewed state,
-and export the complete evidence as JSON, Markdown or standalone HTML. Findings
+In **Code**, select **Compare changes** to compare HEAD with working changes,
+or enter committed base/head refs. **Changes only** filters the shared tree and
+shows unified hunks; uncheck it to show the full file with changes marked.
+The unified diff uses one scrollbar, base/head line numbers, green additions and
+red deletions. Binary and oversized diffs are identified explicitly; source
+browsing remains available.
+
+Expand **Review activity and findings** to drill from hotspots into commits and
+patches, save file notes and viewed state, and export the complete evidence as
+JSON, Markdown or standalone HTML. Findings
 retain their original revision and context across commits and server restarts;
 changed anchors are flagged for reconsideration. See the
 [review workflow and limits](examples/order-fulfillment/SCENARIOS.md#end-to-end-review-workspace).
