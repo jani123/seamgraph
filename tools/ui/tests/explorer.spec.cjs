@@ -918,11 +918,11 @@ test('fulfillment review connects directories, hotspots, impact, durable finding
   await historyTab.click();
   await expect(page.locator('[data-unified-diff]')).toContainText('Place order');
   await expect(page.locator('[data-unified-diff] .source-scroll')).toHaveCount(1);
-  await expect(page.locator('[data-review-commit]')).toHaveCount(3);
+  await expect(page.locator('[data-review-commit]')).toHaveCount(historyCount);
   const history=page.getByRole('tabpanel',{name:'History',exact:true});
   await expect(history.locator('pre')).toHaveCount(0);
   await expect(history.getByRole('navigation',{name:'Commit type filters'})).toHaveCount(0);
-  const firstCommit=history.locator('[data-review-commit]').first();
+  const firstCommit=history.locator('[data-review-commit]').filter({has:page.locator('[data-commit-files] a').filter({hasText:checkout})}).first();
   const commitId=await firstCommit.getAttribute('data-review-commit');
   await expect(firstCommit.getByRole('heading')).toBeVisible();
   await expect(firstCommit.getByRole('link',{name:checkout,exact:true})).not.toBeVisible();
@@ -1392,4 +1392,34 @@ test('comments anchor to diff lines and collect across files in a Markdown downl
   await page.screenshot({path:path.join(repo,'.build/change-comment-mobile.png')});
   await page.keyboard.press('Escape');
   expect(fs.existsSync(path.join(root,'seamgraph.yaml'))).toBe(false);
+});
+
+
+test('History shows HEAD~2 to HEAD even when the selected source file was unchanged', async () => {
+  fs.rmSync(root,{recursive:true,force:true});
+  fs.cpSync(path.join(repo,'testdata/projects/go'),root,{recursive:true});
+  const git=args=>execFileSync('git',['-C',root,...args],{encoding:'utf8'}).trim();
+  git(['init','-q']); git(['add','.']);
+  const commit=message=>git(['-c','user.name=Test','-c','user.email=test@example.invalid','commit','-qm',message]);
+  commit('test: baseline');
+  fs.writeFileSync(path.join(root,'notes.txt'),'first change\n');
+  git(['add','notes.txt']); commit('fix: add the first note');
+  const first=git(['rev-parse','HEAD']);
+  fs.writeFileSync(path.join(root,'notes.txt'),'second change\n');
+  git(['add','notes.txt']); commit('docs: update the second note');
+  const second=git(['rev-parse','HEAD']);
+  await page.goto(url+'/explore?'+new URLSearchParams({base:'HEAD~2',revision:'HEAD',file:'npc/npc.go',tab:'history',type:'feat'}));
+  await expect(page.getByRole('tab',{name:'History',exact:true})).toHaveAttribute('aria-selected','true');
+  const history=page.getByRole('tabpanel',{name:'History',exact:true});
+  await expect(history.locator('[data-review-commit]')).toHaveCount(2);
+  await expect(history.getByText('No commits in this comparison.',{exact:true})).toHaveCount(0);
+  await expect(history.getByRole('heading',{name:'fix: add the first note',exact:true})).toBeVisible();
+  await expect(history.getByRole('heading',{name:'docs: update the second note',exact:true})).toBeVisible();
+  const latest=history.locator('[data-review-commit="'+second+'"]');
+  await latest.locator('[data-commit-files] summary').click();
+  await latest.getByRole('link',{name:'notes.txt',exact:true}).click();
+  await expect(page.getByRole('tab',{name:'Source',exact:true})).toHaveAttribute('aria-selected','true');
+  await expect(page.locator('[data-review-base]')).toHaveText(first);
+  await expect(page.locator('[data-review-head]')).toHaveText(second);
+  await expect(page.locator('[data-diff-kind="added"]')).toContainText(['second change']);
 });

@@ -242,8 +242,8 @@ func ReviewHistory(r application.ReviewWorkspace) templ.Component {
 			templ_7745c5c3_Var12 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		commits := reviewCommits(r, "")
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 20, "<section aria-label=\"Touching commits\"><h2>Commits</h2>")
+		commits := r.Activity.Commits
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 20, "<section aria-label=\"Commit history\"><h2>Commits</h2>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -267,7 +267,7 @@ func ReviewHistory(r application.ReviewWorkspace) templ.Component {
 			}
 		}
 		if len(commits) == 0 && r.Activity.Unavailable == "" {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 23, "<p>No commits in this selection.</p>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 23, "<p>No commits in this comparison.</p>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

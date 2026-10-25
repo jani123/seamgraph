@@ -48,21 +48,6 @@ func reviewMark(r application.ReviewWorkspace, file string) application.ReviewMa
 	}
 	return application.ReviewMark{}
 }
-func reviewCommits(r application.ReviewWorkspace, kind string) []ir.ReviewCommit {
-	result := []ir.ReviewCommit{}
-	for _, c := range r.Activity.Commits {
-		if kind != "" && c.Type != kind {
-			continue
-		}
-		if r.Selected != "" {
-			if _, ok := c.Files[r.Selected]; !ok {
-				continue
-			}
-		}
-		result = append(result, c)
-	}
-	return result
-}
 func reviewTypes(r application.ReviewWorkspace) []string {
 	types := []string{}
 	for _, c := range r.Activity.Commits {

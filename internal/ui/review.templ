@@ -48,14 +48,14 @@ templ ReviewHotspots(r application.ReviewWorkspace, query, kind string) {
 }
 
 templ ReviewHistory(r application.ReviewWorkspace) {
- {{ commits := reviewCommits(r, "") }}
-	<section aria-label="Touching commits">
+ {{ commits := r.Activity.Commits }}
+	<section aria-label="Commit history">
 		<h2>Commits</h2>
 		if r.Activity.Unavailable!="" {
 			<p role="status">{ r.Activity.Unavailable }</p>
 		}
 		if len(commits)==0 && r.Activity.Unavailable=="" {
- <p>No commits in this selection.</p>
+ <p>No commits in this comparison.</p>
  }
  for _,c := range commits {
 			<article data-review-commit={ c.Revision } class="history-commit">
