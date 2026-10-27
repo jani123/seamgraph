@@ -1128,6 +1128,7 @@ test('view navigation and native forms show loading feedback until the destinati
       const indicator=document.querySelector('#view-loading');
       new MutationObserver(()=>window.captureViewLoading({
         visible:!indicator.hidden && getComputedStyle(indicator).display!=='none',
+        coversViewport:indicator.getBoundingClientRect().width===innerWidth && indicator.getBoundingClientRect().height===innerHeight,
         busy:document.querySelector('main')?.getAttribute('aria-busy'),
         comparing:document.querySelector('[data-comparison-loading]')?.hidden===false
       })).observe(indicator,{attributes:true});
@@ -1142,7 +1143,7 @@ test('view navigation and native forms show loading feedback until the destinati
     let click;
     try {
       click=action();
-      await expect.poll(()=>states.some(state=>state.visible && state.busy==='true' && (!comparison || state.comparing))).toBe(true);
+      await expect.poll(()=>states.some(state=>state.visible && state.coversViewport && state.busy==='true' && (!comparison || state.comparing))).toBe(true);
       release();
       await click;
       await expect(page.locator('#view-loading')).toBeHidden();

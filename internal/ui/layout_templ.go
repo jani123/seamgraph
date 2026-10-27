@@ -140,7 +140,7 @@ func pageLayoutWithDiagnostics(title, token string, architecture bool, entries [
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "<div id=\"view-loading\" class=\"view-loading\" role=\"status\" aria-live=\"polite\" hidden><span class=\"details-spinner\" aria-hidden=\"true\"></span><span>Loading view…</span></div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "<div id=\"view-loading\" class=\"view-loading\" role=\"status\" aria-live=\"polite\" hidden><span class=\"details-spinner\" aria-hidden=\"true\"></span><div class=\"view-loading-copy\"><strong>Loading view…</strong><span>Please wait while the page is prepared.</span></div></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

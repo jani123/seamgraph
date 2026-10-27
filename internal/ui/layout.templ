@@ -33,7 +33,7 @@ templ pageLayoutWithDiagnostics(title, token string, architecture bool, entries 
 		<body class="explorer bg-slate-950 text-slate-100 font-sans">
 			@pageHeader(title, architecture, entries)
 			@DiagnosticsConsole(entries)
-			<div id="view-loading" class="view-loading" role="status" aria-live="polite" hidden><span class="details-spinner" aria-hidden="true"></span><span>Loading view…</span></div>
+			<div id="view-loading" class="view-loading" role="status" aria-live="polite" hidden><span class="details-spinner" aria-hidden="true"></span><div class="view-loading-copy"><strong>Loading view…</strong><span>Please wait while the page is prepared.</span></div></div>
 			{ children... }
 		</body>
 	</html>
