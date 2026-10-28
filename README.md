@@ -135,22 +135,40 @@ base-revision source and relationships. The working-directory view is live.
 
 Analysis follows each language adapter's production-source and build scope.
 Files remain readable when analysis fails, with errors and uncertainty displayed.
-Caches/dependency directories and symlinks are excluded, inventories are limited
-to 20,000 files and source previews to 2 MiB. Restart the server after changing
+Live browsing excludes caches, dependency directories and symlinks and is limited
+to 20,000 files. Committed review includes generated/vendor paths for explicit
+filtering; exact-tree extraction rejects symlinks and submodules. Source previews
+are limited to 2 MiB. Restart the server after changing
 external dependencies or analysis environment settings.
 
-In **Code**, select **Compare changes** to compare HEAD with working changes,
-or enter committed base/head refs. **Changes only** filters the shared tree and
-shows unified hunks; uncheck it to show the full file with changes marked.
-The unified diff uses one scrollbar, base/head line numbers, green additions and
-red deletions. Binary and oversized diffs are identified explicitly; source
-browsing remains available.
+In **Code**, use the existing **Compare changes** controls for all review work.
+Choose **Branch changes**, then pick **Target branch** and **Review branch**
+from the repository’s branch dropdowns. The current branch is preselected and a
+known target branch is suggested; no commit IDs are needed. Local and cached
+remote-tracking branches are available without fetching. **Compare branch tips**
+compares their exact tips without simulating a merge. **Revisions (advanced)**
+retains explicit ref entry, alongside the working-changes mode. Resolved revisions and mode stay
+visible, and source, comments, history and review tools all use that selection
+without changing the checkout or index.
 
-Expand **Review activity and findings** to drill from hotspots into commits and
-patches, save file notes and viewed state, and export the complete evidence as
-JSON, Markdown or standalone HTML. Findings
-retain their original revision and context across commits and server restarts;
-changed anchors are flagged for reconsideration. See the
+**Changes only** filters the shared tree and shows diff hunks; uncheck it to show
+the full file with changes marked. Choose unified or side-by-side layout, search
+within the diff, and inspect base or head reference evidence. Exact-content file
+moves retain before source; edited moves and changed symbol IDs remain explicitly
+uncertain. Binary and oversized diffs are labeled.
+
+Use the **Comments**, **File review**, **Hotspots**, **History**, **Impact** and
+**Exports** tabs. File review saves viewed markers and a custom checklist per
+comparison. Hotspots offer sorting, frequency/churn/net metrics, directory/module
+grouping, exclusions and a heatmap. Type/scope charts filter the commit list and
+hotspot paths. Files added and later deleted remain inspectable through their
+commits. JSON, Markdown and standalone HTML retain comparison identity, counting
+policy, filters and original evidence. Comment markers appear in both diff layouts and open the editor, including a
+Delete comment action. Saving or deleting a comment
+keeps the current file, filters, layout and scroll position; edits preserve the
+original source anchor and reject stale versions. Findings survive commits and server
+restarts; changed anchors and checklist revisions require reconsideration.
+Architecture context is optional for local review. See the
 [review workflow and limits](examples/order-fulfillment/SCENARIOS.md#end-to-end-review-workspace).
 
 ## Run with bundled analysis runtimes

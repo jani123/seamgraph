@@ -45,9 +45,9 @@ resolved hashes and added/removed violations should match the CLI. Comparisons
 must leave checkout and index unchanged. Snapshot exports retain relation evidence. The Review workspace additionally
 exports persisted findings and original anchors as JSON, Markdown and standalone HTML.
 
-The current comparison uses the two selected trees. Before merging target, use
-`git merge-base target <review-ref>` explicitly when you want a merge-base review;
-never describe the two-tree diff as a simulated merge. `review/history` has already
+CLI `diff --base/--head` and the browser Revisions scope compare exact trees.
+The browser **Compare changes → Branch changes** mode selects the merge base;
+its separate target-tip mode compares two trees, not a simulated merge. `review/history` has already
 merged target: its merge base with target is target itself. Its seed is still
 `main`. The manifest records `beforeMerge` to explore the pre-merge divergence.
 
@@ -109,15 +109,17 @@ parentage and reachability and assert the meaningful revert/rename outcomes.
 ## End-to-end Review workspace
 
 Code and review share one workspace. **Changes only** filters changed files and
-objects and shows unified hunks with one scroll surface. Added lines are green
+objects and shows diff hunks with one scroll surface in unified or side-by-side layout. Added lines are green
 and removed lines red, with base/head line numbers and explicit change markers.
-Expand **Review activity and findings** for notes, hotspots, history and exports.
+Use the **Comments**, **File review**, **Hotspots**, **History**, **Impact** and
+**Exports** tabs for the corresponding tools.
 Existing `/review` links redirect into Code with their comparison context.
 
-Open **Code**, select **Compare changes**, and set base to `target` and
-review/head to `review/history`, then open the review. The page compares those
-exact trees and labels their resolved hashes. It does not automatically select
-a merge base or simulate a merge. `WORKTREE` is supported as a tree comparison;
+Open **Code**, use **Compare changes**, select **Branch changes**,
+and pick `target` from **Target branch** and `review/history` from **Review branch**. This
+selects their merge base; the mode and
+resolved target/base/head hashes remain visible. Choose target-tip mode to compare
+the exact target and review trees without simulating a merge. `WORKTREE` is supported as a tree comparison;
 commit activity is explicitly unavailable for that mode.
 
 1. Expand directories and select files, including `unassigned/`. Search paths to
@@ -125,16 +127,20 @@ commit activity is explicitly unavailable for that mode.
    after side; binary files are labeled without fabricated text. Source panes
    contain the two exact revisions, not the live checkout.
 2. Find checkout in Branch hotspots: three touches and churn six, with zero net
-   changes. Select that row. Three touching commits retain their original
-   messages and individual patches; the final net patch is empty. Filter by
+   changes. Select that row. Use **Commits touching** to see the three original
+   messages and open their individual changes in Source; the final net patch is empty. Filter by
    `assets` to inspect the custom commit and binary marker. Filters select paths
    while row statistics retain full-range totals. The counting policy, binary
-   uncertainty and included paths are visible.
+   uncertainty and included paths are visible. Switch metric/sort/group, inspect the
+   heatmap, and use type/scope charts to filter History and matching hotspot paths.
+   Open `unassigned/temporary.txt` to inspect its deletion commit even though the
+   final trees contain no such path.
 3. Open an object from Objects and signatures or a changed-symbol link. Inspect
    its signature, observed references and source evidence. Possible transitive
    module impact is reverse dependency reachability, not a runtime-call claim.
    The complete comparison retains violations, requirement and evidence changes.
-4. Select checkout, write a review note and mark it Viewed. Advance the same
+4. Select checkout, write a review note and mark it Viewed. Save a custom
+   checklist in File review; its checked items persist with this comparison. Advance the same
    review branch with another checkout edit and commit, then refresh. The note
    remains bound to its original hash and context and needs reconsideration.
    Restart the server: the finding and viewed state must survive. An old save
@@ -153,15 +159,29 @@ repository, checks history against the independent oracle, commits a real follow
 change, restarts the actual server and inspects the exported artifacts. It also
 checks removed/binary source handling, stale-save rejection and mobile overflow.
 
-Current limits are explicit: the review requires an analyzable configured Git
-project; object details show available adapter signatures and reference locations,
-not inferred definition positions. Notes attach to whole files (one latest note
-and viewed/resolved state per path and selected ref pair), not diff hunks or
-symbols. Anchor digests include both compared file contents; unavailable anchors
-retain their original context. Activity excludes merges, follows no renames and
-is bounded to 500 commits. Patches and source displays are bounded to 2 MiB;
-binary or oversized text stays unavailable. The review log is append-only,
+Current limits are explicit: Git is required for comparisons, but architecture
+configuration is optional. Missing architecture or adapter failures remain visible;
+source, history, file review and exports still work. Objects match stable IDs;
+changed IDs and edited moves are not assumed to be the same object. Exact-content
+moves are paired. Notes may attach to whole files or base/head diff lines;
+Commented lines show markers in both diff layouts; editing and saving preserve
+the page state and original anchor. Stale edit versions are rejected.
+Architecture-object anchors and comment resolution remain future work.
+Anchor digests include both compared file contents; unavailable anchors retain
+their original context. Checklist changes are recorded per selected comparison
+mode and refs and require reconsideration after revision updates.
+
+Activity excludes merges, follows no renames and is bounded to 500 commits.
+Shallow history cannot supply complete totals; branch mode asks for complete
+history. Missing/unrelated refs and ambiguous merge bases are explicit errors.
+For grouped hotspots, frequency counts distinct commits touching the group;
+churn sums additions and deletions. Type/scope selection filters commits and paths,
+while hotspot totals retain the full history range for those paths. Generated and
+vendor exclusions use the displayed path heuristics. Squashed history cannot
+recover the original edits. Raw facts and the selected summary both survive export.
+
+Patches and source displays are bounded to 2 MiB, with a smaller inline diff
+budget; binary or oversized text stays unavailable. The review log is append-only,
 serialized between writers, and bounded to 16 MiB; archive a full log before
-adding notes. The later roadmap still covers configuration-free symbol trees,
-automatic merge-base selection, richer filtering and hotspot visualizations,
-hunk/symbol anchors, and more concise review reports.
+adding notes. The later roadmap covers deeper architecture impact, object anchors,
+comment resolution and concise architecture/evidence reports.

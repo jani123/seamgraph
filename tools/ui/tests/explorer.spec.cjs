@@ -700,7 +700,12 @@ test('Help is a standalone responsive page available when project analysis fails
   await expect(page.locator('script').nth(1)).toHaveAttribute('src','/assets/diagnostics.js');
     await page.getByRole('link',{name:'Reference modes',exact:true}).click();
     await expect(page.getByRole('heading',{name:'Reference modes',exact:true})).toBeInViewport();
-    await expect(page.locator('tbody tr')).toHaveCount(5);
+    await expect(page.locator('#reference-modes tbody tr')).toHaveCount(5);
+    await page.getByRole('link',{name:'Comparing changes',exact:true}).click();
+    await expect(page.getByRole('table',{name:'Comparison modes',exact:true}).locator('tbody tr')).toHaveCount(4);
+    await expect(page.locator('#comparisons')).toContainText('Recommended for normal branch review');
+    await expect(page.locator('#comparisons')).toContainText('even though you never deleted it');
+    await expect(page.locator('#comparisons')).toContainText('Neither branch mode simulates a merge or predicts merge conflicts');
     await page.setViewportSize({width:390,height:844});
     await expect.poll(()=>page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
     await page.getByRole('heading',{name:'Understanding evidence'}).scrollIntoViewIfNeeded();
