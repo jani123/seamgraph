@@ -19,20 +19,30 @@ func (s *Service) codeComments(code CodeBrowser, base, head string) (CodeBrowser
 	if err != nil {
 		return code, err
 	}
-	code.Marks = reviewMarks(ReviewWorkspace{BaseRef: base, HeadRef: head, Files: code.Files}, entries)
+	code.Marks = reviewMarks(ReviewWorkspace{BaseRef: base, HeadRef: head, Files: code.Files, Comparison: Result{Base: code.Base, Head: code.Revision}}, entries)
 	return code, nil
 }
 
 func (s *Service) recordComment(ctx context.Context, entry ReviewEntry) error {
-	if !ir.ValidPath(entry.File) || strings.TrimSpace(entry.Note) == "" || len(entry.Note) > 8000 {
+	if !ir.ValidPath(entry.File) || (!entry.Deleted && (strings.TrimSpace(entry.Note) == "" || len(entry.Note) > 8000)) {
 		return fmt.Errorf("a comment needs a valid file and 1–8000 bytes of text")
 	}
-	code, err := s.Code(ctx, entry.HeadRef, entry.BaseRef, entry.File, "")
+	if entry.Deleted && entry.CommentID == "" {
+		return fmt.Errorf("select an existing comment to delete")
+	}
+	file := entry.File
+	if entry.CommentID != "" {
+		file = ""
+	}
+	code, err := s.Code(ctx, entry.HeadRef, entry.BaseRef, file, "")
 	if err != nil {
 		return err
 	}
 	if entry.Base == "" || entry.Base != code.Base || entry.Head != code.Revision {
 		return fmt.Errorf("comparison changed; refresh before saving")
+	}
+	if entry.CommentID != "" {
+		return s.editComment(code, entry)
 	}
 	excerpt, err := commentContext(code, entry.Side, entry.Line)
 	if err != nil {
@@ -125,4 +135,30 @@ func commentSide(side string) string {
 		return "Base"
 	}
 	return "Head"
+}
+
+// Edits append a new version of the same comment, preserving its original
+// revision, source context and digest even when that anchor has become stale.
+func (s *Service) editComment(code CodeBrowser, update ReviewEntry) error {
+	for _, mark := range code.Marks {
+		original := mark.Entry
+		if !original.Comment || original.CommentID != update.CommentID || original.File != update.File {
+			continue
+		}
+		version := original.UpdatedAt
+		if version == "" {
+			version = original.RecordedAt
+		}
+		if update.EditVersion == "" || update.EditVersion != version {
+			return fmt.Errorf("comment changed; reopen it before saving")
+		}
+		original.EditVersion = update.EditVersion
+		original.Deleted = update.Deleted
+		if !update.Deleted {
+			original.Note = update.Note
+		}
+		original.UpdatedAt = time.Now().UTC().Format(time.RFC3339Nano)
+		return s.ports.AppendReview(s.root, original)
+	}
+	return fmt.Errorf("comment no longer exists in this comparison")
 }

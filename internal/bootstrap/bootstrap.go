@@ -24,7 +24,7 @@ func New(root string) (*application.Service, error) {
 	return application.New(root, application.Ports{
 		ConfigKey: projectfiles.ConfigKey, Inventory: projectfiles.Inventory,
 		Index: scanner().Index, BrowseInventory: projectfiles.BrowseInventory,
-		Activity: gitworkspace.Activity, ReadReview: projectfiles.ReadReview, AppendReview: projectfiles.AppendReview,
+		Branches: gitworkspace.Branches, NetStats: gitworkspace.NetStats, BranchRange: gitworkspace.BranchRange, Activity: gitworkspace.Activity, ReadReview: projectfiles.ReadReview, AppendReview: projectfiles.AppendReview,
 		Scan: scanner().Scan, LoadConfig: projectfiles.Load, LoadContracts: projectfiles.LoadContracts,
 		ReadStore: projectfiles.ReadStore, AppendEvidence: projectfiles.AppendEvidence, EvidenceDir: projectfiles.EvidenceDir,
 		ReadFile: os.ReadFile, Execute: testresults.Execute,

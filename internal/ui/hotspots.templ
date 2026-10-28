@@ -1,0 +1,99 @@
+package ui
+
+import (
+ "fmt"
+ "seamgraph/internal/application"
+)
+
+templ ActivityControls(r application.ReviewWorkspace,tab string) {
+ <form method="get" action="/explore" class="review-controls" aria-label="Activity filters">
+  <input type="hidden" name="base" value={ r.BaseRef }/><input type="hidden" name="revision" value={ r.HeadRef }/>
+  <input type="hidden" name="file" value={ r.Selected }/><input type="hidden" name="tab" value={ tab }/>
+  <input type="hidden" name="tools" value="1"/>
+  <label>Filter paths<input name="q" value={ r.PathFilter }/></label>
+  <label>Commit type<input name="type" value={ r.TypeFilter }/></label>
+  <label>Commit scope<input name="commitScope" value={ r.Options["commitScope"] }/></label>
+  <label>Selected group<input name="historyGroup" value={ r.Options["historyGroup"] }/></label>
+  <label>Touching file<input name="historyFile" value={ r.Options["historyFile"] }/></label>
+  <label>Metric<select name="metric">
+   for _,m:=range []string{"frequency","churn","net"} {
+    <option selected?={ r.Options["metric"]==m }>{ m }</option>
+   }
+  </select></label>
+  <label>Sort<select name="sort">
+   for _,m:=range []string{"descending","ascending","path"} {
+    <option selected?={ r.Options["sort"]==m }>{ m }</option>
+   }
+  </select></label>
+  <label>Group by<select name="group">
+   for _,m:=range []string{"file","directory","module"} {
+    <option selected?={ r.Options["group"]==m }>{ m }</option>
+   }
+  </select></label>
+  <label>Exclude content<select name="exclude">
+   <option value="">Nothing excluded</option>
+   for _,m:=range []string{"generated","vendor","generated,vendor"} {
+    <option selected?={ r.Options["exclude"]==m }>{ m }</option>
+   }
+  </select></label>
+  <button>Apply activity filters</button>
+ </form>
+ <p>Generated exclusions use generated/ directories, .generated., _generated. and .pb.go names; vendor exclusions use vendor/ and node_modules/. These are visible path heuristics.</p>
+}
+
+templ ActivityCharts(r application.ReviewWorkspace) {
+ <section aria-label="Commit summary charts">
+  <h3>Commits by type</h3>
+  <nav class="activity-chart" aria-label="Type chart">
+   for _,count:=range r.Summary.Types {
+    <a data-code-tab-link="history" href={ templ.SafeURL(activityLink(r,"type",count.Name,"history")) }><span>{ fmt.Sprintf("%s: %d commits",count.Name,count.Count) }</span><meter aria-hidden="true" min="0" max={ fmt.Sprint(len(r.Activity.Commits)) } value={ fmt.Sprint(count.Count) }></meter></a>
+   }
+  </nav>
+  <h3>Commits by scope</h3>
+  <nav class="activity-chart" aria-label="Scope chart">
+   for _,count:=range r.Summary.Scopes {
+    <a data-code-tab-link="history" href={ templ.SafeURL(activityLink(r,"commitScope",count.Name,"history")) }><span>{ fmt.Sprintf("%s: %d commits",count.Name,count.Count) }</span><meter aria-hidden="true" min="0" max={ fmt.Sprint(len(r.Activity.Commits)) } value={ fmt.Sprint(count.Count) }></meter></a>
+   }
+  </nav>
+  <p>Charts count commits, not touched files or churn. Counts honor path/content filters and precede type/scope selection. Type/scope filters select commits and hotspot paths; hotspot totals retain the full history range for those paths. Reverts contribute activity even when the net change is zero. Merges are excluded; squash history cannot reveal the original edits. Activity guides review and does not prove defects, complexity or productivity.</p>
+ </section>
+}
+
+templ HotspotMap(r application.ReviewWorkspace) {
+ <section aria-label="Hotspot heatmap">
+  <h3>Hotspot heatmap</h3><p>Color intensity follows the selected metric. Frequency counts distinct commits touching each group; churn sums added and deleted lines. Unknown binary line metrics have no intensity.</p>
+  <div class="hotspot-map">
+   for _,h:=range r.Summary.Hotspots {
+    <a data-code-tab-link="history" class="hotspot-tile" style={ heatStyle(h,r.Summary.Hotspots,r.Options["metric"]) } href={ templ.SafeURL(hotspotDestination(r,h)) }>{ h.Path } ·
+     if heatUnknown(h,r.Options["metric"]) {
+      Unknown (binary)
+     } else {
+      { fmt.Sprint(heatValue(h,r.Options["metric"])) }
+     }
+    </a>
+   }
+  </div>
+ </section>
+}
+
+templ CommitTimeline(r application.ReviewWorkspace) {
+ <section aria-label="Commit timeline by type">
+  <h3>Commit timeline by type</h3>
+  for _,kind:=range timelineTypes(r) {
+   <details><summary>{ kind }</summary><ol>
+    for _,c:=range timelineCommits(r,kind) {
+      <li><time datetime={ c.Date }>{ c.Date }</time> · <a href={ templ.SafeURL("#commit-"+c.Revision) }>{ c.Revision[:min(12,len(c.Revision))] }</a> · { c.Message }
+       if c.Breaking {
+        <strong>Breaking change</strong>
+       }
+      </li>
+    }
+   </ol></details>
+  }
+ </section>
+}
+
+templ ActivityRange(r application.ReviewWorkspace) {
+ <p aria-label="History range">History range: <code>{ r.Activity.Base }</code>..<code>{ r.Activity.Head }</code> (non-merge commits unreachable from the selected history base).</p>
+ <p>Final net trees: <code>{ r.Comparison.Base }</code> → <code>{ r.Comparison.Head }</code>.</p>
+}

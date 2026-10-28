@@ -9,20 +9,23 @@ import (
 templ ReviewHotspots(r application.ReviewWorkspace, query, kind string) {
 	<section>
 		<h2>Branch hotspots</h2>
-		<p>{ r.Activity.Policy }. Frequency counts commits; churn counts additions plus deletions, including reverted work. Paths are not followed across renames. Binary line statistics are unknown. Unassigned, generated and vendor paths remain included. Table sorts by frequency, then path.</p>
+  @ActivityRange(r)
+		<p>{ r.Activity.Policy }. Frequency counts commits; churn counts additions plus deletions, including reverted work. Paths are not followed across renames: detected exact moves remain separate history paths; edited moves are uncertain. Binary line statistics are unknown. Frequency counts distinct touching commits per row. Net +/− is the final comparison, separately from cumulative history.</p>
 		if r.Activity.Unavailable != "" {
 			<p role="status">{ r.Activity.Unavailable }</p>
 		}
-		@ReviewCommitFilters(r, kind)
+		@ActivityControls(r,"hotspots")
+  @ReviewCommitFilters(r, kind)
+  @ActivityCharts(r)
+  @HotspotMap(r)
 		<p>Commit type filtering selects hotspot paths touched by those commits; each row retains its full-range totals.</p>
 		<div class="review-table">
 			<table>
 				<thead><tr><th>Path</th><th>Touches</th><th>Added</th><th>Deleted</th><th>Churn</th><th>Final net +/−</th></tr></thead>
 				<tbody>
-					for _,h := range r.Hotspots {
-						if hotspotVisible(r,h,kind,query) {
+					for _,h := range r.Summary.Hotspots {
 							<tr data-hotspot-path={ h.Path }>
-								<td><a data-code-tab-link="source" href={ templ.SafeURL(reviewLink(r, h.Path, "", "", kind)) }>{ h.Path }</a></td>
+								<td><a data-code-tab-link="source" href={ templ.SafeURL(hotspotSource(r,h)) }>{ h.Path }</a></td>
 								<td>{ fmt.Sprint(h.Touches) }</td>
 								if h.Binary {
 									<td colspan="3">Unknown (binary)</td>
@@ -39,18 +42,26 @@ templ ReviewHotspots(r application.ReviewWorkspace, query, kind string) {
 									}
 								</td>
 							</tr>
-						}
 					}
 				</tbody>
 			</table>
+   <nav aria-label="Hotspot commit drill-down">
+    for _,h:=range r.Summary.Hotspots {
+     <a data-code-tab-link="history" href={ templ.SafeURL(hotspotDestination(r,h)) }>{ "Commits touching "+h.Path }</a>
+    }
+   </nav>
 		</div>
 	</section>
 }
 
 templ ReviewHistory(r application.ReviewWorkspace) {
- {{ commits := r.Activity.Commits }}
+ {{ commits := r.Summary.Commits }}
 	<section aria-label="Commit history">
 		<h2>Commits</h2>
+  @ActivityRange(r)
+  @ActivityControls(r,"history")
+  @ActivityCharts(r)
+  @CommitTimeline(r)
 		if r.Activity.Unavailable!="" {
 			<p role="status">{ r.Activity.Unavailable }</p>
 		}
@@ -58,7 +69,7 @@ templ ReviewHistory(r application.ReviewWorkspace) {
  <p>No commits in this comparison.</p>
  }
  for _,c := range commits {
-			<article data-review-commit={ c.Revision } class="history-commit">
+			<article id={ "commit-"+c.Revision } data-review-commit={ c.Revision } class="history-commit">
 				<h3>{ strings.SplitN(c.Message,"\n",2)[0] }</h3>
 				<code>{ c.Revision[:min(12,len(c.Revision))] }</code>
 				if c.Breaking {
@@ -70,9 +81,11 @@ templ ReviewHistory(r application.ReviewWorkspace) {
 				<details data-commit-files>
 					<summary>{ fmt.Sprintf("Affected files (%d)", len(c.Files)) }</summary>
 					<ul>
-						for path,stats := range c.Files {
+						for _,path:=range commitFiles(c,r) {
+       {{ stats:=c.Files[path] }}
 							<li>
-								<a data-code-tab-link="source" href={ templ.SafeURL(historySourceLink(c,path)) } title="Open this commit's file in Source">{ path }</a>
+        <span class="commit-file-owner">{ reviewFileGroup(r,path) } · { reviewFileSeams(r,path) }</span>
+        <a data-code-tab-link="source" href={ templ.SafeURL(historySourceLink(c,path)) } title="Open this commit's file in Source">{ path }</a>
 								if stats.Binary {
 									Unknown (binary)
 								} else {
@@ -91,7 +104,7 @@ templ ReviewFindings(r application.ReviewWorkspace, kind string) {
 	<section aria-label="Review findings">
 		<h2>Review findings and viewed files</h2>
 		for _,mark := range r.Marks {
- if !mark.Entry.Comment {
+ if !mark.Entry.Comment && !mark.Entry.Checklist {
 			<article data-review-mark={ mark.Entry.File }>
 				<h3>
 					if mark.Status == "anchor unavailable" {
@@ -109,6 +122,9 @@ templ ReviewFindings(r application.ReviewWorkspace, kind string) {
 }
 
 templ ReviewImpact(r application.ReviewWorkspace, kind string) {
+ if r.ArchitectureIssue!="" {
+  <p role="status">{ r.ArchitectureIssue }</p>
+ }
 	if r.Object != nil {
 		<section data-review-object>
 			<h3>Observed architecture references</h3>
@@ -148,7 +164,22 @@ templ ReviewSnapshot(r application.ReviewWorkspace) {
 			<h1>Local review snapshot</h1>
 			<p>Two-tree comparison: { r.Comparison.Base } to { r.Comparison.Head }</p>
 			<p>Contains complete architecture and reference evidence, history, review findings and original anchors. Full source is included only for the selected file: { r.Selected }. Saved findings also include original bounded source excerpts.</p>
-			<pre>{ application.ReviewJSON(r) }</pre>
+			<h2>Activity summary</h2>
+   <p>{ r.Activity.Policy }. Counts below retain full-range hotspot totals for the filtered paths. Binary line statistics are unknown. Activity is guidance, not proof of defects or productivity.</p>
+   <p>Path filter: { r.PathFilter }; type: { r.TypeFilter }; scope: { r.Options["commitScope"] }; group: { r.Options["group"] }; metric: { r.Options["metric"] }; sort: { r.Options["sort"] }; exclude: { r.Options["exclude"] }.</p>
+   <ul>
+    for _,h:=range r.Summary.Hotspots {
+     <li>{ h.Path } · { fmt.Sprint(h.Touches) } touching commits · churn:
+      if h.Binary {
+       Unknown (binary)
+      } else {
+       { fmt.Sprint(h.Churn) }
+      }
+     </li>
+    }
+   </ul>
+   <h2>Complete evidence and original anchors</h2>
+   <pre>{ application.ReviewJSON(r) }</pre>
 		</body>
 	</html>
 }

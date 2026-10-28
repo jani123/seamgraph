@@ -1,0 +1,32 @@
+package ui
+
+import (
+ "strings"
+ "seamgraph/internal/application"
+)
+
+templ ComparisonIdentity(browser application.CodeBrowser) {
+ if r:=browser.Range;r!=nil {
+  <section class="comparison-identity" aria-label="Review comparison">
+   <p>Target: { r.Target } · <code>{ r.TargetRevision }</code></p>
+   <p>Review: { r.Review } · <code>{ r.Head }</code></p>
+   <p>Mode: { r.Mode }. Compared base: <code>{ r.Base }</code>.</p>
+   if r.Mode=="target-tip" {
+ <p>Two-tree comparison, not a simulated merge result.</p>
+ }
+  </section>
+ } else if browser.Base!="" {
+  <p>Mode: { comparisonMode(browser) }. This compares two trees, not a simulated merge result.</p>
+ }
+}
+
+templ ReviewOptionsFields(options map[string]string) {
+ for key,value:=range options {
+ <input type="hidden" name={ key } value={ value }/>
+ }
+}
+
+func comparisonMode(browser application.CodeBrowser) string {
+ if strings.HasPrefix(browser.Revision,"WORKTREE:") {return "working changes"}
+ return "exact revisions"
+}

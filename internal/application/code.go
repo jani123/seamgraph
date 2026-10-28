@@ -13,28 +13,34 @@ import (
 )
 
 type CodeObject struct {
-	Symbol ir.Symbol `json:"symbol"`
-	Status string    `json:"status"`
-	Seams  []string  `json:"seams"`
+	Matching     string    `json:"matching"`
+	PreviousFile string    `json:"previousFile,omitempty"`
+	Symbol       ir.Symbol `json:"symbol"`
+	Status       string    `json:"status"`
+	Seams        []string  `json:"seams"`
 }
 type CodeBrowser struct {
-	Marks                []ReviewMark    `json:"marks,omitempty"`
-	ReviewBaseRef        string          `json:"reviewBaseRef,omitempty"`
-	ReviewHeadRef        string          `json:"reviewHeadRef,omitempty"`
-	ContentRevision      string          `json:"contentRevision"`
-	RelationshipRevision string          `json:"relationshipRevision"`
-	Revision             string          `json:"revision"`
-	Base                 string          `json:"base,omitempty"`
-	Files                []ReviewFile    `json:"files"`
-	Objects              []CodeObject    `json:"objects"`
-	Relations            []ir.Relation   `json:"relations"`
-	Diagnostics          []ir.Diagnostic `json:"diagnostics"`
-	Issues               []string        `json:"issues"`
-	Selected             string          `json:"selected,omitempty"`
-	Object               string          `json:"object,omitempty"`
-	Content              ReviewContent   `json:"content"`
-	Before               ReviewContent   `json:"before"`
-	After                ReviewContent   `json:"after"`
+	AfterRelations       []ir.Relation     `json:"afterRelations,omitempty"`
+	BeforeRelations      []ir.Relation     `json:"beforeRelations,omitempty"`
+	Options              map[string]string `json:"options,omitempty"`
+	Range                *ir.ReviewRange   `json:"range,omitempty"`
+	Marks                []ReviewMark      `json:"marks,omitempty"`
+	ReviewBaseRef        string            `json:"reviewBaseRef,omitempty"`
+	ReviewHeadRef        string            `json:"reviewHeadRef,omitempty"`
+	ContentRevision      string            `json:"contentRevision"`
+	RelationshipRevision string            `json:"relationshipRevision"`
+	Revision             string            `json:"revision"`
+	Base                 string            `json:"base,omitempty"`
+	Files                []ReviewFile      `json:"files"`
+	Objects              []CodeObject      `json:"objects"`
+	Relations            []ir.Relation     `json:"relations"`
+	Diagnostics          []ir.Diagnostic   `json:"diagnostics"`
+	Issues               []string          `json:"issues"`
+	Selected             string            `json:"selected,omitempty"`
+	Object               string            `json:"object,omitempty"`
+	Content              ReviewContent     `json:"content"`
+	Before               ReviewContent     `json:"before"`
+	After                ReviewContent     `json:"after"`
 }
 type codeCache struct {
 	mu      sync.Mutex
@@ -58,7 +64,7 @@ func (s *Service) codeIndex(ctx context.Context, root, identity string, files ma
 	}
 	return index, err
 }
-func (s *Service) Code(ctx context.Context, revision, base, file, object string) (CodeBrowser, error) {
+func (s *Service) readCode(ctx context.Context, revision, base, file, object string) (CodeBrowser, error) {
 	root := s.root
 	cleanup := func() {}
 	identity := "Working directory"
@@ -70,7 +76,11 @@ func (s *Service) Code(ctx context.Context, revision, base, file, object string)
 		}
 	}
 	defer cleanup()
-	files, err := s.ports.BrowseInventory(root)
+	inventory := s.ports.BrowseInventory
+	if revision != "" {
+		inventory = s.ports.Inventory
+	}
+	files, err := inventory(root)
 	if err != nil {
 		return CodeBrowser{}, err
 	}
@@ -82,7 +92,7 @@ func (s *Service) Code(ctx context.Context, revision, base, file, object string)
 	result.ContentRevision = identity
 	result.RelationshipRevision = identity
 	if base != "" {
-		before, err := s.Code(ctx, base, "", "", "")
+		before, err := s.readCode(ctx, base, "", "", "")
 		if err != nil {
 			return result, err
 		}
@@ -103,7 +113,7 @@ func (s *Service) Code(ctx context.Context, revision, base, file, object string)
 	if err != nil {
 		return result, err
 	}
-	return s.codeComments(result, base, revision)
+	return result, nil
 }
 func (s *Service) codeContent(ctx context.Context, root string, files map[string]string, base string, result CodeBrowser) (CodeBrowser, error) {
 	removed := false
@@ -116,7 +126,7 @@ func (s *Service) codeContent(ctx context.Context, root string, files map[string
 		return result, nil
 	}
 	if base != "" && (removed || files[result.Selected] == "") {
-		previous, err := s.Code(ctx, base, "", result.Selected, "")
+		previous, err := s.readCode(ctx, base, "", basePath(result), "")
 		if err != nil {
 			return result, err
 		}
@@ -156,7 +166,7 @@ func (s *Service) codeBaseline(ctx context.Context, base string, result CodeBrow
 		if file.Path != result.Selected || file.BeforeDigest == "" {
 			continue
 		}
-		before, err := s.Code(ctx, base, "", result.Selected, "")
+		before, err := s.readCode(ctx, base, "", basePath(result), "")
 		if err != nil {
 			return result, err
 		}
@@ -189,7 +199,7 @@ func codeBrowser(index ir.CodeIndex, files map[string]string, revision string) C
 			symbol.Definition = &definition
 			symbol.ModuleID = codeOwner(index.DeclaredModules, definition.Location.File)
 		}
-		object := CodeObject{Symbol: symbol, Status: "unchanged", Seams: []string{}}
+		object := CodeObject{Symbol: symbol, Status: "unchanged", Matching: "stable ID", Seams: []string{}}
 		for _, seam := range index.DeclaredSeams {
 			if slices.Contains(seam.ContractMembers, symbol.ID) {
 				object.Seams = append(object.Seams, seam.ID)
@@ -198,7 +208,7 @@ func codeBrowser(index ir.CodeIndex, files map[string]string, revision string) C
 		result.Objects = append(result.Objects, object)
 	}
 	for file, digest := range files {
-		result.Files = append(result.Files, ReviewFile{Path: file, Status: "unchanged", Module: codeOwner(index.DeclaredModules, file), AfterDigest: digest})
+		result.Files = append(result.Files, ReviewFile{Path: file, Configuration: file == ConfigFilename, Status: "unchanged", Module: codeOwner(index.DeclaredModules, file), AfterDigest: digest})
 	}
 	slices.SortFunc(result.Files, func(a, b ReviewFile) int { return strings.Compare(a.Path, b.Path) })
 	result.Relations = codeRelations(index, ids)
@@ -236,6 +246,8 @@ func codeRelations(index ir.CodeIndex, ids map[string]string) []ir.Relation {
 	return result
 }
 func compareCode(before, after CodeBrowser) CodeBrowser {
+	after.BeforeRelations = before.Relations
+	after.AfterRelations = after.Relations
 	symbols := map[string]CodeObject{}
 	for _, o := range before.Objects {
 		symbols[o.Symbol.ID] = o
@@ -244,13 +256,19 @@ func compareCode(before, after CodeBrowser) CodeBrowser {
 		old, ok := symbols[o.Symbol.ID]
 		if !ok {
 			after.Objects[i].Status = "added"
+			after.Objects[i].Matching = "unmatched ID; a renamed/moved declaration may be the same object"
 		} else if codeSignature(old.Symbol) != codeSignature(o.Symbol) {
 			after.Objects[i].Status = "modified"
+		}
+		if ok && old.Symbol.Definition != nil && o.Symbol.Definition != nil && old.Symbol.Definition.Location.File != o.Symbol.Definition.Location.File {
+			after.Objects[i].Status = "modified"
+			after.Objects[i].PreviousFile = old.Symbol.Definition.Location.File
 		}
 		delete(symbols, o.Symbol.ID)
 	}
 	for _, old := range symbols {
 		old.Status = "removed"
+		old.Matching = "unmatched ID; a renamed/moved declaration may be the same object"
 		after.Objects = append(after.Objects, old)
 	}
 	beforeFiles := map[string]string{}
@@ -283,4 +301,31 @@ func codeSignature(symbol ir.Symbol) string {
 	}
 	data, _ := json.Marshal(symbol)
 	return string(data)
+}
+
+func (s *Service) Code(ctx context.Context, revision, base, file, object string) (CodeBrowser, error) {
+	selection, err := s.reviewRange(ctx, base, revision)
+	if err != nil {
+		return CodeBrowser{}, err
+	}
+	actualBase, actualHead := base, revision
+	if selection != nil {
+		actualBase, actualHead = selection.Base, selection.Head
+	}
+	code, err := s.readCode(ctx, actualHead, actualBase, file, object)
+	if err != nil {
+		return code, err
+	}
+	code.Range = selection
+	code.ReviewBaseRef, code.ReviewHeadRef = base, revision
+	return s.codeComments(code, base, revision)
+}
+
+func basePath(code CodeBrowser) string {
+	for _, file := range code.Files {
+		if file.Path == code.Selected && file.OldPath != "" {
+			return file.OldPath
+		}
+	}
+	return code.Selected
 }

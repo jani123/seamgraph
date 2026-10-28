@@ -74,7 +74,11 @@ func AppendReview(root string, entry application.ReviewEntry) error {
 	}
 	_ = lock.Close()
 	defer func() { _ = scope.Remove(".seamgraph/reviews.lock") }()
-	if _, err := ReadReview(root); err != nil {
+	entries, err := ReadReview(root)
+	if err != nil {
+		return err
+	}
+	if err = checkCommentVersion(entries, entry); err != nil {
 		return err
 	}
 	file, err := scope.OpenFile(".seamgraph/reviews.jsonl", os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0600)
@@ -97,4 +101,27 @@ func AppendReview(root string, entry application.ReviewEntry) error {
 		return err
 	}
 	return file.Sync()
+}
+
+// Called while holding reviews.lock so a stale reader cannot overwrite a newer
+// edit between application validation and the append.
+func checkCommentVersion(entries []application.ReviewEntry, entry application.ReviewEntry) error {
+	if !entry.Comment || entry.EditVersion == "" {
+		return nil
+	}
+	for i := len(entries) - 1; i >= 0; i-- {
+		current := entries[i]
+		if !current.Comment || current.CommentID != entry.CommentID || current.File != entry.File || current.BaseRef != entry.BaseRef || current.HeadRef != entry.HeadRef {
+			continue
+		}
+		version := current.UpdatedAt
+		if version == "" {
+			version = current.RecordedAt
+		}
+		if current.Deleted || version != entry.EditVersion {
+			return fmt.Errorf("comment changed; reopen it before saving")
+		}
+		return nil
+	}
+	return fmt.Errorf("comment no longer exists in this comparison")
 }

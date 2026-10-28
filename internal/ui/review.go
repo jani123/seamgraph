@@ -38,7 +38,11 @@ func reviewTree(files []application.ReviewFile, query string) []*reviewNode {
 	return root.Children
 }
 func reviewLink(r application.ReviewWorkspace, file, object, export, kind string) string {
-	return "/explore?" + url.Values{"tools": {"1"}, "base": {r.BaseRef}, "revision": {r.HeadRef}, "file": {file}, "object": {object}, "export": {export}, "type": {kind}, "q": {r.PathFilter}}.Encode()
+	values := url.Values{"tools": {"1"}, "base": {r.BaseRef}, "revision": {r.HeadRef}, "file": {file}, "object": {object}, "export": {export}, "type": {kind}, "q": {r.PathFilter}}
+	for key, value := range r.Options {
+		values.Set(key, value)
+	}
+	return "/explore?" + values.Encode()
 }
 func reviewMark(r application.ReviewWorkspace, file string) application.ReviewMark {
 	for _, mark := range r.Marks {
@@ -77,23 +81,6 @@ func reviewSubjects(r application.ReviewWorkspace) []string {
 	slices.Sort(ids)
 	return slices.Compact(ids)
 }
-func hotspotVisible(r application.ReviewWorkspace, h application.Hotspot, kind, query string) bool {
-	if !strings.Contains(strings.ToLower(h.Path), strings.ToLower(query)) {
-		return false
-	}
-	if kind == "" {
-		return true
-	}
-	for _, commit := range r.Activity.Commits {
-		if commit.Type == kind {
-			if _, ok := commit.Files[h.Path]; ok {
-				return true
-			}
-		}
-	}
-	return false
-}
-
 func historySourceLink(commit ir.ReviewCommit, file string) string {
 	values := url.Values{"revision": {commit.Revision}, "file": {file}, "changes": {"1"}}
 	if commit.Parent != "" {

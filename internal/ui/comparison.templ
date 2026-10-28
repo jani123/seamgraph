@@ -1,11 +1,17 @@
 package ui
 
+import ("strings"
+ "fmt"
+ "seamgraph/internal/ir"
+)
+
 // ComparisonControls is shared by the graph and source workspaces. Only the
 // submission transport differs: graph updates are HTMX, source updates navigate.
-templ ComparisonControls(architecture bool, base, head, clear string, active bool) {
+templ ComparisonControls(architecture bool, base, head, clear string, active bool, branches ir.BranchChoices) {
+ {{ branchMode:=isBranchComparison(base) }}
 	<section class="comparison border border-slate-800 rounded-xl bg-slate-900" aria-label="Compare changes">
 		<h2 class="font-medium text-sm">Compare changes</h2>
-		<form method="get" class="comparison-form flex gap-2" data-comparison-controls
+		<form method="get" class="comparison-form flex gap-2" data-comparison-controls data-branch-count={ fmt.Sprint(len(branches.Items)) }
 			if architecture {
 				hx-get="/changes"
 				hx-target="#changes"
@@ -15,15 +21,30 @@ templ ComparisonControls(architecture bool, base, head, clear string, active boo
 		>
 			<select name="scope" aria-label="Comparison scope" class="bg-slate-950 rounded px-3 py-2 border border-slate-700">
 				<option value="working" selected?={ head=="WORKTREE" }>Working changes</option>
-				<option value="revisions" selected?={ head!="WORKTREE" }>Revisions</option>
+				if !architecture {
+     <option value="branches" selected?={ strings.HasPrefix(base,"merge-base:") }>Branch changes</option>
+     <option value="target-tip" selected?={ strings.HasPrefix(base,"target-tip:") }>Compare branch tips</option>
+    }
+    <option value="revisions" selected?={ head!="WORKTREE" && !strings.HasPrefix(base,"merge-base:") && !strings.HasPrefix(base,"target-tip:") }>Revisions (advanced)</option>
 			</select>
-			<input name="base" value={ base } aria-label="Base revision" required class="bg-slate-950 rounded px-3 py-2 border border-slate-700"/>
-			<input name="head" value={ head } aria-label="Head revision" required class="bg-slate-950 rounded px-3 py-2 border border-slate-700"/>
+   if !architecture {
+    @BranchPicker(branches,"base","Target branch",branchSelection(branches,strings.TrimPrefix(strings.TrimPrefix(base,"merge-base:"),"target-tip:"),true,branchMode),branchMode)
+    @BranchPicker(branches,"head","Review branch",branchSelection(branches,head,false,branchMode),branchMode)
+   }
+   <input name="base" data-revision-field="base" value={ strings.TrimPrefix(strings.TrimPrefix(base,"merge-base:"),"target-tip:") } aria-label="Base revision" hidden?={ branchMode } disabled?={ branchMode } required class="bg-slate-950 rounded px-3 py-2 border border-slate-700"/>
+   <input name="head" data-revision-field="head" value={ head } aria-label="Head revision" hidden?={ branchMode } disabled?={ branchMode } required class="bg-slate-950 rounded px-3 py-2 border border-slate-700"/>
+
 			{ children... }
 			<button class="bg-slate-700 rounded px-4 py-2">Compare</button>
 			<span class="comparison-loading" data-comparison-loading role="status" aria-live="polite" hidden><span class="details-spinner" aria-hidden="true"></span>Comparing…</span>
 			<a id="clear-comparison" href={ templ.SafeURL(clear) } hidden?={ !active } class="bg-slate-700 rounded px-4 py-2">Clear comparison</a>
 		</form>
+  if !architecture {
+   <p data-branch-unavailable hidden?={ !branchMode || (branches.Unavailable=="" && len(branches.Items)>0) }>
+    Branch choices are unavailable. Open a Git repository with branches, or use Revisions (advanced) for explicit refs.
+   </p>
+   <p class="comparison-help">Choose the branch to review and the target it will merge into. Branch changes shows work introduced by that branch; comparing branch tips shows their current differences, not a simulated merge. The selection applies to every review tab.</p>
+  }
 		if architecture {
 			<div id="changes" class="text-xs text-slate-400"></div>
 		}

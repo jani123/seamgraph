@@ -1,0 +1,29 @@
+package ui
+
+import "seamgraph/internal/ir"
+
+templ BranchPicker(choices ir.BranchChoices,name,label,selected string,active bool) {
+ <label data-branch-field hidden?={ !active }>
+  { label }
+  <select name={ name } aria-label={ label } data-branch-picker={ name } disabled?={ !active || len(choices.Items)==0 } required>
+   <option value="" selected?={ selected=="" }>Choose a branch…</option>
+   if !knownBranch(choices,selected) {
+    <option value={ selected } selected>{ selected } (selected ref)</option>
+   }
+   for _,remote:=range []bool{false,true} {
+    <optgroup label={ branchGroupLabel(remote) }>
+     for _,item:=range choices.Items {
+      if item.Remote==remote {
+       <option value={ item.Ref } selected?={ item.Ref==selected }>{ branchLabel(item) }</option>
+      }
+     }
+    </optgroup>
+   }
+  </select>
+ </label>
+}
+
+func branchGroupLabel(remote bool) string {
+ if remote {return "Remote-tracking branches"}
+ return "Local branches"
+}

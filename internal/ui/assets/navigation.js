@@ -3,22 +3,29 @@
   const comparisonBusy = (form, busy) => {
     if (!form?.matches("[data-comparison-controls]")) return;
     form.setAttribute("aria-busy", String(busy));
-    form.querySelector("button").disabled = busy;
+    form.querySelector("button").disabled = busy || form.dataset.branchesUnavailable === "true";
     form.querySelector("[data-comparison-loading]").hidden = !busy;
   };
   document.addEventListener("htmx:beforeRequest", event => comparisonBusy(event.detail.elt, true));
   document.addEventListener("htmx:afterRequest", event => comparisonBusy(event.detail.elt, false));
   document.querySelectorAll("[data-comparison-controls]").forEach(form => {
-    const scope = form.elements.scope, base = form.elements.base, head = form.elements.head;
-    let revisions = scope.value === "working" ? ["HEAD~1", "HEAD"] : [base.value, head.value];
-    const update = () => {
-      const working = scope.value === "working";
-      if (working) { base.value = "HEAD"; head.value = "WORKTREE"; }
-      else { [base.value, head.value] = revisions; }
-      base.readOnly = head.readOnly = working;
+    const scope=form.elements.scope,base=form.querySelector('[data-revision-field="base"]'),head=form.querySelector('[data-revision-field="head"]');
+    const target=form.querySelector('[data-branch-picker="base"]'),review=form.querySelector('[data-branch-picker="head"]');
+    let revisions=scope.value==='working'?['HEAD~1','HEAD']:[base.value,head.value];
+    const update=()=>{
+      const working=scope.value==='working',branches=scope.value==='branches'||scope.value==='target-tip';
+      if(working){base.value='HEAD';head.value='WORKTREE';}
+      else if(!branches){[base.value,head.value]=revisions;}
+      for(const input of [base,head]){input.hidden=branches;input.disabled=branches;input.readOnly=working;}
+      form.querySelectorAll('[data-branch-field]').forEach(label=>label.hidden=!branches);
+      for(const select of [target,review]){if(select)select.disabled=!branches || form.dataset.branchCount==='0';}
+      const unavailable=branches && (!target || target.disabled || !review || review.disabled);
+      form.dataset.branchesUnavailable=String(unavailable);form.querySelector('button').disabled=unavailable;
+      const message=form.parentElement.querySelector('[data-branch-unavailable]');if(message)message.hidden=!unavailable;
     };
-    scope.addEventListener("change", update);
-    form.addEventListener("input", event => { if ((event.target === base || event.target === head) && scope.value === "revisions") revisions = [base.value, head.value]; });
+    scope.addEventListener('change',update);
+    form.addEventListener('input',event=>{if((event.target===base||event.target===head)&&scope.value==='revisions')revisions=[base.value,head.value];});
+    for(const select of [target,review]){select?.addEventListener('change',()=>{revisions=[target.value,review.value];});}
     update();
   });
   const indicator = document.querySelector("#view-loading");

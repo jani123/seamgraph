@@ -14,7 +14,10 @@ templ UnifiedDiff(browser application.CodeBrowser, changes bool) {
 		} else if view.Unchanged && changes {
 			<p role="status">No changes in this file.</p>
 		}
-		<div class="source-scroll diff-scroll">
+		if browser.Options["layout"]=="split" {
+   @SplitDiff(view)
+  } else {
+  <div class="source-scroll diff-scroll">
 			<div class="diff-document">
 				for _,row:=range view.Rows {
 					<div class={ "diff-row diff-" + row.Kind } data-diff-kind={ row.Kind }>
@@ -30,7 +33,8 @@ templ UnifiedDiff(browser application.CodeBrowser, changes bool) {
 				}
 			</div>
 		</div>
-		<code hidden data-source-code data-source-file={ browser.Selected } data-diff-source="before">{ view.Before }</code>
+		}
+  <code hidden data-source-code data-source-file={ browser.Selected } data-diff-source="before">{ view.Before }</code>
 		<code hidden data-source-code data-source-file={ browser.Selected } data-diff-source="after">{ view.After }</code>
 	</section>
 }

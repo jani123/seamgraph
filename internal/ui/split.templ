@@ -1,0 +1,31 @@
+package ui
+
+import "fmt"
+
+templ SplitDiff(view diffView) {
+ <div class="source-scroll diff-scroll" data-split-diff>
+  <div class="split-document">
+   <div class="split-row"><strong>Base</strong><strong>Head</strong></div>
+   for _,pair:=range splitRows(view) {
+    if pair.Header!="" {
+ <div class="diff-hunk">{ pair.Header }</div>
+ } else {
+     <div class="split-row">
+      @SplitCell(pair.Before,"before")
+      @SplitCell(pair.After,"after")
+     </div>
+    }
+   }
+  </div>
+ </div>
+}
+
+templ SplitCell(row diffLine,side string) {
+ {{ line:=row.Old;if side=="after" {line=row.New} }}
+ <div class={ "split-cell diff-"+row.Kind } data-diff-kind={ row.Kind }>
+  if line>0 {
+   <button type="button" class="diff-line-number" data-comment-side={ side } data-comment-line={ fmt.Sprint(line) } aria-label={ fmt.Sprintf("Comment on %s line %d",side,line) }>{ fmt.Sprint(line) }</button>
+   <code data-diff-code data-diff-side={ side } data-diff-line={ fmt.Sprint(line) }>{ row.Text }</code>
+  }
+ </div>
+}

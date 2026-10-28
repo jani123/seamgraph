@@ -1,0 +1,36 @@
+package ui
+
+import "seamgraph/internal/application"
+
+templ ReviewChecklist(token string,r application.ReviewWorkspace) {
+ {{ mark:=checklistMark(r) }}
+ <form method="post" action="/review" class="review-checklist" aria-label="Review checklist">
+  <h3>Review checklist</h3>
+  <input type="hidden" name="token" value={ token }/><input type="hidden" name="checklist" value="1"/>
+  <input type="hidden" name="baseRef" value={ r.BaseRef }/><input type="hidden" name="headRef" value={ r.HeadRef }/>
+  <input type="hidden" name="base" value={ r.Comparison.Base }/><input type="hidden" name="head" value={ r.Comparison.Head }/>
+  <label>Checklist<textarea aria-label="Checklist" name="note" maxlength="8000" rows="5">{ mark.Entry.Note }</textarea></label>
+  <p>Use [x] for completed items. { mark.Status }. The checklist is local to this comparison; revision changes require reconsideration.</p>
+  <button>Save checklist</button>
+ </form>
+ <section aria-label="Changed files by architecture">
+  <h3>Changed files by module and seam</h3>
+  <p>Root configuration and unassigned paths remain visible. Seams are declared memberships, not inferred ownership.</p>
+  for _,group:=range reviewGroups(r) {
+   <details open><summary>{ group.Name }</summary><ul>
+    for _,file:=range group.Files {
+     <li><a data-code-tab-link="source" href={ templ.SafeURL(reviewLink(r,file.Path,"","",r.TypeFilter)) }>{ file.Path }</a> · { file.Status } · { reviewFileSeams(r,file.Path) }</li>
+    }
+   </ul></details>
+  }
+ </section>
+}
+
+templ DiffControls(browser application.CodeBrowser,filter CodeFilter) {
+ <nav aria-label="Diff layout" class="review-controls">
+  <a data-code-tab-link="source" href={ templ.SafeURL(diffLayoutLink(browser,filter,"unified")) }>Unified</a>
+  <a data-code-tab-link="source" href={ templ.SafeURL(diffLayoutLink(browser,filter,"split")) }>Side by side</a>
+  <label>Find in diff<input type="search" data-diff-search/></label><output data-diff-matches aria-live="polite"></output>
+ </nav>
+ <p class="diff-matching">{ moveDescription(browser) }</p>
+}

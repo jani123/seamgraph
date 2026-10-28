@@ -19,25 +19,51 @@ templ ChangeComments(browser application.CodeBrowser) {
  <span>{ fmt.Sprintf(" · %s line %d",commentSideLabel(mark.Entry.Side),mark.Entry.Line) }</span>
  }
 					</h3>
-					<p>{ mark.Status } · { mark.Entry.RecordedAt }</p>
+					<p>{ mark.Status } · { mark.Entry.RecordedAt }
+      if mark.Entry.UpdatedAt!="" {
+       · Edited: { mark.Entry.UpdatedAt }
+      }
+     </p>
 					<pre class="comment-text">{ mark.Entry.Note }</pre>
+     <button type="button" data-comment-edit={ mark.Entry.CommentID }>Edit comment</button>
 					<details><summary>Original source context</summary><p>{ mark.Entry.Base } → { mark.Entry.Head }</p><pre>{ mark.Entry.Context }</pre></details>
 				</article>
 		}
 	</section>
 }
 
-templ CommentComposer(token string, browser application.CodeBrowser) {
+templ CommentComposer(token string, browser application.CodeBrowser, filter CodeFilter) {
+ @CommentState(browser)
 	<dialog id="comment-composer" class="diagnostics-console comment-composer" aria-labelledby="comment-title">
 		<header><h2 id="comment-title">Add comment</h2><button type="button" data-comment-close aria-label="Close comment">Close</button></header>
 		<form method="post" action="/review" class="comment-form">
 			<input type="hidden" name="token" value={ token }/><input type="hidden" name="comment" value="1"/>
 			<input type="hidden" name="baseRef" value={ browser.ReviewBaseRef }/><input type="hidden" name="headRef" value={ browser.ReviewHeadRef }/>
 			<input type="hidden" name="base" value={ browser.Base }/><input type="hidden" name="head" value={ browser.Revision }/>
-			<input type="hidden" name="file" value={ browser.Selected }/><input type="hidden" name="side"/><input type="hidden" name="line"/>
+			<input type="hidden" name="commentId"/><input type="hidden" name="commentVersion"/>
+   <input type="hidden" name="selectedFile" value={ browser.Selected }/>
+   <input type="hidden" name="returnTo" value={ codeLink(browser,filter,browser.Selected,browser.Object) }/>
+   <input type="hidden" name="file" value={ browser.Selected }/><input type="hidden" name="side"/><input type="hidden" name="line"/>
 			<p data-comment-anchor>{ browser.Selected }</p><pre data-comment-preview hidden></pre>
 			<label for="comment-text">Comment</label><textarea id="comment-text" name="note" required maxlength="8000" rows="5" autofocus></textarea>
-			<button>Save comment</button>
+			<p data-comment-error role="alert" hidden></p>
+   <button type="submit">Save comment</button>
+   <button type="submit" name="deleteComment" value="1" data-comment-delete formnovalidate hidden>Delete comment</button>
+   <button type="button" data-comment-new hidden>Add another comment on this anchor</button>
+   <section data-comment-existing aria-label="Comments on this anchor"></section>
 		</form>
 	</dialog>
+}
+
+templ CommentState(browser application.CodeBrowser) {
+ <div data-comment-state hidden>
+  for _,mark:=range changeComments(browser) {
+   <div data-comment-record data-id={ mark.Entry.CommentID } data-file={ mark.Entry.File } data-side={ mark.Entry.Side } data-line={ fmt.Sprint(mark.Entry.Line) } data-note={ mark.Entry.Note } data-status={ mark.Status } data-version={ commentVersion(mark.Entry) } data-context={ mark.Entry.Context } data-base={ mark.Entry.Base } data-head={ mark.Entry.Head }></div>
+  }
+ </div>
+}
+
+templ CommentUpdates(browser application.CodeBrowser) {
+ @ChangeComments(browser)
+ @CommentState(browser)
 }

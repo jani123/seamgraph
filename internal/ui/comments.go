@@ -24,3 +24,10 @@ func changeComments(browser application.CodeBrowser) []application.ReviewMark {
 	}
 	return result
 }
+
+func commentVersion(entry application.ReviewEntry) string {
+	if entry.UpdatedAt != "" {
+		return entry.UpdatedAt
+	}
+	return entry.RecordedAt
+}

@@ -10,6 +10,7 @@ import (
 )
 
 type CodeFilter struct {
+	Branches                                                            ir.BranchChoices
 	Query, Kind, Visibility, Status, View, CommitType, ReviewIssue, Tab string
 	ChangesOnly, Tools                                                  bool
 }
@@ -30,6 +31,9 @@ func codeLink(browser application.CodeBrowser, filter CodeFilter, file, object s
 		base = browser.ReviewBaseRef
 	}
 	values := url.Values{"revision": {revision}, "base": {base}, "file": {file}, "object": {object}, "q": {filter.Query}, "kind": {filter.Kind}, "visibility": {filter.Visibility}, "status": {filter.Status}, "view": {filter.View}, "type": {filter.CommitType}}
+	for key, value := range browser.Options {
+		values.Set(key, value)
+	}
 	if filter.ChangesOnly {
 		values.Set("changes", "1")
 	}
@@ -217,6 +221,7 @@ func comparisonLink(browser application.CodeBrowser, filter CodeFilter) string {
 	if object := selectedCode(browser); object != nil && object.Status == "removed" {
 		browser.Revision = browser.Base
 	}
+	browser.Range = nil
 	browser.Base = ""
 	browser.ReviewBaseRef = ""
 	browser.ReviewHeadRef = ""

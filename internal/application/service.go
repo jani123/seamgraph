@@ -36,6 +36,9 @@ type RuleEdit interface {
 // Ports are capabilities supplied once at construction. Queries never call the
 // mutation ports. Extract must return cleanup even when materialization fails.
 type Ports struct {
+	Branches        func(context.Context, string) (ir.BranchChoices, error)
+	NetStats        func(context.Context, string, string, string) (map[string]ir.LineStats, error)
+	BranchRange     func(context.Context, string, string, string, string) (ir.ReviewRange, error)
 	Index           func(context.Context, string, map[string]string) (ir.CodeIndex, error)
 	BrowseInventory func(string) (map[string]string, error)
 	Activity        func(context.Context, string, string, string, string) (ir.Activity, error)

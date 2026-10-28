@@ -1,0 +1,17 @@
+package ui
+
+templ TreeKindIcon(kind string) {
+ <span class="tree-icon tree-kind" data-tree-kind={ kind } data-tree-tooltip={ treeKindLabel(kind) } aria-hidden="true">
+  <svg viewBox="0 0 20 20" focusable="false"><path d={ treeKindPath(kind) }></path></svg>
+ </span>
+}
+
+templ TreeStatusIcon(status string) {
+ if path:=treeStatusPaths[status];path!="" {
+  <span class={ "tree-icon tree-status tree-status-"+status } data-tree-status={ status } data-tree-tooltip={ treeStatusLabel(status) } aria-hidden="true">
+   <svg viewBox="0 0 20 20" focusable="false"><path d={ path }></path></svg>
+  </span>
+ } else {
+  <span class="tree-icon tree-status" aria-hidden="true"></span>
+ }
+}

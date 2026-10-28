@@ -2,6 +2,7 @@ package application
 
 import (
 	"context"
+	"fmt"
 	"seamgraph/internal/ir"
 	"testing"
 )
@@ -52,5 +53,15 @@ func TestReviewRejectsRecapturedWorkingChanges(t *testing.T) {
 	}}}
 	if _, _, err := s.reviewTree(context.Background(), "WORKTREE:old"); err == nil || !cleaned {
 		t.Fatal("changed working snapshot accepted or leaked", err)
+	}
+}
+
+func TestUnavailableHistoryDoesNotExposePartialTotals(t *testing.T) {
+	service := Service{ports: Ports{Activity: func(context.Context, string, string, string, string) (ir.Activity, error) {
+		return ir.Activity{Commits: []ir.ReviewCommit{{Revision: "partial"}}}, fmt.Errorf("history unavailable")
+	}}}
+	activity := service.reviewActivity(context.Background(), "target", "review", "")
+	if len(activity.Commits) != 0 || activity.Unavailable == "" || activity.Base != "target" || activity.Head != "review" {
+		t.Fatal(activity)
 	}
 }

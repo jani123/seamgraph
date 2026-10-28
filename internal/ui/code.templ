@@ -10,8 +10,9 @@ templ CodePage(token string, browser application.CodeBrowser, filter CodeFilter,
  {{ active := codeWorkspaceTab(filter, browser.Base!="", review!=nil) }}
 	@pageLayoutWithDiagnostics("Code", token, false, codeDiagnostics(browser, filter)) {
 		<main class="review-main code-main">
-			@ComparisonControls(false, comparisonBase(browser), comparisonHead(browser), comparisonLink(browser, filter), browser.Base!="") {
-				<input type="hidden" name="file" value={ browser.Selected }/>
+   @ComparisonControls(false, comparisonBase(browser), comparisonHead(browser), comparisonLink(browser, filter), browser.Base!="", filter.Branches) {
+				@ReviewOptionsFields(browser.Options)
+    <input type="hidden" name="file" value={ browser.Selected }/>
 				<input type="hidden" name="changes" value="1"/>
 				<input type="hidden" name="object" value={ browser.Object }/>
 				<input type="hidden" name="q" value={ filter.Query }/>
@@ -21,6 +22,7 @@ templ CodePage(token string, browser application.CodeBrowser, filter CodeFilter,
  <input type="hidden" name="tab" value={ active }/>
 			}
 			<h1>Code explorer</h1>
+   @ComparisonIdentity(browser)
 			if browser.Base!="" {
 				<div class="code-tabs" role="tablist" aria-label="Code workspace">
 					for _,tab:=range codeTabs(review!=nil) {
@@ -52,7 +54,8 @@ templ CodePage(token string, browser application.CodeBrowser, filter CodeFilter,
 				<input type="hidden" name="object" value={ browser.Object }/>
 				<input type="hidden" name="tools" value={ codeToolsValue(active!="source") }/>
  <input type="hidden" name="tab" value={ active }/>
-				@CodeFilters(browser, filter)
+				@ReviewOptionsFields(browser.Options)
+    @CodeFilters(browser, filter)
 				<button>Explore</button>
 			</form>
 				@CodeWorkspace(browser, filter)
@@ -64,7 +67,8 @@ templ CodePage(token string, browser application.CodeBrowser, filter CodeFilter,
 						if browser.Selected!="" {
  @ReviewNote(token, *review)
  }
-						@ReviewFindings(*review, filter.CommitType)
+						@ReviewChecklist(token,*review)
+      @ReviewFindings(*review, filter.CommitType)
 					}
 					@CodeTabPanel("hotspots", active) { @ReviewHotspots(*review, filter.Query, filter.CommitType) }
 					@CodeTabPanel("history", active) { @ReviewHistory(*review) }
@@ -82,8 +86,8 @@ templ CodePage(token string, browser application.CodeBrowser, filter CodeFilter,
 			}
 
 		</main>
-		if browser.Base!="" && browser.Selected!="" {
-			@CommentComposer(token, browser)
+		if browser.Base!="" {
+			@CommentComposer(token, browser, filter)
 		}
 	}
 }
@@ -112,7 +116,7 @@ templ CodeFilters(browser application.CodeBrowser, filter CodeFilter) {
 		Changed status
 		<select name="status" aria-label="Changed status">
 			<option value="">All statuses</option>
-			for _,v:=range []string{"added","modified","removed","unchanged"} {
+			for _,v:=range []string{"added","modified","renamed","removed","unchanged"} {
 				<option value={ v } selected?={ v==filter.Status }>{ v }</option>
 			}
 		</select>
@@ -126,7 +130,7 @@ templ CodeWorkspace(browser application.CodeBrowser, filter CodeFilter) {
 		</aside>
 		<section class="review-selection" aria-label="Object details">
 			if browser.Selected!="" {
-				<div class="code-source-header"><span title={ browser.Selected }>{ browser.Selected }</span>
+    <div class="code-source-header"><span title={ browser.Selected }>{ browser.Selected }</span>
  if browser.Base!="" {
  <button type="button" data-comment-open>Add comment</button>
  }
@@ -138,6 +142,7 @@ templ CodeWorkspace(browser application.CodeBrowser, filter CodeFilter) {
 					if object:=selectedCode(browser);object!=nil {
 						<h2>{ object.Symbol.ID }</h2>
 						<p>{ object.Symbol.Kind } · { object.Symbol.Visibility } · { object.Status }</p>
+      <p>Identity matching: { object.Matching }. Previous file: { object.PreviousFile }</p>
 						<pre data-code-signature>{ object.Symbol.DisplaySignature }</pre>
 						if definition:=object.Symbol.Definition;definition!=nil {
 							<p data-code-location>{ fmt.Sprintf("%s:%d:%d",definition.Location.File,definition.Location.StartLine,definition.Location.StartColumn) } · { definition.Location.Confidence }</p>
@@ -154,13 +159,15 @@ templ CodeWorkspace(browser application.CodeBrowser, filter CodeFilter) {
 							}
 						</p>
 						<p>Declared seams: { strings.Join(object.Seams,", ") }</p>
-						@CodeRelationships(browser, filter)
+						<p>Objects match stable IDs. Renamed or moved declarations may appear as added/removed; matching across IDs is uncertain.</p>
+        @CodeRelationships(browser, filter)
 					}
 				</details>
 			}
 			if browser.Selected!="" {
 				if browser.Base!="" {
-					@UnifiedDiff(browser, filter.ChangesOnly)
+     @DiffControls(browser,filter)
+     @UnifiedDiff(browser, filter.ChangesOnly)
 				} else {
 					@SourceViewer(browser.Content, browser.Selected, codeFocus(browser))
 				}
@@ -176,22 +183,25 @@ templ CodeFiles(browser application.CodeBrowser, filter CodeFilter, tree codeTre
 			<li>
 				if len(node.Children)>0 {
 					<details open?={ (filter.Query!="" || filter.Kind!="" || filter.Visibility!="" || filter.Status!="") || strings.HasPrefix(browser.Selected,node.Path+"/") }>
-						<summary data-code-entry="directory">
-							@CodeEntryLabel(true, node.Name)
+						<summary data-code-entry="directory" data-tree-tooltip="Directory" aria-description="Directory">
+							@TreeStatusIcon("")
+       @CodeEntryLabel(true, node.Name)
 						</summary>
 						@CodeFiles(browser, filter, tree, node.Children)
 					</details>
 				} else {
 					<details open?={ browser.Selected==node.Path || filter.Query!="" }>
 						<summary data-code-entry="file" data-code-selected?={ browser.Selected==node.Path }>
-							<a
+							<a class="tree-entry"
 								href={ templ.SafeURL(codeLink(browser, filter, node.Path, "")) }
+        data-tree-tooltip={ treeFileDescription(node.Status) } aria-description={ treeFileDescription(node.Status) }
 								if browser.Selected==node.Path && browser.Object=="" {
 									aria-current="true"
 								}
 							>
-								@CodeEntryLabel(false, node.Name)
-							</a> · { node.Status }
+								@TreeStatusIcon(node.Status)
+        @CodeEntryLabel(false, node.Name)
+							</a>
 						</summary>
 						if len(tree.Symbols[node.Path])>0 {
 							@CodeSymbols(browser, filter, tree.Symbols[node.Path])
@@ -212,21 +222,29 @@ templ CodeSymbols(browser application.CodeBrowser, filter CodeFilter, nodes []*c
 				if len(node.Children)>0 {
 					<details open?={ filter.Query!="" || codeAncestor(nodes,browser.Object,node.Object.Symbol.ID) }>
 						<summary>
-							<a
+							<a class="tree-entry"
 								href={ templ.SafeURL(codeLink(browser, filter, "", node.Object.Symbol.ID)) }
+        aria-label={ codeName(node.Object) } aria-description={ treeObjectDescription(node.Object) } data-tree-tooltip={ treeObjectDescription(node.Object) }
 								if browser.Object==node.Object.Symbol.ID {
 									aria-current="true"
 								}
-							>{ codeName(node.Object) }</a> · { node.Object.Symbol.Kind } · { node.Object.Status }
+							>
+        @TreeStatusIcon(node.Object.Status)
+        @TreeKindIcon(node.Object.Symbol.Kind)
+        { codeName(node.Object) }</a>
 						</summary>@CodeSymbols(browser, filter, node.Children)
 					</details>
 				} else {
-					<a
+					<a class="tree-entry tree-leaf"
 						href={ templ.SafeURL(codeLink(browser, filter, "", node.Object.Symbol.ID)) }
+        aria-label={ codeName(node.Object) } aria-description={ treeObjectDescription(node.Object) } data-tree-tooltip={ treeObjectDescription(node.Object) }
 						if browser.Object==node.Object.Symbol.ID {
 							aria-current="true"
 						}
-					>{ codeName(node.Object) }</a><span>· { node.Object.Symbol.Kind } · { node.Object.Status }</span>
+					>
+       @TreeStatusIcon(node.Object.Status)
+       @TreeKindIcon(node.Object.Symbol.Kind)
+       { codeName(node.Object) }</a>
 				}
 			</li>
 		}
@@ -235,6 +253,12 @@ templ CodeSymbols(browser application.CodeBrowser, filter CodeFilter, nodes []*c
 
 templ CodeRelationships(browser application.CodeBrowser, filter CodeFilter) {
 	<h3>Focused relationships</h3>
+ if browser.Base!="" {
+  <nav aria-label="Relationship revision">
+   <a href={ templ.SafeURL(evidenceLink(browser,filter,"before")) }>Base references</a>
+   <a href={ templ.SafeURL(evidenceLink(browser,filter,"after")) }>Head references</a>
+  </nav>
+ }
 	<p>Consumers and callers show observed static reference sites. Type relationships show inferred structural conformance and do not prove runtime dispatch.</p>
 	<nav aria-label="Relationship views" class="review-controls">
 		for _,v:=range []struct{value,label string}{{"consumers","Consumers"},{"callers","Callers"},{"outgoing","References from"},{"types","Type relationships"}} {
@@ -253,7 +277,7 @@ templ CodeRelationships(browser application.CodeBrowser, filter CodeFilter) {
 }
 
 templ CodeEntryLabel(directory bool, name string) {
-	<svg class="code-entry-icon" viewBox="0 0 20 20" aria-hidden="true" focusable="false">
+	<svg class="code-entry-icon" data-tree-tooltip={ treeEntryKind(directory) } viewBox="0 0 20 20" aria-hidden="true" focusable="false">
 		if directory {
 			<path d="M2 5a1 1 0 0 1 1-1h5l2 2h7a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1Z"></path>
 		} else {

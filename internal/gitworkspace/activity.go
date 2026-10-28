@@ -21,6 +21,14 @@ func Activity(ctx context.Context, root, base, head, file string) (ir.Activity, 
 		a.Unavailable = "Commit activity is unavailable for a working-tree comparison"
 		return a, nil
 	}
+	shallow, err := git(ctx, root, "rev-parse", "--is-shallow-repository")
+	if err != nil {
+		return a, err
+	}
+	if strings.TrimSpace(string(shallow)) == "true" {
+		a.Unavailable = "Commit history is shallow; fetch complete history for activity totals"
+		return a, nil
+	}
 	if file != "" && !ir.ValidPath(file) {
 		return a, fmt.Errorf("invalid activity path")
 	}
@@ -39,11 +47,7 @@ func Activity(ctx context.Context, root, base, head, file string) (ir.Activity, 
 		}
 		a.Commits = append(a.Commits, commit)
 	}
-	data, err := git(ctx, root, "diff", "--no-ext-diff", "--no-textconv", "--numstat", "-z", "--no-renames", base, head, "--")
-	if err != nil {
-		return a, err
-	}
-	a.Net, err = parseNumstat(data)
+	a.Net, err = NetStats(ctx, root, base, head)
 	if err != nil {
 		return a, err
 	}
@@ -55,12 +59,14 @@ func Activity(ctx context.Context, root, base, head, file string) (ir.Activity, 
 
 func activityCommit(ctx context.Context, root, revision, file string) (ir.ReviewCommit, error) {
 	c := ir.ReviewCommit{Revision: revision}
-	metadata, err := git(ctx, root, "show", "-s", "--format=%P%x00%B", revision, "--")
+	metadata, err := git(ctx, root, "show", "-s", "--format=%P%x00%aI%x00%B", revision, "--")
 	if err != nil {
 		return c, err
 	}
-	parents, message, ok := strings.Cut(string(metadata), "\x00")
-	if !ok {
+	parents, rest, ok := strings.Cut(string(metadata), "\x00")
+	date, message, dateOK := strings.Cut(rest, "\x00")
+	c.Date = date
+	if !ok || !dateOK {
 		return c, fmt.Errorf("invalid Git commit metadata")
 	}
 	if fields := strings.Fields(parents); len(fields) > 0 {
@@ -135,4 +141,13 @@ func activityPatch(ctx context.Context, root string, args []string) (string, err
 		return "Patch exceeds the 2 MiB display limit; use Git locally.", nil
 	}
 	return string(data), nil
+}
+
+// NetStats measures the final trees independently of commit-history selection.
+func NetStats(ctx context.Context, root, base, head string) (map[string]ir.LineStats, error) {
+	data, err := git(ctx, root, "diff", "--no-ext-diff", "--no-textconv", "--numstat", "-z", "--no-renames", base, head, "--")
+	if err != nil {
+		return nil, err
+	}
+	return parseNumstat(data)
 }

@@ -22,6 +22,7 @@ import (
 )
 
 type Explorer interface {
+	Branches(context.Context) ir.BranchChoices
 	Code(context.Context, string, string, string, string) (application.CodeBrowser, error)
 	Review(context.Context, string, string, string, string) (application.ReviewWorkspace, error)
 	RecordReview(context.Context, application.ReviewEntry) error
